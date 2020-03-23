@@ -6,11 +6,17 @@
  * 
  * To change this template use Tools | Options | Coding | Edit Standard Headers.
  */
- 
- //TODO: blend src>>2+dest>>2 if 127 OR 128
- ///TODO: create RImageVSHA.cs but still call the object a RImage
- ///-combinations allowed: 88 VA16, 844 VSH16, and 8448 VSHA24
-///TODO: finish this -- finish implementing brushFore and brushBack by eliminating all modifications to brush in draw methods
+//TODO: (x=done)
+//-Scaling methods:
+//  -public const int ResizeLinearWithNearestSubPixelDownscaling=1;
+//  -public const int ResizePolyCurveSimplification=2;// make LGPL resizing dll (and script-fu version?)
+//  -public const int ResizeNearestSubPixel=3;
+//  -public const int ResizeNearestPixel=4;
+//  -public const int ResizeGaussian=4;
+//-blend src>>2+dest>>2 if 127 OR 128
+//-create RImageVSHA.cs but still call the object RImage
+//-combinations allowed: 88 VA16, 844 VSH16, and 8448 VSHA24
+//-finish this -- finish implementing rpaintFore and rpaintBack by eliminating all modifications to rpaint in draw methods
 using System;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -20,24 +26,44 @@ using System.IO;
 namespace ExpertMultimedia {
 	/// <summary>
 	/// For simple graphics buffers used as images, variable-size frames, or graphics surfaces.
+	/// Static overlay (DrawTo) methods are called by the nonstatic (DrawFrom) equivalents
 	/// </summary>
 	public class RImage {
 		public static readonly string[] sarrDrawMode=new string[] {"DrawModeCopyAlpha", "DrawModeAlpha","DrawModeAlphaQuickEdge","DrawModeAlphaHardEdge","DrawModeGreaterAlpha","DrawModeKeepDestAlpha"};
 		public const int DrawModeCopyAlpha			= 0;
-		public const int DrawModeAlpha			= 1;
-		public const int DrawModeAlphaQuickEdge	= 2;//QuickEdge
-		public const int DrawModeAlphaHardEdge	= 3;
+		public const int DrawModeAlpha				= 1; //does NOT affect dest alpha (there is no DrawModeAlphaAlpha)
+		public const int DrawModeAlphaQuickEdge	= 2; //QuickEdge
+		public const int DrawModeAlphaHardEdge		= 3;
 		public const int DrawModeKeepGreaterAlpha	= 4;
 		public const int DrawModeKeepDestAlpha		= 5;
+		public const int ScaleModeLinear				= 0;
 		private const int INDEX_TL=0;
 		private const int INDEX_TR=1;
 		private const int INDEX_BL=2;
 		private const int INDEX_BR=3;
+		public const float fDiagonalUnit = 1.4142135623730950488016887242097F;//the square root of 2, dist of diagonal pixel
+		public const double dDiagonalUnit = 1.4142135623730950488016887242097D;//the square root of 2 (dist=sqrt(a*a+b*b)), dist of diagonal pixel
+		public const decimal mDiagonalUnit = 1.4142135623730950488016887242097M;//the square root of 2, dist of diagonal pixel
 		
 		public Bitmap bmpLoaded=null;//keep this in order to retain any metadata upon save
 		public byte[] byarrData=null;
 		public int iWidth;
 		public int iHeight;
+		public RPaint rpaintTemp=new RPaint();
+		public int iBytesPP;
+		public int iStride;
+		public int iBytesTotal;
+		public int iPixelsTotal;
+		public static RPaint rpaintFore=new RPaint();//private static byte[] byarrBrushBack=null;
+		public static RPaint rpaintBack=new RPaint();//private static byte[] byarrBrushBack32Copied64=null;
+		public string sPathFileBaseName="1.untitled";
+		public string sFileExt="raw";
+		public static string sPixel32StyleIsAlways { get { return "bgra"; } } //assumes 32-bit
+		private static bool bShowGetPixelError=true;
+		private static bool bFirstCancellationOfDrawSmallerWithoutCropElseCancel=true;
+		public static bool bShowDrawSmallerWithoutCropElseCancelMsg=true;//also shows if RReporting.bMegaDebug
+		private static bool bFirstRunNeedsToCropToFitInto=true;
+		
 		public int Width {
 			get {
 				return iWidth;
@@ -48,16 +74,12 @@ namespace ExpertMultimedia {
 				return iHeight;
 			}
 		}
-		public int iBytesPP;
-		public int iStride;
-		public int iBytesTotal;
-		public int iPixelsTotal;
-		public static RBrush brushFore=new RBrush();//private static byte[] byarrBrushBack=null;
-		public static RBrush brushBack=new RBrush();//private static byte[] byarrBrushBack32Copied64=null;
-		public string sPathFileBaseName="1.untitled";
-		public string sFileExt="raw";
-		public static string sPixel32StyleIsAlways { get { return "bgra"; } } //assumes 32-bit
-		private static bool bShowGetPixelError=true;
+		public static int DrawModes {
+			get {
+				return (sarrDrawMode!=null)?sarrDrawMode.Length:0;
+			}
+		}
+		
 		#region constructors
 		public RImage() {
 			InitNull();
@@ -95,15 +117,23 @@ namespace ExpertMultimedia {
 			iPixelsTotal=iWidth*iHeight;
 			if (bInitializeBuffer) {
 				try {
-					byarrData=new byte[iBytesTotal];
+					bool bClear=true;
+					if (byarrData==null||byarrData.Length!=iBytesTotal) {
+						byarrData=new byte[iBytesTotal];
+						bClear=false;
+					}
+					if (bClear) {
+						if (iBytesPP==4) RMemory.Fill(ref byarrData,(uint)0,0,iPixelsTotal);
+						else RMemory.Fill(ref byarrData,(byte)0,0,iBytesTotal);
+					}
 				}
 				catch (Exception exn) {
-					RReporting.ShowExn(exn,"","RImage Init");
+					RReporting.ShowExn(exn,"initializing an image","RImage Init");
 					iBytesTotal=0;//debug, this is currently used to denote fatal buffer creation errors
 					iPixelsTotal=0;
 				}
 			}
-			brushFore.SetArgb(255,255,0,128);
+			rpaintFore.SetArgb(255,255,0,128);
 		}//end Init
 		public bool IsOk {
 			get {
@@ -129,17 +159,24 @@ namespace ExpertMultimedia {
 			iStride=0;
 			iBytesPP=0;
 		}
-		public bool CopyTo(RImage riReturn) {
+		/// <summary>
+		/// Copy this image to riReturn, creating riReturn if null or different dimensions or bitdepth.
+		///   " (Copy)" will be appended to filename.
+		/// </summary>
+		/// <param name="riReturn"></param>
+		/// <returns></returns>
+		public bool CopyTo(ref RImage riReturn) {
 			bool bGood=false;
 			try {
-				if (!IsLike(riReturn)) riReturn=new RImage(iWidth,iHeight,iBytesPP);
+				if (riReturn==null||!IsLike(riReturn)) riReturn=new RImage(iWidth,iHeight,iBytesPP);
 				for (int iNow=0; iNow<iBytesTotal; iNow++) {
 					riReturn.byarrData[iNow]=byarrData[iNow];
 				}
-				//brushFore=riReturn.brushFore.Copy(); //commented since static
-				//brushBack=riReturn.brushBack.Copy(); //commented since static
+				//rpaintFore=riReturn.rpaintFore.Copy(); //commented since static
+				//rpaintBack=riReturn.rpaintBack.Copy(); //commented since static
 				riReturn.sPathFileBaseName=sPathFileBaseName+" (Copy)";
 				riReturn.sFileExt=sFileExt;
+				bGood=true;
 			}
 			catch (Exception exn) {
 				RReporting.ShowExn(exn,"","RImage CopyTo");
@@ -147,1286 +184,931 @@ namespace ExpertMultimedia {
 			}
 			return bGood;
 		}//end CopyTo
+		/// <summary>
+		/// Copy this image resized to riReturn, creating riReturn if null or different dimensions or bitdepth.
+		///   " (Copy)" will be appended to filename.
+		/// </summary>
+		/// <param name="riReturn"></param>
+		/// <param name="width"></param>
+		/// <param name="height"></param>
+		/// <returns></returns>
+		public bool CopyResizedTo(ref RImage riReturn, int width, int height) {
+			bool bGood=false;
+			try {
+				if (riReturn==null
+				    || riReturn.iBytesTotal!=width*height*this.iBytesPP
+				   ) {
+					riReturn=new RImage(width,height,this.iBytesPP);
+				}
+				riReturn.iWidth=width;
+				riReturn.iHeight=height;
+				riReturn.iBytesPP=this.iBytesPP;
+				riReturn.iStride=width*this.iBytesPP;
+				riReturn.iPixelsTotal=width*height;
+				riReturn.iBytesTotal=riReturn.iStride*height;
+				riReturn.DrawFrom(0,0,(float)width,(float)height,this,RImage.DrawModeCopyAlpha);
+				//rpaintFore=riReturn.rpaintFore.Copy(); //commented since static
+				//rpaintBack=riReturn.rpaintBack.Copy(); //commented since static
+				riReturn.sPathFileBaseName=sPathFileBaseName+" (Copy)";
+				riReturn.sFileExt=sFileExt;
+				bGood=true;
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"copying resized image","RImage CopyResizedTo");
+				riReturn=null;
+			}
+			return bGood;
+		}//end CopyResizedTo
 		public RImage Copy() {
 			RImage riReturn;
 			bool bTest=false;
 			try {
 				riReturn=new RImage(iWidth,iHeight,iBytesPP);
-				CopyTo(riReturn);
+				bTest=CopyTo(ref riReturn);
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","RImage Copy");
+				RReporting.ShowExn(exn,"copying image","RImage Copy");
 				riReturn=null;
 			}
-			if (!bTest) riReturn=null;
+			if (!bTest) {
+				RReporting.ShowErr("Failed to copy to new image--setting riReturn to null","copying image","RImage Copy() {riReturn:"+(riReturn!=null?"non-null":"null")+"}");
+				riReturn=null;
+			}
 			return riReturn;
 		}//end Copy
-		public RImage CreateFromZoneEx(int iFromLeft, int iFromTop, int iFromRight, int iFromBottom) {
-			RImage riReturn;
-			bool bTest=false;
+		public RImage CreateFromZoneEx(int zone_Left, int zone_Top, int zone_RightEx, int zone_BottomEx) {
+			RImage riReturn=null;
+			bool bGood=false;
 			try {
-				int iWidthNow=iFromRight-iFromLeft;
-				int iHeightNow=iFromBottom-iFromTop;
-				riReturn=new RImage(iWidthNow,iHeightNow,iBytesPP);
-				IRect rectNow=new IRect(iFromLeft,iFromTop,iWidthNow,iHeightNow);
-				bTest=riReturn.Draw(riReturn.ToRect(),this,rectNow);
+				int iWidthNow=zone_RightEx-zone_Left;
+				int iHeightNow=zone_BottomEx-zone_Top;
+				if (iWidthNow>0&&iHeightNow>0) {
+					riReturn=new RImage(iWidthNow,iHeightNow,iBytesPP);
+					bGood=(riReturn!=null);
+				}
+				else {
+					RReporting.ShowErr("Tried to create image from zero-size zone: {"+IZone.ToString(zone_Left,zone_Top,zone_RightEx,zone_BottomEx)+"}");
+					bGood=false;
+				}
+				//IRect rectNow=new IRect(zone_Left,zone_Top,iWidthNow,iHeightNow);
+				//if (!riReturn.DrawFrom(riReturn.ToRect(),this,rectNow)) {
+				//	bGood=false;
+				//	RReporting.ShowErr("Unable to draw rectangle from this location","drawing to new image from zone",String.Format("RImage CreateFromZoneEx(left:{0},top:{1},right:{2},bottom:{3}){{currently:{4};width:{5};height:{6};riReturn{7}{8};source-rectNow:{9} }}",zone_Left,zone_Top,zone_RightEx,zone_BottomEx,Description(),iWidthNow,iHeightNow,(riReturn!=null?(".Description:"+RReporting.StringMessage(riReturn.Description(),true)):(":null")),(riReturn!=null?(";riReturn.ToRect():"+riReturn.ToRect().ToString()):""),rectNow.ToString() ));
+				//}
+				//else bGood=true;
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn( exn,"",String.Format("RImage CreateFromZoneEx(left:{0},top:{1},right:{2},bottom:{3}){{currently:{4}}}",iFromLeft,iFromTop,iFromRight,iFromBottom,Description()) );
+				RReporting.ShowExn( exn,"creating image using specified size",String.Format("RImage CreateFromZoneEx(left:{0},top:{1},right:{2},bottom:{3}){{currently:{4};riReturn:{5}}}",zone_Left,zone_Top,zone_RightEx,zone_BottomEx,Description(),(riReturn!=null?(riReturn.Description()):"null")) );
 				riReturn=null;
 			}
-			if (!bTest) riReturn=null;
+			//if (!bTest) riReturn=null;
 			return riReturn;
-		}//end CreateFromZoneEx
+		} //end CreateFromZoneEx
 		#endregion constructors
-		#region file operations
-		public unsafe bool Load(string sFile, int iAsBytesPP) {
-			bool bGood=true;
+
+
+		#region Draw methods (all should have nonstatic versions)
+		/// <summary>
+		/// Primary Scaled Drawing Method (float version).
+		/// Does NOT check boundaries!  Use DrawFrom for automatic cropping.
+		/// Resizing constant: ResizeLinearWithNearestSubPixelDownscaling
+		/// to_X and to_Y are absolute sampling coordinates (e.g. top left of first pixel is [-.5,-.5], bottom left of image is [width-.5,height-.5])
+		/// </summary>
+		/// <param name="destination"></param>
+		/// <param name="to_X"></param>
+		/// <param name="to_Y"></param>
+		/// <param name="to_Width"></param>
+		/// <param name="to_Height"></param>
+		/// <param name="source"></param>
+		/// <param name="from_X"></param>
+		/// <param name="from_Y"></param>
+		/// <param name="from_Width"></param>
+		/// <param name="from_Height"></param>
+		/// <param name="iDrawMode"></param>
+		/// <returns></returns>
+		public static bool DrawTo(RImage destination, float to_X, float to_Y, float to_W, float to_H, RImage source, float from_X, float from_Y, float from_W, float from_H, int iDrawMode) {
+			//TODO: only initialize vars that are used by error output?
+			//-OR OPTION 2 make all of these vars static to prevent re-allocation slowness
+			bool bGood=false;
+			//TODO: (x=done)
+			//x-source location MUST be adjusted by the difference between (fxDestWholeNum,fyDestWholeNum) [derived from modified (iDestRect_L,iDestRect_T)] and (to_X,to_Y) [DONE -- see (*DestNowWholeNum-to_*) * *InverseScale]
+			float to_R=0.0f;
+			float to_B=0.0f;
+			float from_R=0.0f;
+			float from_B=0.0f;
+			int iDestRect_L=0;
+			int iDestRect_T=0;
+			int iDestRect_R=0;
+			int iDestRect_B=0;
+			//float xScale=0.0f;
+			//float xScale=0.0f;
+			float xInverseScale=0.0f;
+			float yInverseScale=0.0f;
+			float fxSrcNow=0,fySrcNow=0.0f;
+			float fxDestWholeNum=0.0f;
+			float fyDestWholeNum=0.0f;
+			int indexWhenDestLineNowStarts=0;
+			int iDest=0;
+			//resampling vars:
+			//int[] iarrSrcSampleIndex=new int[4];//{TL,TR,BL,BR} source indeces for first channel of each nearest pixel by center
+			//FPoint[] 
+			//float fPixelWeightTotal=0.0f;
+			//int xSrcI=0;
+			//int ySrcI=0;
+			float fxRoundedSrc=0.0f;
+			float fyRoundedSrc=0.0f;
+			float fxRoundedSrcNearestL=0.0f;
+			float fyRoundedSrcNearestT=0.0f;
+			float fxRoundedSrcNearestR=0.0f;
+			float fyRoundedSrcNearestB=0.0f;
+			bool bFourCorner=false;
+			int indexSrcNearestTL=0;
+			int indexSrcNearestTR=0;
+			int indexSrcNearestBL=0;
+			int indexSrcNearestBR=0;
+			int ixRoundedSrc=0;
+			int iyRoundedSrc=0;
+			//int ixRoundedSrcPrev=0; int ixRoundedSrcNext=0; int iyRoundedSrcPrev=0; int iyRoundedSrcNext=0; //TODO: un-implement these in favor of indeces
+			float fxSrcWhenLineStarts=0.0f;
+			float fxRoundedSrcWhenLineStarts=0.0f;
+			float fxSrcNextness=0.0f;
+			float fySrcNextness=0.0f;
+			float fxRoundedSrcNearestLWhenLineStarts=0.0f;
+			float fxRoundedSrcNearestRWhenLineStarts=0.0f;
+			int indexSrcNearestTLWhenSrcLineNowStarts=0;
+			float fSrcW=0.0f;
+			float fSrcH=0.0f;
+			float fDestW=0.0f;
+			float fDestH=0.0f;
+			float fRectEdgeAlpha_L=0.0f;
+			byte byRectEdgeAlpha_L=0;
+			float fRectEdgeAlpha_T=0.0f;
+			byte byRectEdgeAlpha_T=0;
+			float fRectEdgeAlpha_R=0.0f;
+			byte byRectEdgeAlpha_R=0;
+			float fRectEdgeAlpha_B=0.0f;
+			byte byRectEdgeAlpha_B=0;
+			float fRowInness=0.0f;
+			float fInness=0.0f;
+			int iyDestNow=0;
+			int ixDestNow=0;
+			int indexSrcNearestL_CroppedByNow=0; //bool bFixPrev=false;
+			int indexSrcNearestR_CroppedByNow=0;
+			int indexSrcNearestT_CroppedByNow=0;
+			int indexSrcNearestB_CroppedByNow=0;
+			byte byDestA=0;
+			byte bySourceA=0;
+			int iDestTemp=0;
+			int iDestStart=0;
+			int iSrcStart_TL=0;
+			int iSrcStart_BR=0;
 			try {
-				if (!File.Exists(sFile)) {
-					RReporting.ShowErr("Missing resource \""+sFile+"\"","","RImage Load");
+				RReporting.sParticiple="setting primary resampling variables";
+				if (destination.iBytesPP!=4||source.iBytesPP!=4) {
+					RReporting.ShowErr("Source and destination must be 32-bit for DrawTo Primary Scaled Drawing Method!");
 					return false;
 				}
-				bmpLoaded=new Bitmap(sFile);
-				iWidth=bmpLoaded.Width;
-				iHeight=bmpLoaded.Height;
-				iStride=iWidth*iAsBytesPP;
-				iBytesPP=iStride/iWidth;//!!Stride is relative, determined upon locking above!! //ByteDepthFromPixelFormat();//iBytesPP=iStride/iWidth;
-				iBytesTotal=iStride*iHeight;
-				iPixelsTotal=iWidth*iHeight;
-				if (iBytesTotal>0 && iBytesPP!=2 && iBytesPP<=4) {
-					byarrData=new byte[iBytesTotal];
-					int iNow=0;
-					Color colorNow;
-					for (int y=0; y<iHeight; y++) {
-						for (int x=0; x<iWidth; x++) {
-							colorNow=bmpLoaded.GetPixel(x,y);
-							if (iAsBytesPP==4) {
-								byarrData[iNow]=colorNow.B;
-								iNow++;
-								byarrData[iNow]=colorNow.G;
-								iNow++;
-								byarrData[iNow]=colorNow.R;
-								iNow++;
-								byarrData[iNow]=colorNow.A;
-								iNow++;
-							}
-							else if (iAsBytesPP==3) {
-								byarrData[iNow]=colorNow.B;
-								iNow++;
-								byarrData[iNow]=colorNow.G;
-								iNow++;
-								byarrData[iNow]=colorNow.R;
-								iNow++;
-							}
-							else if (iAsBytesPP==1) {
-								byarrData[iNow]=(byte)( ((double)(colorNow.B+colorNow.G+colorNow.R))/3.0  );
-								iNow++;
-							}
-							else {
-								RReporting.ShowErr("Failed to load "+(iAsBytesPP*8).ToString()+"-bit buffer.","","RImage Load");
-								bGood=false;
+				//RImage.rpaintFore.SetArgb(255,0,0,0);
+				//destination.DrawRect(RConvert.ToInt(from_X)+2,RConvert.ToInt(from_Y)+2,RConvert.ToInt(from_W)-2,RConvert.ToInt(from_H)-2);
+				//RImage.rpaintFore.SetArgb(255,255,0,0);
+				//destination.DrawRect(RConvert.ToInt(from_X)+1,RConvert.ToInt(from_Y)+1,RConvert.ToInt(from_W),RConvert.ToInt(from_H));
+				//RImage.rpaintFore.SetArgb(255,0,0,0);
+				to_R=to_X+to_W;//right (ok to add directly e.g. since x of .5 + width of 1.0 results in 1.5 which is the outer edge of the same pixel [last pixel, which is pixel[0]in a 1px wide image])
+				to_B=to_Y+to_H;//bottom
+				from_R=from_X+from_W;//right
+				from_B=from_Y+from_H;//bottom
+				iDestRect_L=(int)(to_X+.5f);
+				iDestRect_T=(int)(to_Y+.5f);
+				iDestRect_R=(int)Math.Ceiling(to_R-.5f);//right, made INCLUSIVE below
+				iDestRect_B=(int)Math.Ceiling(to_B-.5f);//bottom, made INCLUSIVE below
+				
+				//It is okay to modify iDestRect_ vars since compensation is done further down.
+				if (to_X<((float)iDestRect_L-.5f)) iDestRect_L--;//i.e. encroaches on previous pixel; NOT incremented if e.g. .5f
+				if (to_Y<((float)iDestRect_T-.5f)) iDestRect_T--;//i.e. encroaches on previous pixel; NOT incremented if e.g. .5f
+				if (to_R>((float)iDestRect_R+.5f)) iDestRect_R++;//i.e. if encroaches on next pixel; NOT incremented if e.g. width-.5f
+				if (to_B>((float)iDestRect_B+.5f)) iDestRect_B++;//i.e. if encroaches on next pixel; NOT incremented if e.g. height-.5f
+				if (iDestRect_L<0) {
+					RReporting.ShowErr("Drawing non-precropped dest rect is causing inaccurate out-of-range left edge!","drawing scaled after clipping {iDestRect_L:"+iDestRect_L.ToString()+"}","DrawTo(RImage,float,...)");
+					iDestRect_L=0;
+				}
+				else if (iDestRect_L>=destination.Width) {
+					RReporting.ShowErr("Drawing non-precropped dest rect is causing inaccurate out-of-range left edge!","drawing scaled after clipping {iDestRect_L:"+iDestRect_L.ToString()+"}","DrawTo(RImage,float,...)");
+					iDestRect_L=destination.Width-1;
+				}
+				
+				if (iDestRect_T<0) {
+					RReporting.ShowErr("Drawing non-precropped dest rect is causing inaccurate out-of-range top edge!","drawing scaled after clipping {iDestRect_T:"+iDestRect_T.ToString()+"}","DrawTo(RImage,float,...)");
+					iDestRect_T=0;
+				}
+				else if (iDestRect_T>=destination.Width) {
+					RReporting.ShowErr("Drawing non-precropped dest rect is causing inaccurate out-of-range top edge!","drawing scaled after clipping {iDestRect_T:"+iDestRect_T.ToString()+"}","DrawTo(RImage,float,...)");
+					iDestRect_T=destination.Width-1;
+				}
+				
+				if (iDestRect_R>=destination.Width) {
+					RReporting.ShowErr("Drawing non-precropped dest rect is causing inaccurate out-of-range right edge!","drawing scaled after clipping {iDestRect_R:"+iDestRect_R.ToString()+"}","DrawTo(RImage,float,...)");
+					iDestRect_R=destination.Width-1;
+				}
+				if (iDestRect_R<iDestRect_L) {
+					RReporting.ShowErr("Drawing non-precropped dest rect is causing inaccurate out-of-range right edge!","drawing scaled after clipping {iDestRect_R:"+iDestRect_R.ToString()+";iDestRect_L:"+iDestRect_L.ToString()+"}","DrawTo(RImage,float,...)");
+					iDestRect_R=iDestRect_L;
+				}
+				
+				
+				if (iDestRect_B>=destination.Height) {
+					RReporting.ShowErr("Drawing non-precropped dest rect is causing inaccurate out-of-range bottom edge!","drawing scaled after clipping {iDestRect_B:"+iDestRect_B.ToString()+"}","DrawTo(RImage,float,...)");
+					iDestRect_B=destination.Height-1;
+				}
+				if (iDestRect_B<iDestRect_T) {
+					RReporting.ShowErr("Drawing non-precropped dest rect is causing inaccurate out-of-range bottom edge!","drawing scaled after clipping {iDestRect_B:"+iDestRect_B.ToString()+"; iDestRect_T:"+iDestRect_T.ToString()+"}","DrawTo(RImage,float,...)");
+					iDestRect_B=iDestRect_T;
+				}
+				RReporting.sParticiple="done setting primary resampling variables {iDestRect_L:"+iDestRect_L+"; iDestRect_T:"+iDestRect_T+"; iDestRect_R:"+iDestRect_R+"; iDestRect_B:"+iDestRect_R+"}";
+				if (RReporting.bMegaDebug) {
+					RReporting.sParticiple="drawing debug marks";
+					RImage.rpaintFore.SetArgb(255,255,0,0);
+					int iDebugRect_L=iDestRect_L;//RMath.IRound(to_X);
+					int iDebugRect_T=iDestRect_T;//RMath.IRound(to_Y);
+					int iDebugRect_R=iDestRect_R;//RMath.IRound(to_R);
+					int iDebugRect_B=iDestRect_B;//RMath.IRound(to_B);
+					if (iDebugRect_T-1>=0) {
+						if (iDebugRect_L-1>=0) {
+							//TL
+							destination.DrawHorzLine(iDebugRect_L-1,iDebugRect_T-1,3);
+							destination.DrawVertLine(iDebugRect_L-1,iDebugRect_T,2);
+						}
+						if (iDebugRect_R+1<destination.Width) {
+							//TR
+							destination.DrawHorzLine(iDebugRect_R-1,iDebugRect_T-1,3);//R-1 since rect is inclusive and line is 3 long
+							destination.DrawVertLine(iDebugRect_R+1,iDebugRect_T,2);
+						}
+					}
+					if (iDebugRect_B+1<destination.Height) {
+						if (iDebugRect_L-1>=0) {
+							//BL
+							destination.DrawHorzLine(iDebugRect_L-1,iDebugRect_B+1,3);
+							destination.DrawVertLine(iDebugRect_L-1,iDebugRect_B,2);
+						}
+						if (iDebugRect_R+1<destination.Width) {
+							//BR
+							destination.DrawHorzLine(iDebugRect_R-1,iDebugRect_B+1,3);//R-1 since rect is inclusive and line is 3 long
+							destination.DrawVertLine(iDebugRect_R+1,iDebugRect_B,2);
+						}
+					}
+					RImage.rpaintFore.SetArgb(255,255,255,0);
+					float CaddyCorner_L=to_X-.5f;//-.5 to be around not inside
+					float CaddyCorner_T=to_Y-.5f;//-.5 to be around not inside
+					float CaddyCorner_R=to_R+.5f;//+.5 to be around not inside
+					float CaddyCorner_B=to_B+.5f;//+.5 to be around not inside
+					
+					if (CaddyCorner_L>=0&&CaddyCorner_T>=0) destination.DrawVectorDot(CaddyCorner_L,CaddyCorner_T);
+					if (CaddyCorner_R<fDestW-.5&&CaddyCorner_B<fDestH-.5) destination.DrawVectorDot(CaddyCorner_R,CaddyCorner_B);
+				}//end if bMegaDebug
+				
+				
+				RReporting.sParticiple="calculating scaling resampling variables from sizes {from_W:"+from_W+"; from_H:"+from_H+"; to_W:"+to_W+"; to_H:"+to_H+"}";
+				//xScale=to_W/from_W;
+				//xScale=to_H/from_H;
+				xInverseScale=from_W/to_W;//how much source should be incremented per every 1.0 destination pixel i.e. if upscaling to a bigger width, need to move smaller since result will cover a higher pixel count on the destination
+				yInverseScale=from_H/to_H;
+				RReporting.sParticiple="calculating destination resampling variables";
+				fxDestWholeNum=(float)iDestRect_L;
+				fyDestWholeNum=(float)iDestRect_T;
+				indexWhenDestLineNowStarts=destination.XYToLocation(iDestRect_L,iDestRect_T);
+				iDestStart=indexWhenDestLineNowStarts;
+				bFourCorner=false;
+				
+				RReporting.sParticiple="calculating source resampling variables from destination modifications {to_X:"+to_X+"; to_Y:"+to_Y+"; fxDestWholeNum:"+fxDestWholeNum+"; fyDestWholeNum:"+fyDestWholeNum+"}";
+				//ixRoundedSrcPrev; int ixRoundedSrcNext; int iyRoundedSrcPrev; int iyRoundedSrcNext; //TODO: un-implement these in favor of indeces
+				//ixRoundedSrcPrev=0; ixRoundedSrcNext=0; iyRoundedSrcPrev=0; iyRoundedSrcNext=0; //TODO: start value intelligently so can be incremented intelligently
+				
+				//On the following two assignments, (*DestNowWholeNum-to_*) is used
+				// since source location MUST be adjusted by the difference between
+				// (fxDestWholeNum,fyDestWholeNum) [derived from modified (iDestRect_L,iDestRect_T)]
+				// and (to_X,to_Y) since the sampling point has been moved from the top left corner
+				// of the pixel to the center of the pixel.
+				fxSrcWhenLineStarts=from_X-(to_X-fxDestWholeNum)*xInverseScale;//fxDestNowWholeNum was (float)iDestRect_L
+				fxSrcNow=fxSrcWhenLineStarts; //done at the beginning of each loop, but set redundantly now too so edge nearest pixels can be calculated before loop starts
+				fySrcNow=from_Y-(to_Y-fyDestWholeNum)*yInverseScale;
+				//NOTE: source dimensions don't have to be adjusted, because from_R and from_B are absolute and used when traversing source
+				RReporting.sParticiple="getting quadrants around point {fxSrcNow:"+fxSrcNow+"; fySrcNow:"+fySrcNow+"}";
+				//NOTE: rounded source vars are ONLY for finding nearest whole pixel locations:
+				//NOTE: -.5 becomes -1 but those (x&y) are cropped later before drawing row and pixel
+				fxRoundedSrcWhenLineStarts=RMath.Round(fxSrcWhenLineStarts);//=RMath.Round(fxSrcNow);
+				fxRoundedSrc=fxRoundedSrcWhenLineStarts;//RMath.Round(fxSrcWhenLineStarts);
+				fyRoundedSrc=RMath.Round(fySrcNow);
+				ixRoundedSrc=(int)fxRoundedSrc;//ok to truncate since whole number
+				iyRoundedSrc=(int)fyRoundedSrc;//ok to truncate since whole number
+				//Choose nearest pixels for averaging:
+				if (fxSrcNow>=fxRoundedSrc) {
+					fxRoundedSrcNearestL=fxRoundedSrc;
+					fxRoundedSrcNearestR=fxRoundedSrc+1.0f;
+				}
+				else {// (fxSrcNow<fxRoundedSrc) {
+					fxRoundedSrcNearestL=fxRoundedSrc-1.0f;
+					fxRoundedSrcNearestR=fxRoundedSrc;
+				}
+				if (fySrcNow>=fyRoundedSrc) {
+					fyRoundedSrcNearestT=fyRoundedSrc;
+					fyRoundedSrcNearestB=fyRoundedSrc+1.0f;
+				}
+				else {//if (fySrcNow<fyRoundedSrc) {
+					fyRoundedSrcNearestT=fyRoundedSrc-1.0f;
+					fyRoundedSrcNearestB=fyRoundedSrc;
+				}
+				
+				fxRoundedSrcNearestLWhenLineStarts=fxRoundedSrcNearestL;
+				fxRoundedSrcNearestRWhenLineStarts=fxRoundedSrcNearestR;
+				RReporting.sParticiple="getting indeces for quadrants {fxSrcNow:"+fxSrcNow+"; fySrcNow:"+fySrcNow+"; fxRoundedSrcNearestL:"+fxRoundedSrcNearestL+"; fxRoundedSrcNearestR:"+fxRoundedSrcNearestR+"; fyRoundedSrcNearestT:"+fyRoundedSrcNearestT+"; fyRoundedSrcNearestB:"+fyRoundedSrcNearestB+"}";
+				indexSrcNearestTL=source.XYToLocation((int)fxRoundedSrcNearestL,(int)fyRoundedSrcNearestT);//ok to truncate these floats since they are whole numbers
+				indexSrcNearestTLWhenSrcLineNowStarts=indexSrcNearestTL; //modified after each line
+				indexSrcNearestTR=indexSrcNearestTL+source.iBytesPP;
+				indexSrcNearestBL=indexSrcNearestTL+source.iStride;
+				indexSrcNearestBR=indexSrcNearestBL+source.iBytesPP;
+				iSrcStart_TL=indexSrcNearestTL;//start location variable only exists for debug output
+				iSrcStart_BR=indexSrcNearestBR;//start location variable only exists for debug output
+				fSrcW=(float)source.iWidth;
+				fSrcH=(float)source.iHeight;
+				float fSrc_LastX=fSrcW-1.0f;
+				float fSrc_LastY=fSrcH-1.0f;
+				fDestW=(float)destination.iWidth;
+				fDestH=(float)destination.iHeight;
+				//NOTES:
+				//-any variable not marked as 'f' is an integer.
+				
+				//Destination edge blending:
+				//-source edge grabbing is a whole different issue from destination edge blending:
+				//  for example, if source is an arbitrary rect, and dest is an upscaled size AND starts at a whole number, a whole number causes it to be blended halfway
+				//-Must fix integers since for example to_X+to_W should be truncated if lands at a halfway point (for example, especially if lands on dest_W-.5 or will overflow!)
+				//-non-centered float dest should ONLY be used for determining alhpa of edge pixels!
+				//   -the source rect should NEVER determine the edge alpha, because it should never go outside the source
+				//   -the alpha only needs to be calculated ONCE for each edge:
+				fRectEdgeAlpha_L=Math.Abs((fxDestWholeNum+.5f)-to_X);//since fxDestWholeNum is (float)iDestRect_L
+				byRectEdgeAlpha_L=RConvert.ToByte(fRectEdgeAlpha_L*255.0f);
+				//because starts at iDestRect_L assignment was truncated from to_X then changed by: if (to_X<((float)iDestRect_L-.5f)) iDestRect_L--;//i.e. encroaches on previous pixel; NOT incremented if e.g. .5f
+				fRectEdgeAlpha_T=Math.Abs((fyDestWholeNum+.5f)-to_Y);
+				byRectEdgeAlpha_T=RConvert.ToByte(fRectEdgeAlpha_T*255.0f);
+				fRectEdgeAlpha_R=Math.Abs(to_R-((float)iDestRect_R-.5f)); //-.5f since iDestRect_R is now at width if to_R goes past (float)((int)to_R)+.5f
+				byRectEdgeAlpha_R=RConvert.ToByte(fRectEdgeAlpha_R*255.0f);
+				//because ends inclusively at iDestRect_R and assignment was truncated from to_R then changed by: if (to_R>((float)iDestRect_R+.5f)) iDestRect_R++;//i.e. if encroaches on next pixel; NOT incremented if e.g. width-.5f
+				fRectEdgeAlpha_B=Math.Abs(to_B-((float)iDestRect_B-.5f));
+				byRectEdgeAlpha_B=RConvert.ToByte(fRectEdgeAlpha_B*255.0f);
+				
+				//-NOW source location should be adjusted by the difference between the dest location and the dest whole number
+				//and the whole number should be used from now on.
+				//end Destination edge blending
+				RReporting.sParticiple="done setting up all resampling variables {fxRoundedSrcNearestL:"+fxRoundedSrcNearestL+"; (int)fxRoundedSrcNearestL:"+((int)fxRoundedSrcNearestL)+"; fyRoundedSrcNearestT:"+fyRoundedSrcNearestT+"; (int)fyRoundedSrcNearestT:"+((int)fyRoundedSrcNearestT)+"; fxRoundedSrcNearestR:"+fxRoundedSrcNearestR+"; fyRoundedSrcNearestB:"+fyRoundedSrcNearestB+"; indexSrcNearestTL:"+indexSrcNearestTL+"}";
+				//TODO: finish this (recoding) asdf
+				RReporting.sParticiple="running main resampling loop";
+				bool bShowCropMsg=true;
+				for (iyDestNow=iDestRect_T; iyDestNow<=iDestRect_B; iyDestNow++) {
+					indexSrcNearestT_CroppedByNow=0;
+					indexSrcNearestB_CroppedByNow=0;
+					fxDestWholeNum=(float)iDestRect_L;
+					iDest=indexWhenDestLineNowStarts;
+					
+					fxSrcNow=fxSrcWhenLineStarts;
+					fxRoundedSrcNearestL=fxRoundedSrcNearestLWhenLineStarts;
+					fxRoundedSrcNearestR=fxRoundedSrcNearestRWhenLineStarts;
+					
+					//WHILE PAST ROW BOUNDARY IN SOURCE IMAGE, SKIP SOURCE ROWS:
+					//replace while loops (in x as well) with adding ceiling of difference
+/*
+-3        -2        -1         0         1         2
+ +--|------+---------+----|----+--|------+----|--|-+
+    a                     b       c           d  e
+
+                       a=-2.7  b=-0.5  c=0.3  d=1.5  e=2.8
+                       ======  ======  =====  =====  =====
+Floor                    -3      -1      0      1      2
+Ceiling                  -2       0      1      2      3
+Truncate                 -2       0      0      1      2
+Round (ToEven)           -3       0      0      2      3
+Round (AwayFromZero)     -3      -1      0      2      3
+
+Pax, I think you've got a mistake with: Round(AwayFromZero) -3 -2 1 2 3 Math.Round(-1.2, MidpointRounding.AwayFromZero) == -1 Math.Round(0.3, MidpointRounding.AwayFromZero)==0.0 etc.. – dtroy May 5 at 3:49
+
+Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Truncate() in .NET?" <http://stackoverflow.com/questions/14/whats-the-difference-between-math-floor-and-math-truncate-in-c/580252#580252> 2009-12-12
+
+ */
+ 					///NOTE: CEILING rounds UP (in positive direction) even if number is negative!
+ 					/// - FLOOR rounds DOWN (in negative direction) even if number is negative!
+ 					/// - TRUNCATE rounds TOWARD ZERO regardless of sign
+ 					/// - The only increment done to source at the end of this loop is fySrcNow+=yInverseScale
+					if (fySrcNow>fyRoundedSrcNearestB) { //.5 ONLY used since it is a rounded variable
+ 						//was using "if (>=) {Floor()+1}" above, but using "if (>) {Ceiling()}" simplifies the math
+ 						float fNewFar=RMath.Ceiling(fySrcNow); //i.e. the ceiling of .1 is 1, of -.9 is 0
+ 						float fWholePixAdder=fNewFar-fyRoundedSrcNearestB;
+ 						int iWholePixelAdder=RMath.IRound(fWholePixAdder);//typecast should also work since whole
+						fyRoundedSrcNearestT+=fWholePixAdder;
+						fyRoundedSrcNearestB=fNewFar;//+=fWholePixAdder;
+						fyRoundedSrc+=fWholePixAdder;
+						iyRoundedSrc+=iWholePixelAdder;
+						indexSrcNearestTLWhenSrcLineNowStarts+=iWholePixelAdder*source.iStride;
+						/// This clause is also adapted for X AXIS
+					}
+ 					/*
+					while (fyRoundedSrcNearestB<=fySrcNow) { //only BOTH round AND get previous and next ROWS on change in y (ergo when outer loop iterates)
+						//TODO: handle passing more than one (downscaling) more quickly (rather than while loop)
+						if (fySrcNow>=fyRoundedSrc) { //else {
+							fyRoundedSrcNearestT=fyRoundedSrc;
+							fyRoundedSrcNearestB=fyRoundedSrc+1.0f;
+						}
+						else {//(fySrcNow<fyRoundedSrc) {
+							fyRoundedSrcNearestT=fyRoundedSrc-1.0f;
+							fyRoundedSrcNearestB=fyRoundedSrc;
+						}
+						//iyRoundedSrcPrev++;//=(int)fyRoundedSrcNearestT;
+						//iyRoundedSrcNext++;//=(int)fyRoundedSrcNearestB;
+						indexSrcNearestTLWhenSrcLineNowStarts+=source.iStride;
+						///TODO:? indexSrcNearestTLWhenSrcLineNowStarts may only need to be incremented in certain situations, such as when TL increments
+						/// (which does NOT happen when NearestT is fyRoundedSrc-1.0f)!
+					}
+ 					*/
+					fySrcNextness=fySrcNow-fyRoundedSrcNearestT;//fyRoundedSrcNearestB-fySrcNow;
+					indexSrcNearestTL=indexSrcNearestTLWhenSrcLineNowStarts;//indexSrcNearestTLWhenSrcLineNowStarts is modified after each line of SOURCE ONLY
+					indexSrcNearestTR=indexSrcNearestTL+source.iBytesPP;
+					indexSrcNearestBL=indexSrcNearestTL+source.iStride;
+					indexSrcNearestBR=indexSrcNearestBL+source.iBytesPP;
+					
+					//Fixes indeces that are out of range by truncating them to the nearest existant pixel
+					//-this is needed since adjustment to source above may cause out-of range source
+					// --in the subpixel level, only the existant part of the image is "used" (because of dest edge limiting)
+					// so the outlier issue is not really an error but a math-simplifying optimization)
+					//crop Y axis of source resampling quads:
+					//NOTE: if floating point math were perfect, (int) could be used instead of RMath.IRound for these clauses
+					if (fyRoundedSrcNearestT<0.0f) {
+						indexSrcNearestT_CroppedByNow=RMath.IRound(0.0f-fyRoundedSrcNearestT)*source.iStride;//- a negative
+						indexSrcNearestTL+=indexSrcNearestT_CroppedByNow;//+ a positive
+						indexSrcNearestTR+=indexSrcNearestT_CroppedByNow;//+ a positive
+					}
+					else if (fyRoundedSrcNearestT>fSrc_LastY) {
+						indexSrcNearestT_CroppedByNow=RMath.IRound(fSrc_LastY-fyRoundedSrcNearestT)*source.iStride;//- a larger positive
+						indexSrcNearestTL+=indexSrcNearestT_CroppedByNow;//+ a negative
+						indexSrcNearestTR+=indexSrcNearestT_CroppedByNow;//+ a negative
+					}
+					if (fyRoundedSrcNearestB<0.0f) { //do NOT do "else if" because source may be 1px tall
+						indexSrcNearestB_CroppedByNow=RMath.IRound(0.0f-fyRoundedSrcNearestB)*source.iStride;//- a negative
+						indexSrcNearestBL+=indexSrcNearestB_CroppedByNow;//+ a positive
+						indexSrcNearestBR+=indexSrcNearestB_CroppedByNow;//+ a positive
+					}
+					else if (fyRoundedSrcNearestB>fSrc_LastY) { //>=fSrcW 
+						indexSrcNearestB_CroppedByNow=RMath.IRound(fSrc_LastY-fyRoundedSrcNearestB)*source.iStride;//- a larger positive
+						indexSrcNearestBL+=indexSrcNearestB_CroppedByNow;//+ a negative
+						indexSrcNearestBR+=indexSrcNearestB_CroppedByNow;//+ a negative
+					}
+					if (bShowCropMsg) {
+						RReporting.sParticiple="done cropping variables for first row iyDestNow:"+iyDestNow;
+					}
+					else {
+						RReporting.sParticiple="done cropping variables for row iyDestNow:"+iyDestNow;
+						bShowCropMsg=true;//show for first pixel of each row
+					}
+					//if (fyRoundedSrcNearestT<0.0f) {
+					//	indexSrcNearestTL+=source.iStride;
+					//	indexSrcNearestTR+=source.iStride;
+					//}
+					//else if (fyRoundedSrcNearestB>=fSrcH) {
+					//	indexSrcNearestBL-=source.iStride;
+					//	indexSrcNearestBR-=source.iStride;
+					//}
+					fxRoundedSrc=fxRoundedSrcWhenLineStarts;
+					////if (fxSrcNow<0.5f) { //0.5f as opposed to 0.0f is ONLY needed for x, not for y, since fxSrcNow (fxRoundedSourceNext is not calculated yet)
+					////else if (fxSrcNow>=(fSrcW-.5f)) { //-.5f is ONLY needed for x, not for y, since fxSrcNow (fxRoundedSourceNext is not calculated yet)
+					////>= since fxRoundedSrcNearestR is incremented when fxSrcNow>=fxRoundedSrcNearestR
+					////ixRoundedSrc=(int)fxRoundedSrc;
+					//if (fxSrcNow<fxRoundedSrc) {
+					//	fxRoundedSrcNearestL=fxRoundedSrc-1.0f;
+					//	fxRoundedSrcNearestR=fxRoundedSrc;
+					//}
+					//else {
+					//	fxRoundedSrcNearestL=fxRoundedSrc;
+					//	fxRoundedSrcNearestR=fxRoundedSrc+1.0f;
+					//}
+					fRowInness=1.0f;
+					if (iyDestNow==iDestRect_T) {
+						fRowInness*=fRectEdgeAlpha_T;//TODO: make sure fRectEdgeAlpha_* (set above) handles 1px wide or 1px tall images correctly
+					}
+					else if (iyDestNow==iDestRect_B) {
+						fRowInness*=fRectEdgeAlpha_B;
+					}
+					RReporting.sParticiple="drawing row with interpolation {fxRoundedSrcNearestL:"+fxRoundedSrcNearestL+"; (int)fxRoundedSrcNearestL:"+((int)fxRoundedSrcNearestL)+"; fyRoundedSrcNearestT:"+fyRoundedSrcNearestT+"; (int)fyRoundedSrcNearestT:"	+((int)fyRoundedSrcNearestT)+"; fxRoundedSrcNearestR:"+fxRoundedSrcNearestR+"; fyRoundedSrcNearestB:"+fyRoundedSrcNearestB+"; indexSrcNearestTL:"+indexSrcNearestTL+"}";
+					for (ixDestNow=iDestRect_L; ixDestNow<=iDestRect_R; ixDestNow++) {
+						indexSrcNearestL_CroppedByNow=0;
+						indexSrcNearestR_CroppedByNow=0;
+					//Linear resample:
+						//pSrcNow.X=(fxDestWholeNum-to_X)*xInverseScale+from_X;
+						//pSrcNow.Y=(fyDestWholeNum-to_Y)*yInverseScale+from_Y;
+						//if (pSrcNow.X>=from_X&&pSrcNow.Y>=from_Y&&pSrcNow.X<=from_R&&pSrcNow.Y<=from_B&&iDest<destination.iBytesTotal)
+						//RImage.InterpolatePixel(ref destination,ref source,iDest,ref pSrcNow); //XYToLocation(ixDestNow,iyDestNow)
+						
+						/*
+						//WHILE PASSED COLUMN BOUNDARY IN SOURCE IMAGE, SKIP SOURCE PIXELS:
+						while (fxRoundedSrcNearestR<=fxSrcNow) { //only BOTH round AND get previous and next columns when fySrcNow passes fyRoundedSrcNearestB
+							//TODO: handle passing more than one (downscaling) more quickly (rather than while loop)
+							//fxRoundedSrc=RMath.Round(fxSrcNow);
+							//ixRoundedSrc=(int)fxRoundedSrc;
+							//if (fxSrcNow<fxRoundedSrc) {
+							//	fxRoundedSrcNearestL=fxRoundedSrc-1.0f;
+							//	fxRoundedSrcNearestR=fxRoundedSrc;
+							//}
+							//else {
+							//	fxRoundedSrcNearestL=fxRoundedSrc;
+							//	fxRoundedSrcNearestR=fxRoundedSrc+1.0f;
+							//}
+							fxRoundedSrcNearestL+=1.0f;
+							fxRoundedSrcNearestR+=1.0f;
+							indexSrcNearestBL+=source.iBytesPP;
+							indexSrcNearestBR+=source.iBytesPP;
+							indexSrcNearestTL+=source.iBytesPP;
+							indexSrcNearestTR+=source.iBytesPP;
+						}//end while fxSrcNow>=fxRoundedSrcNearestR (increment all "previous" and "next" coordinates for x and indeces)
+						*/
+						if (fxSrcNow>fxRoundedSrcNearestR) { //.5 ONLY used since it is a rounded variable
+	 						//was using "if (>=) {Floor()+1}" above, but using "if (>) {Ceiling()}" simplifies the math
+	 						float fNewFar=RMath.Ceiling(fxSrcNow); //i.e. the ceiling of .1 is 1, of -.9 is 0
+	 						float fWholePixAdder=fNewFar-fxRoundedSrcNearestR;
+	 						int iWholePixelAdder=RMath.IRound(fWholePixAdder);//typecast should also work since whole
+							fxRoundedSrcNearestL+=fWholePixAdder;
+							fxRoundedSrcNearestR=fNewFar;//+=fWholePixAdder;
+							fxRoundedSrc+=fWholePixAdder;
+							ixRoundedSrc+=iWholePixelAdder;
+							int iWholePixelAdder_TimesSrcBytesPP=iWholePixelAdder*source.iBytesPP;
+							indexSrcNearestTL+=iWholePixelAdder_TimesSrcBytesPP;
+							indexSrcNearestTR+=iWholePixelAdder_TimesSrcBytesPP;
+							indexSrcNearestBL+=iWholePixelAdder_TimesSrcBytesPP;
+							indexSrcNearestBR+=iWholePixelAdder_TimesSrcBytesPP;
+							/// This clause is also adapted for Y AXIS
+						}
+						//get nextness BEFORE correcting *RoundedSrc* vars, since *SrcNow vars are uncropped in order to avoid extra calculations
+						fxSrcNextness=fxSrcNow-fxRoundedSrcNearestL;//fxRoundedSrcNearestR-fxSrcNow;
+						
+						//crop X axis of source resampling quads:
+						//NOTE: if floating point math were perfect, (int) could be used instead of RMath.IRound for these clauses
+						if (fxRoundedSrcNearestL<0.0f) {
+							indexSrcNearestL_CroppedByNow=RMath.IRound(0.0f-fxRoundedSrcNearestL)*source.iBytesPP;//- a negative
+							indexSrcNearestTL+=indexSrcNearestL_CroppedByNow;//+ a positive
+							indexSrcNearestBL+=indexSrcNearestL_CroppedByNow;//+ a positive
+						}
+						else if (fxRoundedSrcNearestL>fSrc_LastX) {
+							indexSrcNearestL_CroppedByNow=RMath.IRound(fSrc_LastX-fxRoundedSrcNearestL)*source.iBytesPP;//- a larger positive
+							indexSrcNearestTL+=indexSrcNearestL_CroppedByNow;//+ a negative
+							indexSrcNearestBL+=indexSrcNearestL_CroppedByNow;//+ a negative
+						}
+						if (fxRoundedSrcNearestR<0.0f) {//do NOT do "else if" because source may be 1px tall
+							indexSrcNearestR_CroppedByNow=RMath.IRound(0.0f-fxRoundedSrcNearestR)*source.iBytesPP;//- a negative
+							indexSrcNearestTR+=indexSrcNearestR_CroppedByNow;//+ a positive
+							indexSrcNearestBR+=indexSrcNearestR_CroppedByNow;//+ a positive
+						}
+						else if (fxRoundedSrcNearestR>fSrc_LastX) { //>=fSrcW 
+							indexSrcNearestR_CroppedByNow=RMath.IRound(fSrc_LastX-fxRoundedSrcNearestR)*source.iBytesPP;//- a larger positive
+							indexSrcNearestTR+=indexSrcNearestR_CroppedByNow;//+ a negative
+							indexSrcNearestBR+=indexSrcNearestR_CroppedByNow;//+ a negative
+						}
+						if (bShowCropMsg) {
+							RReporting.sParticiple="done cropping variables for pixel {indexSrcNearestL_CroppedByNow:"+indexSrcNearestL_CroppedByNow+"; indexSrcNearestT_CroppedByNow:"+indexSrcNearestT_CroppedByNow+"; indexSrcNearestR_CroppedByNow:"+indexSrcNearestR_CroppedByNow+"; indexSrcNearestB_CroppedByNow:"+indexSrcNearestB_CroppedByNow+"; indexSrcNearestTL:"+indexSrcNearestTL+"; indexSrcNearestTR:"+indexSrcNearestTR+"; indexSrcNearestBL:"+indexSrcNearestBL+"; indexSrcNearestBR:"+indexSrcNearestBR+"}";
+							bShowCropMsg=false;
+						}
+						
+						//alpha formula: (foreground*alpha + background*(max-alpha))/max
+						//alpha formula: ((Source-Dest)*alpha/255+Dest)
+						//This is actually not using alpha, it is using alpha formula to get a subpixel:
+						//-Next is treated as the source so that Nextness can be used as the alpha
+						//byte byxSrcNextness=RMath.ByRound(fxSrcNextness*255);
+						//byte byySrcNextness=RMath.ByRound(fySrcNextness*255);
+						//Result is a weighted average (weighted by fySrcNextness) of the 2 row pixels which were blended from 2 pixels per row (weighted by fxSrcNextness)
+						
+						//ByRound without *255 is okay since 255 is the starting point
+						//if (iDest>=0&&(iDest+destination.iBytesPP-1<destination.iBytesTotal)) {
+						
+						fInness=fRowInness;
+						//Inness is ONLY for ALPHA
+						//Inness is NOT calculated for source, since even the outer edges don't go beyond (x-.5,y-.5) and (width-.5,height-.5)
+						//and therefore the Inness is always 100%, or 1.0
+						//NOTE: iDestRect_* vars are inclusive, and are modified above to include any pixels being even partially entered.
+						if (ixDestNow==iDestRect_L) {
+							fInness*=fRectEdgeAlpha_L;
+						}
+						else if (ixDestNow==iDestRect_R) {
+							fInness*=fRectEdgeAlpha_R;
+						}
+						
+						//if (fInness>0.0f) {
+						switch (iDrawMode) {
+							case DrawModeCopyAlpha:
+								destination.byarrData[iDest]
+									= RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR]-(float)source.byarrData[indexSrcNearestTL])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL])
+									 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR]-(float)source.byarrData[indexSrcNearestBL])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL]) );
+								if (destination.iBytesPP>1) {
+									destination.byarrData[iDest+1]
+										= RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+1]-(float)source.byarrData[indexSrcNearestTL+1])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+1])
+										 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+1]-(float)source.byarrData[indexSrcNearestBL+1])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+1]) );
+									destination.byarrData[iDest+2]
+										= RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+2]-(float)source.byarrData[indexSrcNearestTL+2])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+2])
+										 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+2]-(float)source.byarrData[indexSrcNearestBL+2])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+2]) );
+								}
+								if (destination.iBytesPP>3) {
+									destination.byarrData[iDest+3] 
+										= RMath.ByRound(  fInness  *  ( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+3]-(float)source.byarrData[indexSrcNearestTL+3])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+3])
+										                  + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+3]-(float)source.byarrData[indexSrcNearestBL+3])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+3]) )  );
+								}
 								break;
+							case DrawModeAlpha:
+								iDestTemp=iDest;
+								if (destination.iBytesPP>3) {
+									bySourceA = RMath.ByRound(  fInness  *  ( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+3]-(float)source.byarrData[indexSrcNearestTL+3])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+3])
+										                  + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+3]-(float)source.byarrData[indexSrcNearestBL+3])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+3]) )  );
+								}
+								else bySourceA=255;
+								///B (or gray)
+								destination.byarrData[iDestTemp]
+									= RMath.AlphaLook[ RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR]-(float)source.byarrData[indexSrcNearestTL])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL])
+									 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR]-(float)source.byarrData[indexSrcNearestBL])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL]) )
+									][destination.byarrData[iDestTemp]][bySourceA];
+								if (destination.iBytesPP>1) {
+									iDestTemp++;
+									///G
+									destination.byarrData[iDestTemp]
+										= RMath.AlphaLook[ RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+1]-(float)source.byarrData[indexSrcNearestTL+1])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+1])
+										 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+1]-(float)source.byarrData[indexSrcNearestBL+1])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+1]) )
+										][destination.byarrData[iDestTemp]][bySourceA];
+									iDestTemp++;
+									///R
+									destination.byarrData[iDestTemp]
+										= RMath.AlphaLook[ RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+2]-(float)source.byarrData[indexSrcNearestTL+2])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+2])
+										 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+2]-(float)source.byarrData[indexSrcNearestBL+2])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+2]) )
+										][destination.byarrData[iDestTemp]][bySourceA];
+								}
+								break;
+							case DrawModeAlphaQuickEdge:
+								break;
+							case DrawModeAlphaHardEdge:
+								break;
+							case DrawModeKeepGreaterAlpha:
+								byDestA=destination.byarrData[iDest+3];
+								if (destination.iBytesPP>3) {
+									bySourceA = RMath.ByRound(  fInness  *  ( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+3]-(float)source.byarrData[indexSrcNearestTL+3])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+3])
+										                  + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+3]-(float)source.byarrData[indexSrcNearestBL+3])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+3]) )  );
+								}
+								else bySourceA=255;
+								break;
+							case DrawModeKeepDestAlpha:
+								break;
+							default:break;
+						}//end switch (iDrawMode)
+						//}//if fInness>0.0f (if inside destination at all)
+						//}//end if iDest within range
+						//else {
+						//	RReporting.ShowErr("Skipping pixel out of range (this should never happen)","drawing scaled pixel (vars rounded to hundredth) {iDest:"+iDest.ToString()+"; to_X:"+to_X.ToString()+"; to_Y:"+to_Y.ToString()+"; ixDestNow:"+ixDestNow.ToString()+"; iyDestNow:"+iyDestNow.ToString()+"; fxSrcNow:"+fxSrcNow.ToString()+"; fySrcNow:"+fySrcNow.ToString()+"; fxRoundedSrcNearestL:"+fxRoundedSrcNearestL.ToString()+"; fyRoundedSrcNearestT:"+fyRoundedSrcNearestT.ToString()+"}");
+						//}
+						//uncrop X axis of source resampling quads:
+						if (indexSrcNearestL_CroppedByNow!=0) {
+							indexSrcNearestTL-=indexSrcNearestL_CroppedByNow;//- a positive or negative
+							indexSrcNearestBL-=indexSrcNearestL_CroppedByNow;//- a positive or negative
+						}
+						if (indexSrcNearestR_CroppedByNow!=0) {
+							indexSrcNearestTR-=indexSrcNearestR_CroppedByNow;//+ a positive or negative
+							indexSrcNearestBR-=indexSrcNearestR_CroppedByNow;//+ a positive or negative
+						}
+						//All of the following lines in the x loop must be done LAST:
+						//ONLY do the the following 3 lines if not incremented further down
+						iDest+=destination.iBytesPP;
+						fxDestWholeNum+=1.0f;
+						fxSrcNow+=xInverseScale;//pSrcNow.X+=xInverseScale;
+						
+						///EVERYTHING below in this scope is OLD
+						/*
+						if (pSrcNow.X!=fxRoundedSrc) { //not precisely on column
+							if (pSrcNow.Y==fyRoundedSrc) { //precisely on row (not column)
+								bFourCorner=false;
+								//use 2 pixels in column
+								indexRoundedSrc0=XYToLocation((int)fxRoundedSrc,(int)fyRoundedSrc);
+								if (pSrcNow.X<fxRoundedSrc) {
+									indexRoundedSrc1=indexRoundedSrc0-source.iStride;
+									destination.byarrData[iDest]=(double)source.byarrData[indexRoundedSrc]; indexRoundedSrc++; //B
+									destination.byarrData[iDest]=(double)source.byarrData[indexRoundedSrc]; indexRoundedSrc++; //G
+									destination.byarrData[iDest]=(double)source.byarrData[indexRoundedSrc]; indexRoundedSrc++; //R
+									if (indexRoundedSrc1<0) { //if (pSrcNow.Y<0.0) { 
+										destination.byarrData[iDest]=(double)source.byarrData[indexRoundedSrc]  *  ( 1.0-((pSrcNow.Y>-1.0)?(0.0-pSrcNow.Y):1.0) ); //A
+									}
+									else {
+										//destination.byarrData[iDest]=(double)source.byarrData[indexRoundedSrc]+(double)source.byarrData[indexRoundedSrc];
+									}
+								}
 							}
-						}//end for x
-					}//end for y
-				}
-				else RReporting.ShowErr("Can't create a "+iWidth.ToString()+"x"+iHeight.ToString()+"x"+iAsBytesPP.ToString()+"-bit buffer","","RImage Load");
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","RImage Load");
-				bGood=false;
-			}
-			return bGood;
-		}//end Load
-		public bool Save(string sSetFile) {
-			//TODO:? check for tga extension
-			Base.SplitFileName(out sPathFileBaseName, out sFileExt, sSetFile);
-			return Save(sPathFileBaseName+"."+sFileExt, Base.ImageFormatFromNameElseCapitalizedPng(ref sPathFileBaseName, out sFileExt));
-		}
-		public bool Save(string FileNameWithoutExtension, string FileExtension) {
-			//TODO:? check for tga extension
-			sPathFileBaseName=FileNameWithoutExtension;
-			sFileExt=FileExtension;
-			return Save(FileNameWithoutExtension+"."+FileExtension, Base.ImageFormatFromExt(FileExtension));
-		}
-		
-		public bool Save(string sFileNow, ImageFormat imageformatNow) {
-			bool bGood=true;
-			try {
-				bmpLoaded=new Bitmap(iWidth, iHeight, PixelFormatNow());
-				if (iBytesPP==1) SetGrayPalette();
-				int iNow=0;
-				for (int y=0; y<iHeight; y++) {
-					for (int x=0; x<iWidth; x++) {
-						if (iBytesPP==1) bmpLoaded.SetPixel(x,y,Color.FromArgb(255,byarrData[iNow],byarrData[iNow],byarrData[iNow]));
-						else if (iBytesPP==3) bmpLoaded.SetPixel(x,y,Color.FromArgb(255,byarrData[iNow+2],byarrData[iNow+1],byarrData[iNow]));
-						else if (iBytesPP==4) bmpLoaded.SetPixel(x,y,Color.FromArgb(byarrData[iNow+3],byarrData[iNow+2],byarrData[iNow+1],byarrData[iNow]));
-						else {
-							RReporting.ShowErr("Failed to save "+(iBytesPP*8).ToString()+"-bit buffer.","","RImage Save");
-							bGood=false;
-							break;
+							else bFourCorner=true;
 						}
-						iNow+=iBytesPP;
-					}
-				}
-				bmpLoaded.Save(sFileNow, imageformatNow);
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"saving image from 32-bit buffer","RImage Save(\""+sFileNow+"\", "+imageformatNow.ToString()+")");
-				bGood=false;
-			}
-			return bGood;
-		}//end Save
-		public bool SaveRaw(string sFileNow) {
-			bool bGood=true;
-			try {
-				Byter byterTemp=new Byter(iBytesTotal);
-				if (!byterTemp.Write(ref byarrData, iBytesTotal)) {
-					bGood=false;
-					RReporting.ShowErr("Failed to write raw data to buffer","","RImage SaveRaw("+sFileNow+")");
-				}
-				if (!byterTemp.Save(sFileNow)) {
-					bGood=false;
-					RReporting.ShowErr("Failed to save raw data to file","","RImage SaveRaw("+sFileNow+")");
-				}
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","RImage SaveRaw("+sFileNow+")");
-				bGood=false;
-			}
-			return bGood;
-		}//end SaveRaw
-		/*
-		public unsafe bool Save(string sFileNow, ImageFormat imageformatNow) {
-			bool bGood=true;
-			BitmapData bmpdata;
-			GraphicsUnit gunit;
-			RectangleF rectNowF;
-			Rectangle rectNow;
-			try {
-				bmpLoaded=new Bitmap(iWidth, iHeight, PixelFormatNow());
-				gunit = GraphicsUnit.Pixel;
-				rectNowF = bmpLoaded.GetBounds(ref gunit);
-				rectNow = new Rectangle((int)rectNowF.X, (int)rectNowF.Y,
-									(int)rectNowF.Width, (int)rectNowF.Height);
-				bmpdata = bmpLoaded.LockBits(rectNow, ImageLockMode.WriteOnly, PixelFormatNow());
-				//MessageBox.Show("Saving: iBytesPP="+iBytesPP.ToString()+" PixelFormatNow():"+PixelFormatNow());
-				byte* lpbyNow = (byte*) bmpdata.Scan0.ToPointer();
-				for (int iBy=0; iBy<iBytesTotal; iBy++) {
-					*lpbyNow=byarrData[iBy];
-					lpbyNow++;
-				}
-				bmpLoaded.UnlockBits(bmpdata);
-				bmpLoaded.Save(sFileNow, imageformatNow);
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","RImage Save(\""+sFileNow+"\", "+imageformatNow.ToString()+")");
-				bGood=false;
-			}
-			return bGood;
-		}
-		*/
-		/*
-		public unsafe bool Load(string sFile, int iAsBytesPP) {
-			bool bGood=true;
-			BitmapData bmpdata;
-			GraphicsUnit gunit;
-			RectangleF rectNowF;
-			Rectangle rectNow;
-			try {//TODO: re-implement exception handling
-				bmpLoaded=new Bitmap(sFile);
-				gunit = GraphicsUnit.Pixel;
-				rectNowF = bmpLoaded.GetBounds(ref gunit);
-				rectNow = new Rectangle((int)rectNowF.X, (int)rectNowF.Y,
-									(int)rectNowF.Width, (int)rectNowF.Height);
-				bmpdata = bmpLoaded.LockBits(rectNow, ImageLockMode.ReadOnly,
-				                             bmpLoaded.PixelFormat);//TODO: change to custom pixel format (OR use a softer get method)?????
-				iStride=bmpdata.Stride;
-				iWidth=rectNow.Width;
-				iHeight=rectNow.Height;
-				iBytesPP=iStride/iWidth;//!!Stride is relative, determined upon locking above!! //ByteDepthFromPixelFormat();//iBytesPP=iStride/iWidth;
-				iBytesTotal=iStride*iHeight;
-				iPixelsTotal=iWidth*iHeight;
-				byarrData=new byte[iBytesTotal];
-				byte* lpbyNow = (byte*) bmpdata.Scan0.ToPointer();
-				for (int iBy=0; iBy<iBytesTotal; iBy++) {
-					byarrData[iBy]=*lpbyNow;
-					lpbyNow++;
-				}
-				if (iAsBytesPP==2 && iBytesPP==4) {
-					//int iBytesPPNew=2;
-					int iBytesTotalNew=iWidth*iHeight*2;
-					int iSrc;
-					byte r=255,g=255,b=255;
-					ushort wVal;
-					decimal dMaxY=Base.ChrominanceD(ref r, ref g, ref b);
-					decimal dMaxShort=0xFFFF;
-					Byter byterShorts=new Byter(iBytesTotalNew);
-					int iDest;
-					for (int iDestPix=0; iDestPix<iPixelsTotal; iDestPix++) {
-						iSrc=iDestPix*iBytesPP;
-						wVal=(ushort)((Base.ChrominanceD(ref byarrData[iSrc+2], ref byarrData[iSrc+1], ref byarrData[iSrc])/dMaxY)*dMaxShort);
-						byterShorts.Write(ref wVal);
-					}
-					Init(iWidth,iHeight,iAsBytesPP,false);//sets iBytesPP etc
-					byarrData=byterShorts.byarr;
-				}
-				bmpLoaded.UnlockBits(bmpdata);
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","unsafe RImage Load");
-				bGood=false;
-			}
-			return bGood;
-		}//end Load
-		*/
-		#endregion file operations
-		///<summary>
-		///Returns true if dimensions, number of channels, and total buffer size are the same as riTest.
-		///</summary>
-		public bool IsLike(RImage riTest) {//formerly IsSameAs
-			bool bReturn=false;
-			if (riTest!=null) {
-				if ( riTest.iWidth==iWidth
-					&& riTest.iHeight==iHeight
-					&& riTest.Channels()==Channels()
-					&& riTest.iBytesTotal==iBytesTotal )
-					bReturn=true;
-			}
-			return bReturn;
-		}
-		#region utilities
-		///<summary>
-		///Returns false if rect is not within riDest
-		///</summary>
-		public static bool CropRect(ref int RectToModify_X, ref int RectToModify_Y, ref int RectToModify_Width, ref int RectToModify_Height, RImage Boundary) {
-			return riDest!=null?RMath.CropRect(ref RectToModify_X,ref RectToModify_Y,ref RectToModify_Width,ref RectToModify_Height, 0,0,Boundary.Width,Boundary.Height):false;
-		}
-		public static bool InvertRect(RImage riDest, int xAt, int yAt, int iSetWidth, int iSetHeight) {//TODO: move to rtextbox
-			bool bGood=false;
-			if (RMath.CropRect(riDest, ref xAt, ref yAt, ref iSetWidth, ref iSetHeight)) {
-				int xAtRow=xAt;
-				int yRel=0;
-				int xRel=0;
-				int xAbs=xAt;
-				int yAbs=yAt;
-				Color colorNow;
-				try {
-					for (yRel=0; yRel<iSetHeight; yRel++) {
-						xAbs=xAtRow;
-						for (xRel=0; xRel<iSetWidth; xRel++) {
-							riDest.InvertPixel(xAbs,yAbs);
-							//colorNow=riDest.GetPixel(xAbs,yAbs);
-							//riDest.SetPixel(xAbs,yAbs,Color.FromArgb(255,255-colorNow.R,255-colorNow.G,255-colorNow.B));
-							//Base.WriteLine("("+colorNow.R.ToString()+","+colorNow.G.ToString()+","+colorNow.B.ToString()+")");
-							xAbs++;
+						else if (pSrcNow.Y!=fyRoundedSrc) { //not precisely on row
+							if (pSrcNow.X==fxRoundedSrc) { //precisely on column (not row)
+								bFourCorner=false;
+								//use 2 pixels in row
+							}
+							else bFourCorner=true;
 						}
-						yAbs++;
+						else {//else on the exact pixel
+							//use 1 pixel
+							RMemory.CopyFastVoid(destination.byarrData, source.byarrData, iDest, source.XYToLocation((int)xSourceDRound,(int)ySourceDRound), 4);//assumes 32-bit
+						}
+						if (bFourCorner) {
+							//use 4 pixels
+						}
+						//destination.byarrData[iDest]=;
+						
+						//SetMultiple(destination.byarrData,iDest,
+						//            , //B
+						//            , //G
+						//            , //R
+						//             //A
+						//           );
+						//dPixelWeightTotal=0;
+						//xSrcI=RConvert.ToInt(pSrcNow.X);
+						//ySrcI=RConvert.ToInt(pSrcNow.Y);
+						iDest+=destination.iBytesPP;  //ONLY if not incremented above
+						fxDestWholeNum+=1.0f;
+						fxSrcNow+=xInverseScale;//pSrcNow.X+=xInverseScale;
+						*/
+					}//end for ixDestNow
+					//uncrop Y axis of source resampling quads:
+					if (indexSrcNearestT_CroppedByNow!=0) {
+						indexSrcNearestTL-=indexSrcNearestT_CroppedByNow;//- a positive or negative
+						indexSrcNearestTR-=indexSrcNearestT_CroppedByNow;//- a positive or negative
 					}
-					bGood=true;
-				}
-				catch (Exception exn) {
-					bGood=false;
-					RReporting.ShowExn(exn,"drawing invert rectangle","rform InvertRect {"
-						+"xAt:"+xAt.ToString()+"; "
-						+"yAt:"+yAt.ToString()+"; "
-						+"xAbs:"+xAbs.ToString()+"; "
-						+"yAbs:"+yAbs.ToString()+"; "
-						+"iSetWidth:"+iSetWidth.ToString()+"; "
-						+"iSetHeight:"+iSetHeight.ToString()+"; "
-						+"}");
-				}
-			}
-			return bGood;
-		}//end InvertRect
-		public static bool InvertRect(Bitmap bmpNow, int xAt, int yAt, int iSetWidth, int iSetHeight) {//TODO: move to rtextbox
-			bool bGood=false;
-			int xAtRow=xAt;
-			int yRel=0;
-			int xRel=0;
-			int xAbs=xAt;
-			int yAbs=yAt;
-			Color colorNow;
-			try {
-				for (yRel=0; yRel<iSetHeight; yRel++) {
-					xAbs=xAtRow;
-					for (xRel=0; xRel<iSetWidth; xRel++) {
-						colorNow=bmpNow.GetPixel(xAbs,yAbs);
-						bmpNow.SetPixel(xAbs,yAbs,Color.FromArgb(255,255-colorNow.R,255-colorNow.G,255-colorNow.B));
-						//Base.WriteLine("("+colorNow.R.ToString()+","+colorNow.G.ToString()+","+colorNow.B.ToString()+")");
-						xAbs++;
+					if (indexSrcNearestB_CroppedByNow!=0) {
+						indexSrcNearestBL-=indexSrcNearestB_CroppedByNow;//+ a positive or negative
+						indexSrcNearestBR-=indexSrcNearestB_CroppedByNow;//+ a positive or negative
 					}
-					yAbs++;
-				}
+					indexWhenDestLineNowStarts+=destination.iStride;
+					fyDestWholeNum+=1.0f;
+					fySrcNow+=yInverseScale;//pSrcNow.Y+=yInverseScale;
+				}//end for iyDestNow
+				
 				bGood=true;
 			}
 			catch (Exception exn) {
-				bGood=false;
-				RReporting.ShowExn(exn,"drawing invert rectangle","rform InvertRect(Bitmap) {"
-					+"xAt:"+xAt.ToString()+"; "
-					+"yAt:"+yAt.ToString()+"; "
-					+"xAbs:"+xAbs.ToString()+"; "
-					+"yAbs:"+yAbs.ToString()+"; "
-					+"iSetWidth:"+iSetWidth.ToString()+"; "
-					+"iSetHeight:"+iSetHeight.ToString()+"; "
-					+"}");
-			}
-			return bGood;
-		}//end InvertRect
-		public static ImageFormat ImageFormatFromExt(string sSetFileExt) {
-			string sLower=sSetFileExt.ToLower();
-			if (sLower==("png")) return ImageFormat.Png;
-			else if (sLower==("jpg")) return ImageFormat.Jpeg;
-			else if (sLower==("jpe")) return ImageFormat.Jpeg;
-			else if (sLower==("jpeg"))return ImageFormat.Jpeg;
-			else if (sLower==("gif")) return ImageFormat.Gif;
-			else if (sLower==("exi")) return ImageFormat.Exif;
-			else if (sLower==("exif"))return ImageFormat.Exif;
-			else if (sLower==("emf")) return ImageFormat.Emf;
-			else if (sLower==("tif")) return ImageFormat.Tiff;
-			else if (sLower==("tiff"))return ImageFormat.Tiff;
-			else if (sLower==("ico")) return ImageFormat.Icon;
-			else if (sLower==("wmf")) return ImageFormat.Wmf;
-			else return ImageFormat.Bmp;
-		}
-		public static ImageFormat ImageFormatFromNameElseCapitalizedPng(ref string sNameToTruncate, out string sExt) {
-			sExt=KnownExtensionFromNameElseBlank(sNameToTruncate);
-			if (sExt=="") sExt="PNG";//return ImageFormat.Png;
-			else Base.ShrinkByRef(ref sNameToTruncate, sExt.Length+1);
-			if (sExt=="png"||sExt=="PNG") { return ImageFormat.Png; }
-			else if (sExt=="jpg") { return ImageFormat.Jpeg;}
-			else if (sExt=="jpe") { return ImageFormat.Jpeg;}
-			else if (sExt=="jpeg"){ return ImageFormat.Jpeg;}
-			else if (sExt=="gif") { return ImageFormat.Gif; }
-			else if (sExt=="exi") { return ImageFormat.Exif;}
-			else if (sExt=="exif"){ return ImageFormat.Exif;}
-			else if (sExt=="emf") { return ImageFormat.Emf; }
-			else if (sExt=="tif") { return ImageFormat.Tiff;}
-			else if (sExt=="tiff"){ return ImageFormat.Tiff;}
-			else if (sExt=="ico") { return ImageFormat.Icon;}
-			else if (sExt=="wmf") { return ImageFormat.Wmf; }
-			else if (sExt=="bmp") { return ImageFormat.Bmp; }
-			else {
-				sExt="PNG";
-				return ImageFormat.Png;
-			}
-		}//end ImageFormatFromNameElseCapitalizedPng
-		public Color GetPixel(int x, int y) {//keep this same to mimic the Bitmap method of the same name
-			//TODO: wrapping modes
-			int iLoc=XYToLocation(x,y);
-			if (iLoc>0) {
-				if (iBytesPP==4) return Color.FromArgb(byarrData[iLoc+3], byarrData[iLoc+2], byarrData[iLoc+1], byarrData[iLoc]);
-				else if (bShowGetPixelError) {
-					 RReporting.Warning("Getting ARGB Color object from non-32bit RImage is not implemented");
-					 bShowGetPixelError=false;
-				}
-			}
-			return Color.FromArgb(0,0,0,0);
-		}
-		public IRect ToRect() {
-			return new IRect(0,0,Width,Height);
-		}
-		public void ToRect(ref IRect rectDest) {
-			if (rectDest==null) rectDest=new IRect(0,0,Width,Height);
-			else rectDest.Set(0,0,Width,Height);
-		}
-		private int XYToLocation(int x, int y) {
-			if (x>=0&&y>=0&&x<Width&&y<Height) return y*iStride+x*iBytesPP;
-			else {
-				RReporting.ShowErr("("+x.ToString()+","+y.ToString()+") is outside of "+Width.ToString()+"x"+Height.ToString()+" image.");
-				return -1;
-			}
-		}
-		public static string DrawModeToString(int iDrawMode) {
-			string sReturn="uninitialized-drawmode";
-			try {
-				sReturn=sarrDrawMode[iDrawMode];
-			}
-			catch {
-				sReturn="nonexistant-drawmode-\""+iDrawMode.ToString()+"\"";
-			}
-			return sReturn;
-		}
-		public byte Alpha(int x, int y) {
-			return ChannelValue(x,y,iBytesPP-1);//debug silently degrades (fixes) if grayscale (since uses iBytesPP-1)
-		}
-		public byte ChannelValue(int x, int y, int iChannel) {
-			byte byReturn=0;
-			try {
-				//TODO: wrapping & other out-of-range handling modes go here
-				return byarrData[y*iStride+x*iBytesPP+iChannel];
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","RImage ChannelValue");
-			}
-			return byReturn;
-		}
-		///<summary>
-		///Synonym for VariableMessage
-		///</summary>
-		public static string ToString(RImage val) {
-			return VariableMessage(val);
-		}
-		public static string VariableMessage(RImage val) {
-			try {
-				return (val!=null) ? val.Description() : "null" ;
-			}
-			catch {//do not report this
-				return "incorrectly-initialized-rimage";
-			}
-		}
-		public void Dump(string sFile) {
-			string sData=DumpStyle();
-			sData+=Environment.NewLine;
-			int iLineStart=0;
-			for (int iLine=0; iLine<iHeight; iLine++, iLineStart+=iStride) {
-				//sStatus="Dumping line "+iLine.ToString();
-				sData+=Base.ToHex(this.byarrData, iLineStart, iStride, iBytesPP);
-				sData+=Environment.NewLine;
-			}
-			if (sData.EndsWith(Environment.NewLine))
-				sData=sData.Substring(0,sData.Length-Environment.NewLine.Length);
-			Base.StringToFile(sFile, sData);
-		}
-		public string Description() {
-			return iWidth.ToString()+"x"+iHeight.ToString()+"x"+iBytesPP.ToString();
-		}
-		public string DumpStyle() {
-			return DumpStyle(true);
-		}
-		public string DumpStyle(bool bIncludeBraces) {
-			return String.Format( ((bIncludeBraces)?"{{":"")+"{0}{1}{2}{3}{4}{5}"+((bIncludeBraces)?"}}":""),
-			RReporting.DebugStyle("iWidth",iWidth,true),
-			RReporting.DebugStyle("iHeight",iHeight,true),
-			RReporting.DebugStyle("iBytesPP",iBytesPP,true),
-			RReporting.DebugStyle("iStride",iStride,true),
-			RReporting.DebugStyle("iBytesTotal",iBytesTotal,true),
-			RReporting.DebugStyle("iPixelsTotal",iPixelsTotal,!bIncludeBraces) );
-		}
-		//public unsafe bool FromTarga(string sFile) {
-			//TODO: finish this: targa loader
-		//}
-		public int Channels() {
-			return iBytesPP;
-		}
-		public PixelFormat PixelFormatNow() {
-			if (this.iBytesPP==1) return PixelFormat.Format8bppIndexed;//assumes no grayscale in framework
-			else if (this.iBytesPP==3) return PixelFormat.Format24bppRgb;//assumes BGR, though says Rgb
-			else if (this.iBytesPP==2) return PixelFormat.Format16bppGrayScale;//assumes no 16bit color
-			return PixelFormat.Format32bppArgb;
-		}
-		public void SetGrayPalette() {
-			SetGrayPalette(ref bmpLoaded);
-		}
-		public static void SetGrayPalette(ref Bitmap bmpNow) {
-			try {
-				if (bmpNow!=null) {
-					for (int index=0; index<256; index++) {
-						bmpNow.Palette.Entries.SetValue(Color.FromArgb(index,index,index,index), index);
-					}
-				}
-				else RReporting.ShowErr("Image not initialized.","","RImage SetGrayPalette");
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","RImage SetGrayPalette");
-			}
-		}
-		public static Color Multiply(Color colorX, double multiplier) {
-			return Color.FromArgb(colorX.A, RMath.ByRound((double)colorX.R*multiplier), RMath.ByRound((double)colorX.G*multiplier), RMath.ByRound((double)colorX.B*multiplier));
-		}
-		///<summary>
-		///Sets pixel using foreground brush
-		///</summary>
-		public unsafe void SetPixel(int x, int y) {
-			SetPixel(brushFore,x,y);
-		}
-		///TODO: eliminate assumed brushFore overloads of ALL functions
-		public unsafe void SetPixel(RBrush brushX, int x, int y) {
-			try {
-				if (brushX==null) {
-					brushX=new RBrush();
-					brushX.SetArgb(255,255,255);
-				}
-				if (iBytesPP==4) {
-					fixed (byte* lpDest=byarrData[XYToLocation(x,y)], lpSrc=brushX.data32) {
-						*((UInt32*)lpDest) = *((UInt32*)lpSrc);
-					}
-				}
-				else {
-					int iSrc=0;
-					int iDest=XYToLocation(x,y);
-					while (iSrc<iBytesPP) {
-						byarrData[iDest]=brushX.data32[iSrc];
-						iSrc++;
-						iDest++;
-					}
-				}//end else iBytesPP!=4
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","RImage SetPixel("+x.ToString()+","+y.ToString()+")");
-				return false;
-			}
-			return true;
-		}//end SetPixel(x,y)
-		public bool IsTransparentVLine(int x, int y, int iPixelCount) {
-			int iFound=0;
-			try {
-				int iBuffer=XYToLocation(x,y);
-				if (iBuffer>-1&&iBuffer<iBytesTotal) {
-					for (int iNow=0; iNow<iPixelCount; iNow++) {
-						if (byarrData[iBuffer+3]==0) iFound++; //+3 assumes 32-bit BGRA
-						iBuffer+=iStride;
-					}
-				}
-				else {
-					RReporting.ShowErr( "No line of pixels exists at location", "checking for transparent line", String.Format("IsTransparentVLine(x:{0},y:{1},count:{2}){found:{3}}",x,y,iPixelCount,iFound) );
-				}
-			}
-			catch (Exception exn) {
-				//do not modify bReturn, since exception implies nonexistent pixel
-				RReporting.ShowExn( exn, "checking for transparent line", String.Format("IsTransparentVLine(x:{0},y:{1},count:{2}){found:{3}}",x,y,iPixelCount,iFound) );
-			}
-			return iFound==iPixelCount;
-		}//end IsTransparentVLine
-		public static int SafeLength(RImage[] val) {	
-			int iReturn=0;
-			try {
-				if (val!=null) iReturn=val.Length;
-			}
-			catch (Exception exn) {
-				iReturn=0;
-				RReporting.Debug(exn,"","RImage SafeLength(RImage[])");
-			}
-			return iReturn;
-		}
-			
-		public static bool Redim(ref RImage[] valarr, int iSetSize, string sSender_ForErrorTracking) {
-			bool bGood=false;
-			if (iSetSize==0) valarr=null;
-			else if (iSetSize>0) {
-				if (iSetSize!=SafeLength(valarr)) {
-					RImage[] valarrNew=new RImage[iSetSize];
-					for (int iNow=0; iNow<iSetSize; iNow++) {
-						if (iNow<SafeLength(valarr)) valarrNew[iNow]=valarr[iNow];
-						else valarrNew[iNow]=null;
-					}
-					valarr=valarrNew;
-					bGood=true;
-				}
-			}
-			else RReporting.ShowErr("Prevented setting a buffer array to a negative size ", "setting buffer array length", "Redim(rimage array," + iSetSize.ToString() + ",sender:" + sSender_ForErrorTracking+")");
-			return bGood;
-		}//end Redim(RImage[],...)
-		#endregion utilities
+				string sDestination_iBytesTotal=(destination!=null)?destination.iBytesTotal.ToString():"null";
+				string sSource_iBytesTotal=(source!=null)?source.iBytesTotal.ToString():"null";
+				int source_iBytesTotal=(source!=null)?source.iBytesTotal:int.MinValue;
+				int destination_iBytesPP=(destination!=null)?destination.iBytesPP:-1;
+				int source_iBytesPP=(source!=null)?source.iBytesPP:((destination!=null)?(destination.iBytesPP*-1):-1);
+				if (source_iBytesPP==0) source_iBytesPP=int.MinValue;//prevent divide by zero below
+				if (destination_iBytesPP==0) destination_iBytesPP=int.MinValue;//prevent divide by zero below
+				string sMsg="";
+				RString.StringWriteLine(ref sMsg, "drawing to scaled pre-cropped destination ("+RReporting.sParticiple+") {"
+					);RString.StringWriteLine(ref sMsg,""
+				                   +"iDestStart:"+iDestStart.ToString()+"; "
+				                   +"iDest:"+iDest.ToString()+"; "
+				                   +"destination.iBytesTotal:"+sDestination_iBytesTotal+"; "
+				                   +"destination.iBytesPP:"+((destination_iBytesPP==int.MinValue)?"(zero)":"")+destination_iBytesPP.ToString()+"; "
+					);RString.StringWriteLine(ref sMsg,""
+				                   +"iSrcStart_TL:"+iSrcStart_TL.ToString()+"; "
+				                   +"iSrcStart_TL/source_iBytesPP:"+(iSrcStart_TL/source_iBytesPP).ToString()+"; "
+				                   +"iSrcStart_BR:"+iSrcStart_BR.ToString()+"; "
+				                   +"iSrcStart_BR/source_iBytesPP:"+(iSrcStart_BR/source_iBytesPP).ToString()+"; "
+				                   +"indexSrcNearestTL:"+indexSrcNearestTL.ToString()+"; "
+				                   +"indexSrcNearestTR:"+indexSrcNearestTR.ToString()+"; "
+				                   +"indexSrcNearestBL:"+indexSrcNearestBL.ToString()+"; "
+				                   +"indexSrcNearestBR:"+indexSrcNearestBR.ToString()+"; "
+				                   +"source.iBytesTotal:"+sSource_iBytesTotal+"; "
+				                   +"source.iBytesPP:"+((source_iBytesPP==int.MinValue)?"(zero)":"")+source_iBytesPP.ToString()+"; "
+				                   +"indexSrcNearestTL/iBytesPP:"+(indexSrcNearestTL/source_iBytesPP).ToString()+"; "
+				                   +"indexSrcNearestTR/iBytesPP:"+(indexSrcNearestTR/source_iBytesPP).ToString()+"; "
+				                   +"indexSrcNearestBL/iBytesPP:"+(indexSrcNearestBL/source_iBytesPP).ToString()+"; "
+				                   +"indexSrcNearestBR/iBytesPP:"+(indexSrcNearestBR/source_iBytesPP).ToString()+"; "
+				                   +"source.iBytesTotal/iBytesPP:"+(source_iBytesTotal/source_iBytesPP).ToString()+"; "
+					);RString.StringWriteLine(ref sMsg,""
+				                   +"to_X:"+to_X.ToString("N")+"; "
+				                   +"to_Y:"+to_Y.ToString("N")+"; "
+				                   +"to_W:"+to_W.ToString("N")+"; "
+				                   +"to_H:"+to_H.ToString("N")+"; "
+					);RString.StringWriteLine(ref sMsg,""
+				                   +"from_X:"+from_X.ToString("N")+"; "
+				                   +"from_Y:"+from_Y.ToString("N")+"; "
+				                   +"from_W:"+from_W.ToString("N")+"; "
+				                   +"from_H:"+from_H.ToString("N")+"; "
+				                   +"ixDestNow:"+ixDestNow.ToString()+"; "
+				                   +"iyDestNow:"+iyDestNow.ToString()+"; "
+					);RString.StringWriteLine(ref sMsg,""
+				                   +"fxRoundedSrcNearestL:"+fxRoundedSrcNearestL.ToString("N")+"; "
+				                   +"fyRoundedSrcNearestT:"+fyRoundedSrcNearestT.ToString("N")+"; "
+				                   +"fxRoundedSrcNearestR:"+fxRoundedSrcNearestR.ToString("N")+"; "
+				                   +"fyRoundedSrcNearestB:"+fyRoundedSrcNearestB.ToString("N")+"; "
+				                   +"fxSrcNow:"+fxSrcNow.ToString("N")+"; "
+				                   +"fySrcNow:"+fySrcNow.ToString("N")+"; "
+				                   +"fSrcW:"+fSrcW.ToString("N")+"; "
+				                   +"fSrcH:"+fSrcH.ToString("N")+"; "
+				                   +"}"
+					);
 				
-		#region editing
-		public static bool RawCropSafer(ref RImage riDest, ref IPoint ipSrc, ref RImage riSrc) {
-			bool bGood=true;
-			int iByDest=0;
-			int iBySrc;//=ipSrc.Y*riSrc.iStride+ipSrc.X*riSrc.iBytesPP;
-			int yDest;
-			int xDest;
-			if (riDest.iBytesPP!=riSrc.iBytesPP) throw new ApplicationException("Mismatched image bitdepths, couldn't RawCrop!");
-			try {
-				for (yDest=0; yDest<riDest.iHeight; yDest++) {
-					for (xDest=0; xDest<riDest.iWidth; xDest++) {
-						iBySrc=(yDest+ipSrc.Y)*riSrc.iStride+(xDest+ipSrc.X)*riSrc.iBytesPP;
-						for (int iComponent=0; iComponent<riDest.iBytesPP; iComponent++) {
-							if (iBySrc>=0&&iBySrc<riSrc.iBytesTotal) riDest.byarrData[iByDest]=riSrc.byarrData[iBySrc];
-							else riDest.byarrData[iByDest]=0;
-							iByDest++;
-							iBySrc++;
-						}
-						//iByDest+=riDest.iBytesPP;
-					}
-				}
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","RImage RawCropSafer");
+				RReporting.ShowExn(exn,sMsg);
+				//RReporting.ShowExn(exn,"drawing to scaled pre-cropped destination {iDest:"+iDest.ToString()+"; to_X:"+to_X.ToString()+"; to_Y:"+to_Y.ToString()+"; ixDestNow:"+ixDestNow.ToString()+"; iyDestNow:"+iyDestNow.ToString()+"; fxSrcNow:"+fxSrcNow.ToString()+"; fySrcNow:"+fySrcNow.ToString()+"; fxRoundedSrcNearestL:"+fxRoundedSrcNearestL.ToString()+"; fyRoundedSrcNearestT:"+fyRoundedSrcNearestT.ToString()+"}");
+				//RReporting.ShowExn(exn,"drawing to scaled pre-cropped destination");
 				bGood=false;
 			}
 			return bGood;
-		}
-		
-		/// <summary>
-		/// riDest must be true color 24- or 32-bit for the raw source
-		/// to be represented correctly.
-		/// </summary>
-		/// <param name="byarrSrc"></param>
-		/// <param name="riDest"></param>
-		/// <param name="iSrcWidth"></param>
-		/// <param name="iSrcHeight"></param>
-		/// <param name="iSrcBytesPP"></param>
-		/// <returns></returns>
-		public static bool RawOverlayNoClipToBig(ref RImage riDest, ref IPoint ipAt, ref byte[] byarrSrc, int iSrcWidth, int iSrcHeight, int iSrcBytesPP) {
-			int iSrcByte;
-			int iDestByte;
-			bool bGood=true;
-			int iDestAdder;
-			try {
-				if (iSrcBytesPP==16) {
-					RReporting.ShowErr("16-bit source isn't implemented in this function","overlaying 16-bit source image","RImage RawOverlayNoClipToBig");
-				}
-				iDestByte=ipAt.Y*riDest.iStride+ipAt.X*riDest.iBytesPP;
-				RImage riSrc=new RImage(iSrcWidth, iSrcHeight, iSrcBytesPP, false);
-				riSrc.byarrData=byarrSrc;
-				iDestAdder=riDest.iStride - riSrc.iWidth*riDest.iBytesPP;//intentionally riDest.iBytesPP
-				iSrcByte=0;
-				int iSlack=(riSrc.iBytesPP>riDest.iBytesPP)?(riSrc.iBytesPP-riDest.iBytesPP):1;
-						//offset of next source pixel after loop
-				for (int ySrc=0; ySrc<riSrc.iHeight; ySrc++) {
-					for (int xSrc=0; xSrc<riSrc.iWidth; xSrc++) {
-						for (int iChannel=0; iChannel<riDest.iBytesPP; iChannel++) {
-							riDest.byarrData[iDestByte]=riSrc.byarrData[iSrcByte];
-							if ((iChannel+1)<riSrc.iBytesPP) iSrcByte++;//don't advance to next pixel
-							iDestByte++;
-						}
-				        iSrcByte+=iSlack;
-					}
-					iDestByte+=iDestAdder;
-				}
-				if (!bGood) {
-					RReporting.ShowErr("Error copying graphics buffer data","","RImage RawOverlayNoClipToBig");
-				}
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","RImage RawOverlayNoClipToBig");
-				bGood=false;
-			}
-			return bGood;
-		}//end RawOverlayNoClipToBig
+		}//end DrawTo
 
 		/// <summary>
-		/// RGradient as lightmap version of Alpha overlay
+		/// Simple DrawFrom [calls DrawTo(RImage,IPoint,RImage,IRect,int)].
+		/// Does NOT check cropping rect; STOPS if out of range of EITHER image.
 		/// </summary>
-		/// <param name="riDest"></param>
-		/// <param name="riSrc"></param>
 		/// <param name="ipDest"></param>
-		/// <param name="gradNow"></param>
-		/// <param name="iSrcChannel"></param>
+		/// <param name="source"></param>
+		/// <param name="rectSrc"></param>
 		/// <returns></returns>
-		public static bool OverlayNoClipToBig(ref RImage riDest, ref IPoint ipDest, ref RImage riSrc, ref RGradient gradNow, int iSrcChannel) {
-			int iSrcByte;
-			int iDestByte;
-			int iDestAdder;
-			bool bGood=true;
-			try {
-				iDestByte=ipDest.Y*riDest.iStride+ipDest.X*riDest.iBytesPP;
-				iSrcByte=(iSrcChannel<riSrc.iBytesPP)?iSrcChannel:riSrc.iBytesPP-1;
-				iDestAdder=riDest.iStride - riDest.iBytesPP*riSrc.iWidth;//intentionally the dest BytesPP
-				for (int ySrc=0; ySrc<riSrc.iHeight; ySrc++) {
-					for (int xSrc=0; xSrc<riSrc.iWidth; xSrc++) {
-						if (!gradNow.ShadeAlpha(ref riDest.byarrData, iDestByte, riSrc.byarrData[iSrcByte])) {
-							bGood=false;
-						}
-						iSrcByte+=riSrc.iBytesPP;
-						iDestByte+=riDest.iBytesPP;
-					}
-					iDestByte+=iDestAdder;
-				}
-				if (!bGood) {
-					RReporting.ShowErr("Error accessing gradient","","RImage OverlayNoClipToBig gradient to "+IPoint.ToString(ipDest));
-				}
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","RImage OverlayNoClipToBig gradient to "+ipDest!=null?ipDest.ToString():"null point");
-				bGood=false;
-			}
-			return bGood;
-		}//end OverlayNoClipToBig, using gradient
-		
-		
-		/// <summary>
-		/// CopyAlpha (no blending) overlay, using gradient as lightmap
-		/// </summary>
-		/// <param name="riDest"></param>
-		/// <param name="ipAt"></param>
-		/// <param name="riSrc"></param>
-		/// <param name="gradNow"></param>
-		/// <param name="iSrcChannel"></param>
-		/// <returns></returns>
-		public static bool OverlayNoClipToBigCopyAlpha(ref RImage riDest, ref IPoint ipAt, ref RImage riSrc, ref RGradient gradNow, int iSrcChannel) {
-			int iSrcByte;
-			int iDestByte;
-			int iDestAdder;
-			bool bGood=true;
-			try {
-				iDestByte=ipAt.Y*riDest.iStride+ipAt.X*riDest.iBytesPP;
-				iSrcByte=(iSrcChannel<riSrc.iBytesPP)?iSrcChannel:riSrc.iBytesPP-1;
-				iDestAdder=riDest.iStride - riSrc.iWidth*riDest.iBytesPP;//intentionally the dest BytesPP
-				for (int ySrc=0; ySrc<riSrc.iHeight; ySrc++) {
-					for (int xSrc=0; xSrc<riSrc.iWidth; xSrc++) {
-						if (!gradNow.Shade(ref riDest.byarrData, iDestByte, riSrc.byarrData[iSrcByte])) {
-							bGood=false;
-						}
-						iSrcByte+=riSrc.iBytesPP;
-						iDestByte+=riDest.iBytesPP;
-					}
-					iDestByte+=iDestAdder;
-				}
-				if (!bGood) {
-					RReporting.ShowErr("Error copying graphics buffer data","","RImage OverlayNoClipToBigCopyAlpha gradient");
-				}
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","RImage OverlayNoClipToBigCopyAlpha gradient");
-				bGood=false;
-			}
-			return bGood;
-		} //end OverlayNoClipToBigCopyAlpha gradient
-		
-		/// <summary>
-		/// CopyAlpha overlay function.  
-		/// "ToBig" functions must overlay small
-		/// image to big image without cropping else unexpected results occur.
-		/// </summary>
-		/// <param name="riDest"></param>
-		/// <param name="ipAt"></param>
-		/// <param name="riSrc"></param>
-		/// <returns></returns>
-		public static bool OverlayNoClipToBigCopyAlpha(ref RImage riDest, ref IPoint ipAt, ref RImage riSrc) {
-			int iSrcByte;
-			int iDestByte;
-			bool bGood=true;
-			try {
-				iDestByte=ipAt.Y*riDest.iStride+ipAt.X*riDest.iBytesPP;
-				iSrcByte=0;
-				for (int ySrc=0; ySrc<riSrc.iHeight; ySrc++) {
-					if (!RMemory.CopyFast(ref riDest.byarrData, ref riSrc.byarrData, iDestByte, iSrcByte, riSrc.iStride)) {
-						bGood=false;
-					}
-					iSrcByte+=riSrc.iStride;
-					iDestByte+=riDest.iStride;
-				}
-				if (!bGood) {
-					RReporting.ShowErr("Error copying graphics buffer data","","RImage OverlayNoClipToBigCopyAlpha");
-				}
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","RImage OverlayNoClipToBigCopyAlpha");
-				bGood=false;
-			}
-			return bGood;
-		} //end OverlayNoClipToBigCopyAlpha
-		
-		public static bool OverlayNoClipToBigCopyAlphaSafe(ref RImage riDest, ref IPoint ipAt, ref RImage riSrc) {
-			int iSrcByte;
-			int iDestByte;
-			bool bGood=true;
-			int iSrcByteNow;
-			int iDestByteNow;
-			int iPastLine;//the byte location after the end of the line
-			try {
-				iDestByte=ipAt.Y*riDest.iStride+ipAt.X*riDest.iBytesPP;
-				iSrcByte=0;
-				for (int ySrc=0; ySrc<riSrc.iHeight; ySrc++) {
-					if ((iSrcByte+riSrc.iStride)-1 >= riSrc.iBytesTotal) {
-					//Fix overflow:
-						iDestByteNow=iDestByte;
-						iPastLine=iSrcByte+riSrc.iStride;
-						for (iSrcByteNow=iSrcByte; iSrcByteNow<iPastLine; iSrcByteNow++) {
-							if (iSrcByteNow>=riSrc.iBytesTotal || iSrcByteNow<0) riDest.byarrData[iDestByteNow]=0;
-							else riDest.byarrData[iDestByteNow]=riSrc.byarrData[iSrcByteNow];
-						}
-					}
-					else if (iSrcByte<0) {
-					//Fix underflow:
-						iDestByteNow=iDestByte;
-						iPastLine=iSrcByte+riSrc.iStride;
-						for (iSrcByteNow=iSrcByte; iSrcByteNow<iPastLine; iSrcByteNow++) {
-							if (iSrcByteNow<0) riDest.byarrData[iDestByteNow]=0;
-							else riDest.byarrData[iDestByteNow]=riSrc.byarrData[iSrcByteNow];
-						}
-					}
-					else {//just copy if within bounds
-						if (!RMemory.CopyFast(ref riDest.byarrData, ref riSrc.byarrData, iDestByte, iSrcByte, riSrc.iStride)) {
-							bGood=false;
-						}
-					}
-					iSrcByte+=riSrc.iStride;
-					iDestByte+=riDest.iStride;
-				}
-				if (!bGood) {
-					RReporting.ShowErr("Error copying graphics buffer data","","RImage OverlayNoClipToBigCopyAlpha");
-				}
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","RImage OverlayNoClipToBigCopyAlpha");
-				bGood=false;
-			}
-			return bGood;
-		} //end OverlayNoClipToBigCopyAlphaSafe
-		public static bool MaskFromChannel(ref RImage riDest, ref RImage riSrc, int iByteInPixel) {
-			int iDestByte=0;
-			int iSrcByte=iByteInPixel;
-			int iBytesCopy;
-			int iBytesPPOffset;
-			try {
-				if (riDest==null) {
-					riDest=new RImage(riSrc.iWidth, riSrc.iHeight, 1);
-				}
-				iBytesCopy=riDest.iBytesTotal;
-				iBytesPPOffset=riSrc.iBytesPP;
-				for (iDestByte=0; iDestByte<iBytesCopy; iDestByte++) {
-					riDest.byarrData[iDestByte]
-						= riSrc.byarrData[iSrcByte];
-					iDestByte++;
-					iSrcByte+=iBytesPPOffset;
-				}
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"creating mask","RImage MaskFromChannel "
-					+"{"+Environment.NewLine
-					+"  "+"iByteInPixel:"+iByteInPixel.ToString()
-					//+"; iDestCharPitch:"+iDestCharPitch.ToString()
-					//+"; iChar1:"+iChar1.ToString()
-					//+"; iCharNow:"+iCharNow.ToString()
-					//+"; yNow:"+yNow.ToString()
-					//+"; xNow:"+xNow.ToString()
-					+"; iSrcByte:"+iSrcByte.ToString()
-					+"; iDestByte:"+iDestByte.ToString() +"}");
-				return false;
-			}
-			return true;
+		public bool DrawFrom(IPoint ipDest, RImage source, IRect rectSrc) {
+			return DrawTo(this, ipDest, source, rectSrc, DrawModeCopyAlpha);
 		}
-		public static bool MaskFromValue(ref RImage riDest, ref RImage riSrc) {
-			int iDestByte=0;
-			int iSrcByte=0;
-			int iPixels;
-			int iBytesPPOffset;
-			try {
-				if (riDest==null) {
-					riDest=new RImage(riSrc.iWidth, riSrc.iHeight, 1);
-				}
-				iPixels=riSrc.iWidth*riSrc.iHeight;
-				iBytesPPOffset=riSrc.iBytesPP;
-				for (iDestByte=0; iDestByte<iPixels; iDestByte++) {
-					if (riSrc.iBytesPP==4) {
-						riDest.byarrData[iDestByte]=(byte)(   
-							(  ( (float)riSrc.byarrData[iSrcByte]
-								+(float)riSrc.byarrData[iSrcByte+1]
-								+(float)riSrc.byarrData[iSrcByte+2] )  /  3.0f  )
-								   *   ((float)riSrc.byarrData[iSrcByte+3]/255.0f)   );
-					}
-					else if (riSrc.iBytesPP==1) {
-						riDest.byarrData[iDestByte]=riSrc.byarrData[iSrcByte];
-					}
-					else {
-						riDest.byarrData[iDestByte]=(byte)(((float)riSrc.byarrData[iSrcByte]
-								+(float)riSrc.byarrData[iSrcByte+1]
-								+(float)riSrc.byarrData[iSrcByte+2])/3.0f);
-					}
-					iSrcByte+=iBytesPPOffset;
-					//if (riDest.byarrData[iDestByte]>0) RReporting.DebugWrite(riDest.byarrData[iDestByte].ToString()+" ");
-				}
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"creating mask", "MaskFromValue "
-					+" (make sure source bitmap is 8-, 24-, or 32-bit) {"+Environment.NewLine
-					//+"  "+"iByteInPixel:"+iByteInPixel.ToString()
-					//+"; iDestCharPitch:"+iDestCharPitch.ToString()
-					//+"; iChar1:"+iChar1.ToString()
-					//+"; iCharNow:"+iCharNow.ToString()
-					//+"; yNow:"+yNow.ToString()
-					//+"; xNow:"+xNow.ToString()
-					+"; iSrcByte:"+iSrcByte.ToString()
-					+"; iDestByte:"+iDestByte.ToString() +"}");
-				return false;
-			}
-			return true;
-		}//end MaskFromValue
-		public const double dDiagonalUnit = 1.4142135623730950488016887242097D;//the Sqrt. of 2, dist of diagonal pixel
-		public static bool InterpolatePixel(ref RImage riDest, ref RImage riSrc, int iDest, ref DPoint dpSrc) {
+		/// <summary>
+		/// Calls DrawTo(RImage,IPoint,RImage,IRect,int), which DOES NOT automatically crop;
+		/// STOPS if beyond range of EITHER image.
+		/// </summary>
+		/// <param name="ipDest"></param>
+		/// <param name="source"></param>
+		/// <param name="rectSrc"></param>
+		/// <returns></returns>
+		public bool DrawFrom(IPoint ipDest, RImage source, IRect rectSrc, int iDrawMode) {
+			return DrawTo(this,ipDest,source,rectSrc,iDrawMode);
+		}
+		
+		/// <summary>
+		/// Calls DrawFrom(IPoint,RImage,int), which DOES automatically crop, then selects appropriate static method [selects DrawToLargerWithoutCropElseCancel OR DrawTo(RImage,IPoint,RImage,IRect,int)].
+		/// --DEFAULTS TO DrawModeCopyAlpha since no DrawMode is specified in this overload.
+		/// </summary>
+		/// <param name="ipDest"></param>
+		/// <param name="source"></param>
+		/// <returns></returns>
+		public bool DrawFrom(IPoint ipDest, RImage source) {
+			return DrawFrom(ipDest, source, DrawModeCopyAlpha);
+		}
+		/// <summary>
+		/// DOES automatically crop, then calls static method [selects DrawToLargerWithoutCropElseCancel OR DrawTo(RImage,IPoint,RImage,IRect,int)].
+		/// </summary>
+		/// <param name="ipDest"></param>
+		/// <param name="source"></param>
+		/// <param name="iDrawMode"></param>
+		/// <returns></returns>
+		public bool DrawFrom(IPoint ipDest, RImage source, int iDrawMode) {
+			return DrawTo(this,ipDest,source,iDrawMode);
+		}//end DrawFrom
+
+		/// <summary>
+		/// DOES automatically crop, primary overload for automatically-cropped version [selects DrawToLargerWithoutCropElseCancel OR DrawTo(RImage,IPoint,RImage,IRect,int)].
+		/// </summary>
+		/// <param name="destination"></param>
+		/// <param name="ipDest"></param>
+		/// <param name="source"></param>
+		/// <param name="iDrawMode"></param>
+		/// <returns></returns>
+		public static bool DrawTo(RImage destination, IPoint ipDest, RImage source, int iDrawMode) {
 			bool bGood=false;
-			bool bOnX;
-			bool bOnY;
-			double dWeightNow;
-			double dWeightTotal;
-			double dHeavyChannel;
-			DPoint[] dparrQuad; //rounded
-			int iSrcRoundX;
-			int iSrcRoundY;
-			double dSrcRoundX;
-			double dSrcRoundY;
-			//int iSampleQuadIndex;
-			double dMaxX;
-			double dMaxY;
-			int iQuad;
-			int iChan;
-			int iDestNow;
-			int iTotal=0;
-			int[] iarrLocOfQuad;
 			try {
-				iarrLocOfQuad=new int[4];
-				dMaxX=(double)riSrc.iWidth-1.0d;
-				dMaxY=(double)riSrc.iHeight-1.0d;
-				//iDest=riDest.iStride*ipDest.Y+riDest.iBytesPP*ipDest.X;
-				dWeightNow=0;
-				dWeightTotal=0;
-				dparrQuad=new DPoint[4];
-				iSrcRoundX=(int)(dpSrc.X+.5);
-				iSrcRoundY=(int)(dpSrc.Y+.5);
-				dSrcRoundX=(double)iSrcRoundX;
-				dSrcRoundY=(double)iSrcRoundY;
-				if (dSrcRoundX<dpSrc.X) {
-					if (dSrcRoundY<dpSrc.Y) {
-						//iSampleQuadIndex=0;
-						dparrQuad[0].X=dSrcRoundX;		dparrQuad[0].Y=dSrcRoundY;
-						dparrQuad[1].X=dSrcRoundX+1.0d;	dparrQuad[1].Y=dSrcRoundY;
-						dparrQuad[2].X=dSrcRoundX;		dparrQuad[2].Y=dSrcRoundY+1.0d;
-						dparrQuad[3].X=dSrcRoundX+1.0d;	dparrQuad[3].Y=dSrcRoundY+1.0d;
-					}
-					else {
-						//iSampleQuadIndex=2;
-						dparrQuad[0].X=dSrcRoundX;		dparrQuad[0].Y=dSrcRoundY-1.0d;
-						dparrQuad[1].X=dSrcRoundX+1.0d;	dparrQuad[1].Y=dSrcRoundY-1.0d;
-						dparrQuad[2].X=dSrcRoundX;		dparrQuad[2].Y=dSrcRoundY;
-						dparrQuad[3].X=dSrcRoundX+1.0d;	dparrQuad[3].Y=dSrcRoundY;
-					}
+				if (destination.CanFit(source,ipDest.X,ipDest.Y)) {
+					bGood=RImage.DrawToLargerWithoutCropElseCancel(destination,ipDest.X,ipDest.Y,source,iDrawMode);
 				}
 				else {
-					if (dSrcRoundY<dpSrc.Y) {
-						//iSampleQuadIndex=1;
-						dparrQuad[0].X=dSrcRoundX-1.0d;	dparrQuad[0].Y=dSrcRoundY;
-						dparrQuad[1].X=dSrcRoundX;		dparrQuad[1].Y=dSrcRoundY;
-						dparrQuad[2].X=dSrcRoundX-1.0d;	dparrQuad[2].Y=dSrcRoundY+1.0d;
-						dparrQuad[3].X=dSrcRoundX;		dparrQuad[3].Y=dSrcRoundY+1.0d;
+					IRect rectSource = new IRect(0,0,source.Width,source.Height); //for automatic cropping (see below)
+					//Console.Error.Write("DrawFrom...cropping....");
+					//Console.Error.Flush();
+					RImage.CropSourceRectAndGetNewDest(ref rectSource.X, ref rectSource.Y, ref rectSource.Width, ref rectSource.Height, ref ipDest.X, ref ipDest.Y, destination);
+					//Console.Error.Write("Drawing image from "+rectSource.ToString()+" to "+ipDest.ToString()+"...");//debug only
+					//Console.Error.Flush();
+					if (rectSource.Width<=0||rectSource.Height<=0) {
+						if (RReporting.bDebug) RReporting.Debug("Image drawing was ignored since source was completely outside of destination.","drawing image","DrawTo(RImage,IPoint,RImage,int)");
+						bGood=true;
 					}
 					else {
-						//iSampleQuadIndex=3;
-						dparrQuad[0].X=dSrcRoundX-1.0d;	dparrQuad[0].Y=dSrcRoundY-1.0d;
-						dparrQuad[1].X=dSrcRoundX;		dparrQuad[1].Y=dSrcRoundY-1.0d;
-						dparrQuad[2].X=dSrcRoundX-1.0d;	dparrQuad[2].Y=dSrcRoundY;
-						dparrQuad[3].X=dSrcRoundX;		dparrQuad[3].Y=dSrcRoundY;
+						bGood=RImage.DrawTo(destination, ipDest, source, rectSource, iDrawMode);
 					}
-				}
-				if (dpSrc.X<0) {
-					for (iQuad=0; iQuad<4; iQuad++) {
-						if (dparrQuad[iQuad].X<0) dparrQuad[iQuad].X=0;
-					}
-				}
-				else if (dpSrc.X>dMaxX) {
-					for (iQuad=0; iQuad<4; iQuad++) {
-						if (dparrQuad[iQuad].X>dMaxX) dparrQuad[iQuad].X=dMaxX;
-					}
-				}
-				if (dpSrc.Y<0) {
-					for (iQuad=0; iQuad<4; iQuad++) {
-						if (dparrQuad[iQuad].Y<0) dparrQuad[iQuad].Y=0;
-					}
-				}
-				else if (dpSrc.Y>dMaxY) {
-					for (iQuad=0; iQuad<4; iQuad++) {
-						if (dparrQuad[iQuad].Y>dMaxY) dparrQuad[iQuad].Y=dMaxY;
-					}
-				}
-				if (dpSrc.X==(double)iSrcRoundX) bOnX=true;
-				else bOnX=false;
-				if (dpSrc.Y==(double)iSrcRoundY) bOnY=true;
-				else bOnY=false;
-				
-				if (bOnY&&bOnX) {
-					RMemory.CopyFastVoid(ref riDest.byarrData, ref riSrc.byarrData, iDest, iSrcRoundY*riSrc.iStride+iSrcRoundX*riSrc.iBytesPP, riDest.iBytesPP);
-				}
-				else {
-					iDestNow=iDest;
-					for (iQuad=0; iQuad<4; iQuad++) {
-						iarrLocOfQuad[iQuad]=riSrc.iStride*(int)dparrQuad[iQuad].Y + riSrc.iBytesPP*(int)dparrQuad[iQuad].X;
-					}
-					for (iChan=0; iChan<riSrc.iBytesPP; iChan++, iTotal++) {
-						dHeavyChannel=0;
-						dWeightTotal=0;
-						for (iQuad=0; iQuad<4; iQuad++) {
-							dWeightNow=dDiagonalUnit-RMath.Dist(ref dpSrc, ref dparrQuad[iQuad]);
-							dWeightTotal+=dWeightNow; //debug performance, this number is always the same theoretically
-							dHeavyChannel+=(double)riSrc.byarrData[iarrLocOfQuad[iQuad]+iChan]*dWeightNow;
-						}
-						riDest.byarrData[iDestNow]=(byte)(dHeavyChannel/dWeightTotal);
-						iDestNow++;
-					}
-				}
-				bGood=true;
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"resampling image","RImage InterpolatePixel");
-				bGood=false; //debug show error
-			}
-			return bGood;
-		}//end InterpolatePixel
-		/// <summary>
-		/// Fakes motion blur.
-		///   Using a byDecayTotal of 255 makes the blur trail fade to transparent.
-		/// </summary>
-		public static bool EffectMoBlurSimModWidth(ref RImage riDest, ref RImage riSrc, int xOffsetTotal, byte byDecayTotal) {
-			bool bGood=true;
-			int xDirection;
-			int xLength;
-			int iDestByteStart;
-			if (xOffsetTotal<0) {
-				xDirection=-1;
-				xLength=xOffsetTotal*-1;
-			}
-			else {
-				xDirection=1;
-				xLength=xOffsetTotal;
-			}
-			try {
-				try {
-					riDest.iWidth=riSrc.iWidth+xLength;
-					riDest.iBytesPP=riSrc.iBytesPP;
-					riDest.iStride=riSrc.iStride;
-					riDest.iHeight=riSrc.iHeight;
-					riDest.iBytesTotal=riDest.iStride*riDest.iHeight;
-					riDest.iPixelsTotal=riDest.iWidth*riDest.iHeight;
-					if (riDest.byarrData==null || (riDest.byarrData.Length!=riDest.iBytesTotal))
-						riDest.byarrData=new byte[riDest.iBytesTotal];
-				}
-				catch (Exception exn) {
-					try {
-						riDest=new RImage(riSrc.iWidth+xLength, riSrc.iHeight, riSrc.iBytesPP);
-					}
-					catch (Exception exn2) {
-						RReporting.ShowExn(exn2,"trying to recover from previous exception by recreating object","EffectMoBlurSimModWidth { previous error: "+exn.ToString()+" }");
-					}
-				}
-				//int iHeight2=riDest.iHeight;
-				//int iWidth2=riDest.iWidth;
-				int iHeight1=riSrc.iHeight;//TODO: eliminate this var and use riSrc.iHeight
-				//int iWidth1=riSrc.iWidth;
-				int iStride=riSrc.iStride;
-				int iStride2=riDest.iStride;
-				int iSrcByte=0;
-				iDestByteStart=0;
-				if (xDirection<0) {
-					iDestByteStart=xLength;
-				}
-				int iDestByte=iDestByteStart;
-				bool bTest=true;
-				int yNow;
-				for (yNow=0; yNow<iHeight1; yNow++) {
-					bTest=RMemory.CopyFast(ref riDest.byarrData,
-								 	ref riSrc.byarrData,
-								  	iDestByte, iSrcByte, iStride);
-					if (!bTest) {
-						RReporting.ShowErr("Error precopying blur data","","RImage EffectMoBlurSimModWidth");
-						break;
-					}
-					iSrcByte+=iStride;
-					iDestByte+=iStride2;
-				}
-				int iOffsetEnder=xLength;
-				if (xDirection<0) {
-					iOffsetEnder=-1;
-				}
-				//debug float precision error on super-high res?
-				float fMultiplier=1.0f;
-				float fPixNow=0;
-				float fMaxPix=(float)(xLength-1);
-				float fDecayTotal=(float)byDecayTotal;
-				//bTest=true;
-				for (int iOffsetNow=iDestByteStart; fPixNow<=fMaxPix; iOffsetNow+=xDirection) {
-					if (!bTest) break;
-					iSrcByte=0;
-					iDestByte=iOffsetNow;
-					for (yNow=0; yNow<iHeight1; yNow++) {
-						bTest=RImage.EffectLightenOnly(ref riDest.byarrData,
-							ref riSrc.byarrData,iDestByte, iSrcByte, iStride, fMultiplier);
-						if (!bTest) {
-							RReporting.ShowErr("Error overlaying blur data.","","RImage EffectMoBlurSimModWidth");
-							break;
-						}
-						iSrcByte+=iStride;
-						iDestByte+=iStride2;
-					}
-					fPixNow++;
-					fMultiplier=(fDecayTotal/255.0f)*(fPixNow/fMaxPix);
+					//Console.Error.WriteLine(bGood?"OK":"FAIL");
 				}
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"compositing blur data","RImage EffectMoBlurSimModWidth");
 				bGood=false;
+				RReporting.ShowExn(exn,"drawing cropped image","DrawTo(RImage,IPoint,RImage,int)");
 			}
 			return bGood;
-		}//EffectMoBlurSimModWidth
-		public static bool EffectSkewModWidth(ref RImage riDest, ref RImage riSrc, int xOffsetBottom) {
-			bool bGood=true;
-			int iDestLine;
-			double xDirection;
-			double dHeight;
-			double yNow;
-			double dWidthDest;
-			double dWidthSrc;
-			double xNow;
-			double xAdd;
-			double dMaxY;
-			int iDestIndex;
-			DPoint dpSrc;
-			int iDestByte;
-			int iSrcByte;
-			if (xOffsetBottom<0) {
-				xDirection=-1;
-				xAdd=(double)(xOffsetBottom*-1);
-			}
-			else {
-				xDirection=1;
-				xAdd=(double)xOffsetBottom;
-			}
-			try {
-				try {
-					riDest.iWidth=riSrc.iWidth+((xOffsetBottom<0)?xOffsetBottom*-1:xOffsetBottom);
-					riDest.iBytesPP=riSrc.iBytesPP;
-					riDest.iStride=riSrc.iStride;
-					riDest.iHeight=riSrc.iHeight;
-					riDest.iBytesTotal=riDest.iStride*riDest.iHeight;
-					riDest.iPixelsTotal=riDest.iWidth*riDest.iHeight;
-					if (riDest.byarrData==null || (riDest.byarrData.Length!=riDest.iBytesTotal))
-						riDest.byarrData=new byte[riDest.iBytesTotal];
-				}
-				catch (Exception exn) {
-					try {
-						riDest=new RImage(riSrc.iWidth+xOffsetBottom, riSrc.iHeight, riSrc.iBytesPP);
-					}
-					catch (Exception exn2) {
-						RReporting.ShowExn(exn2,"trying to recover from previous exception by recreating destination","RImage EffectSkewModWidth { previous exception:"+exn.ToString()+" }");
-					}
-				}
-				iSrcByte=0;
-				iDestByte=0;//iDestByteStart;//TODO: Uncomment, and separate the blur code here and make alpha overlay version
-				bool bTest=true;
-				iDestLine=0;
-				dpSrc=new DPoint();
-				dpSrc.Y=0;
-				dHeight=(double)riDest.iHeight;
-				dWidthDest=(double)riDest.iWidth;
-				//dWidthSrc=(double)riSrc.iWidth;
-				dMaxY=dHeight-1.0d;
-				iDestIndex=0;
-				for (yNow=0; yNow<dHeight; yNow+=1.0d) {
-					dpSrc.X=(yNow/dMaxY)*xAdd;
-					if (xOffsetBottom<0) dpSrc.X=(xAdd-dpSrc.X);
-					for (xNow=0; xNow<dWidthDest; xNow+=1.0d) {
-						if (dpSrc.X>-1.0d) {
-							if (dpSrc.X<dWidthDest)
-								bTest=RImage.InterpolatePixel(ref riDest, ref riSrc, iDestIndex, ref dpSrc);
-						}
-						if (!bTest) {
-							bGood=false;
-							break;
-						}
-						iDestIndex+=riSrc.iBytesPP;
-					}
-					if (!bGood) break;
-					//iDestLine+=riDest.iStride;
-					dpSrc.Y+=1.0d;
-				}
-				if (!bGood) {
-					RReporting.ShowErr("Error calculating skew data.","interpolating pixel","RImage EffectSkewModWidth");
-				}
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"calculating skew data","RImage EffectSkewModWidth");
-				bGood=false;
-			}
-			return bGood;
-		}//end EffectSkewModWidth
-		public static bool EffectLightenOnly(ref byte[] byarrDest, ref byte[] byarrSrc, int iDestByte, int iSrcByte, int iBytes) {
-			try {
-				for (int iByteNow=0; iByteNow<iBytes; iByteNow++) {
-					if (byarrSrc[iSrcByte]>byarrDest[iDestByte]) byarrDest[iDestByte]=byarrSrc[iSrcByte];
-					iDestByte++;
-					iSrcByte++;
-				}
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","RImage EffectLightenOnly");
-				return false;
-			}
-			return true;
-		}
-		public static bool EffectLightenOnly(ref byte[] byarrDest, ref byte[] byarrSrc, int iDestByte, int iSrcByte, int iBytes, float fMultiplySrc) {
-			if (fMultiplySrc>1.0f) fMultiplySrc=1.0f;
-			byte bySrc;
-			float fVal;
-			try {
-				for (int iByteNow=0; iByteNow<iBytes; iByteNow++) {
-					fVal=((float)byarrSrc[iSrcByte]*fMultiplySrc);
-					if (fVal>255.0) fVal=255;
-					bySrc=(byte)fVal;
-					if (bySrc>byarrDest[iDestByte]) byarrDest[iDestByte]=bySrc;
-					iDestByte++;
-					iSrcByte++;
-				}
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","RImage EffectLightenOnly");
-				return false;
-			}
-			return true;
-		}
-		#endregion editing
+		}//end DrawTo
 		
-		#region Draw Overlay methods
-		static bool bFirstRunNeedsToCropToFitInto=true;
-		public bool NeedsToCropToFitInto(RImage riDest,int xDest, int yDest) {
-			bool bReturn=true;
-			if (bFirstRunNeedsToCropToFitInto) RReporting.DebugWrite("check NeedsToCropToFitInto...");
-			if (iBytesTotal==0) {
-				RReporting.ShowErr("Getting status on zero-length buffer!","","NeedsToCropToFitInto");
-			}
-			try {
-				if (xDest>=0 && yDest>=0
-					&& xDest+iWidth<=riDest.iWidth
-					&& yDest+iHeight<=riDest.iHeight) bReturn=false;
-			}
-			catch {bReturn=true;}
-			if (bFirstRunNeedsToCropToFitInto) RReporting.DebugWrite(((bReturn)?"yes...":"no..."));
-			bFirstRunNeedsToCropToFitInto=false;
-			return bReturn;
+		public bool DrawFromSmallerWithoutCropElseCancel(int xDest, int yDest, RImage source) {
+			return DrawToLargerWithoutCropElseCancel(this, xDest, yDest, source, DrawModeCopyAlpha);
 		}
-		static bool bFirstCancellationOfDrawSmallerWithoutCropElseCancel=true;
+		public bool DrawFromSmallerWithoutCropElseCancel(int xDest, int yDest, RImage source, int iDrawMode) {
+			return DrawToLargerWithoutCropElseCancel(this, xDest, yDest, source, iDrawMode);
+		}
 		
-		//public bool DrawToLargerWithoutCropElseCancel(RImage riDest, int xDest, int yDest, int iDrawMode) {
-		//	try {
-		//		return riDest.DrawSmallerWithoutCropElseCancel(xDest, yDest, this, iDrawMode);
-		//	}
-		//	catch {
-		//	}
-		//	return null;
-		//}
-		public bool DrawSmallerWithoutCropElseCancel(int xDest, int yDest, RImage riSrc) {
-			return DrawSmallerWithoutCropElseCancel(xDest,yDest,riSrc,DrawModeCopyAlpha);
-		}
-		public bool CanFit(RImage riSrc, int xDest, int yDest) {
-			bool bReturn=false;
-			try {
-				if (riSrc!=null) {
-					bReturn=xDest>=0&&yDest>=0
-						&&xDest+riSrc.Width<=Width
-						&&yDest+riSrc.Height<=Height;
-				}
-			}
-			catch {
-				bReturn=false;
-			}
-			return bReturn;
-		}
-		public bool DrawSmallerWithoutCropElseCancel(int xDest, int yDest, RImage riSrc, int iDrawMode) {
-			return DrawSmallerWithoutCropElseCancel(this, xDest, yDest, riSrc, iDrawMode);
-		}
 		///<summary>
 		///Draws riSrc to riDest if riSrc is smaller AND doesn't need to be cropped.
-		///uses RImage.brushFore for hue if riSrc is grayscale and riDest is RGB
+		///uses RImage.rpaintFore for hue if riSrc is grayscale and riDest is RGB
 		///</summary>
-		public static bool DrawSmallerWithoutCropElseCancel(RImage riDest, int xDest, int yDest, RImage riSrc, int iDrawMode) {
+		public static bool DrawToLargerWithoutCropElseCancel(RImage riDest, int xDest, int yDest, RImage riSrc, int iDrawMode) { //formerly DrawFromSmallerWithoutCropElseCancel
 			bool bGood=true;
 			int x=0,y=0;
 			if (riDest==null||riDest.byarrData==null) {
-				RReporting.ShowErr("Tried to draw to null buffer!","","DrawSmallerWithoutCropElseCancel");
+				RReporting.ShowErr("Tried to draw to null buffer!","","DrawToLargerWithoutCropElseCancel");
 				return false;
 			}
 			else if (riSrc==null||riSrc.byarrData==null) {
-				RReporting.ShowErr("Tried to draw null buffer!","","DrawSmallerWithoutCropElseCancel");
+				RReporting.ShowErr("Tried to draw null buffer!","","DrawToLargerWithoutCropElseCancel");
 				return false;
 			}
 			try {
@@ -1434,13 +1116,18 @@ namespace ExpertMultimedia {
 				byte[] riSrc_byarrData=riSrc.byarrData;
 				//int riSrc_iBytesPP=riSrc.iBytesPP;
 				//int riDest_iBytesPP=riDest.iBytesPP;
+				if (bShowDrawSmallerWithoutCropElseCancelMsg||RReporting.bMegaDebug) {
+					//Console.Error.Write("DrawToLargerWithoutCropElseCancel("+riDest.Description()+",("+xDest.ToString()+","+yDest.ToString()+"),"+riSrc.Description()+","+DrawModeToString(iDrawMode)+") "+(RReporting.bMegaDebug?"(bMegaDebug showing all attempts)":"(only showing first attempt)")+"...");//debug only
+					//Console.Error.Flush(); //debug only
+				}
 				if (!riDest.CanFit(riSrc,xDest,yDest)) {//if (riSrc.NeedsToCropToFitInto(this,xDest,yDest)) {
 					if (bFirstCancellationOfDrawSmallerWithoutCropElseCancel) {
 						RReporting.DebugWrite("failed since not in bounds("+riSrc.iWidth.ToString()+"x"+riSrc.iHeight.ToString()+" to "+riDest.iWidth.ToString()+"x"+riDest.iHeight.ToString()+" at ("+xDest.ToString()+","+yDest.ToString()+") )...");
 						bFirstCancellationOfDrawSmallerWithoutCropElseCancel=false;
 					}
-					RReporting.Warning("Cancelling DrawSmallerWithoutCropElseCancel {xDest:"+xDest.ToString()+"; yDest:"+yDest.ToString()+"; riSrc:"+riSrc.Description()+"; riDest:"+riDest.Description()+"}");
+					RReporting.Warning("Cancelling DrawToLargerWithoutCropElseCancel {xDest:"+xDest.ToString()+"; yDest:"+yDest.ToString()+"; riSrc:"+riSrc.Description()+"; riDest:"+riDest.Description()+"}");
 					bGood=false;
+					//Console.Error.Write("FAIL (doesn't fit)");//debug only
 				}
 				if (bGood) {
 					float fCookedAlpha;
@@ -1473,7 +1160,7 @@ namespace ExpertMultimedia {
 							}
 							break;
 						case DrawModeAlpha:
-							//alpha result: ((Source-Dest)*alpha/255+Dest)
+							//alpha formula: ((Source-Dest)*alpha/255+Dest)
 							for (y=0; y<riSrc.iHeight; y++) {
 								iDestPix=iLocDestLine;
 								iSrcPix=iLocSrcLine;
@@ -1536,7 +1223,7 @@ namespace ExpertMultimedia {
 								}//end for x
 								iLocDestLine+=riDest.iStride;
 								iLocSrcLine+=riSrc.iStride;
-								Console.Error.Write("-");//debug only
+								////Console.Error.Write("-");//debug only
 							}//end for y
 							break;
 						case DrawModeKeepGreaterAlpha:
@@ -1571,6 +1258,10 @@ namespace ExpertMultimedia {
 							}
 							break;
 						}//end switch
+						if (bShowDrawSmallerWithoutCropElseCancelMsg||RReporting.bMegaDebug) {
+							//Console.Error.WriteLine("OK (32-bit to 32-bit)");//debug only
+							bShowDrawSmallerWithoutCropElseCancelMsg=false;
+						}
 					}//end 32-bit to 32-bit
 					else if (riSrc.iBytesPP==1&&riDest.iBytesPP==4) {
 						//8-bit to 32-bit
@@ -1581,7 +1272,7 @@ namespace ExpertMultimedia {
 								int iLocDest=iLocDestLine;
 								int iLocSrc=iLocSrcLine;
 								for (x=0; x<riSrc.iWidth; x++) {
-									RMemory.CopyFast(ref riDest_byarrData, ref brushFore.data32, iLocDest, 0, 3);
+									RMemory.CopyFast(ref riDest_byarrData, ref rpaintFore.data32, iLocDest, 0, 3);
 									riDest_byarrData[iDestBytesPP+3]=riSrc_byarrData[iLocSrc];//assumes 32-bit; assumes 8-bit grayscale source
 									iLocDest+=iDestBytesPP;
 									iLocSrc+=iSrcBytesPP;
@@ -1606,15 +1297,15 @@ namespace ExpertMultimedia {
 									else {
 										fCookedAlpha=(float)riSrc_byarrData[iSrcPix]/255.0f;
 										
-										riDest_byarrData[iDestPix]=RMath.ByRound(((float)(brushFore.data32[0]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //B
+										riDest_byarrData[iDestPix]=RMath.ByRound(((float)(rpaintFore.data32[0]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //B
 										iDestPix++;
 										//iSrcPix++; //being commented assumes grayscale
 										
-										riDest_byarrData[iDestPix]=RMath.ByRound(((float)(brushFore.data32[1]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //G
+										riDest_byarrData[iDestPix]=RMath.ByRound(((float)(rpaintFore.data32[1]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //G
 										iDestPix++; 
 										//iSrcPix++;  //being commented assumes grayscale
 										
-										riDest_byarrData[iDestPix]=RMath.ByRound(((float)(brushFore.data32[2]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //R
+										riDest_byarrData[iDestPix]=RMath.ByRound(((float)(rpaintFore.data32[2]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //R
 										iSrcPix+=iSrcBytesPP;//assumes not incremented during copy above
 										iDestPix+=2; //assumes 32-bit
 									}//end else neither 0 nor 255
@@ -1632,17 +1323,17 @@ namespace ExpertMultimedia {
 										iSrcPix+=iSrcBytesPP; iDestPix+=iDestBytesPP;//assumes 32-bit
 									}
 									else if (riSrc_byarrData[iSrcPix]>170) {//assumes 8-bit
-										RMemory.CopyFast(ref riDest_byarrData,ref brushFore.data32, iDestPix, 0, 3);
+										RMemory.CopyFast(ref riDest_byarrData,ref rpaintFore.data32, iDestPix, 0, 3);
 										iSrcPix+=iSrcBytesPP; iDestPix+=iDestBytesPP;//assumes 32-bit
 									}
 									else {
-										riDest_byarrData[iDestPix]=(byte)( (brushFore.data32[0]>>2) + (riDest_byarrData[iDestPix]>>2) ); //B //copy from brush assumes 8-bit source
+										riDest_byarrData[iDestPix]=(byte)( (rpaintFore.data32[0]>>2) + (riDest_byarrData[iDestPix]>>2) ); //B //copy from rpaint assumes 8-bit source
 										//iSrcPix++;//commented assumes 8-bit source
 										iDestPix++;
-										riDest_byarrData[iDestPix]=(byte)( (brushFore.data32[1]>>2) + (riDest_byarrData[iDestPix]>>2) ); //G //copy from brush assumes 8-bit source
+										riDest_byarrData[iDestPix]=(byte)( (rpaintFore.data32[1]>>2) + (riDest_byarrData[iDestPix]>>2) ); //G //copy from rpaint assumes 8-bit source
 										//iSrcPix++;//commented assumes 8-bit source
 										iDestPix++;
-										riDest_byarrData[iDestPix]=(byte)( (brushFore.data32[2]>>2) + (riDest_byarrData[iDestPix]>>2) ); //R //copy from brush assumes 8-bit source
+										riDest_byarrData[iDestPix]=(byte)( (rpaintFore.data32[2]>>2) + (riDest_byarrData[iDestPix]>>2) ); //R //copy from rpaint assumes 8-bit source
 										iSrcPix+=iSrcBytesPP;//assumes not incremented during copy above
 										iDestPix+=2;//assumes 32-bit
 									}
@@ -1657,7 +1348,7 @@ namespace ExpertMultimedia {
 								iSrcPix=iLocSrcLine;
 								for (x=0; x<riSrc.iWidth; x++) {
 									if (riSrc_byarrData[iSrcPix]>=128) {
-										RMemory.CopyFast(ref riDest_byarrData,ref brushFore.data32, iDestPix, 0, iDestBytesPP);//copy from brushFore.data32 0 assumes 8-bit source
+										RMemory.CopyFast(ref riDest_byarrData,ref rpaintFore.data32, iDestPix, 0, iDestBytesPP);//copy from rpaintFore.data32 0 assumes 8-bit source
 									}
 									iSrcPix+=iSrcBytesPP; iDestPix+=iDestBytesPP;
 								}//end for x
@@ -1686,15 +1377,15 @@ namespace ExpertMultimedia {
 									else {
 										fCookedAlpha=(float)riSrc_byarrData[iSrcPix]/255.0f;
 										
-										riDest_byarrData[iDestPix]=RMath.ByRound(((float)(brushFore.data32[0]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //B
+										riDest_byarrData[iDestPix]=RMath.ByRound(((float)(rpaintFore.data32[0]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //B
 										iDestPix++;
 										//iSrcPix++; //being commented assumes grayscale
 										
-										riDest_byarrData[iDestPix]=RMath.ByRound(((float)(brushFore.data32[1]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //G
+										riDest_byarrData[iDestPix]=RMath.ByRound(((float)(rpaintFore.data32[1]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //G
 										iDestPix++; 
 										//iSrcPix++;  //being commented assumes grayscale
 										
-										riDest_byarrData[iDestPix]=RMath.ByRound(((float)(brushFore.data32[2]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //R
+										riDest_byarrData[iDestPix]=RMath.ByRound(((float)(rpaintFore.data32[2]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //R
 										iDestPix++;
 										
 										bySrc=riSrc_byarrData[iSrcPix];
@@ -1713,7 +1404,7 @@ namespace ExpertMultimedia {
 								iDestPix=iLocDestLine;
 								iSrcPix=iLocSrcLine;
 								for (x=0; x<riSrc.iWidth; x++) {
-									RMemory.CopyFast(ref riDest_byarrData, ref brushFore.data32,iDestPix,0,3);//copy from brushFore.data32 0 assumes 8-bit source
+									RMemory.CopyFast(ref riDest_byarrData, ref rpaintFore.data32,iDestPix,0,3);//copy from rpaintFore.data32 0 assumes 8-bit source
 									iDestPix+=4; //assumes 32-bit
 									iSrcPix++; //assumes 8-bit
 								}
@@ -1722,26 +1413,1471 @@ namespace ExpertMultimedia {
 							}
 							break;
 						}//end switch
+						if (bShowDrawSmallerWithoutCropElseCancelMsg||RReporting.bMegaDebug) {
+							//Console.Error.WriteLine("OK");//debug only
+							bShowDrawSmallerWithoutCropElseCancelMsg=false;
+						}
+						if (bShowDrawSmallerWithoutCropElseCancelMsg||RReporting.bMegaDebug) {
+							//Console.Error.WriteLine("OK (8-bit to 32-bit)");//debug only
+							bShowDrawSmallerWithoutCropElseCancelMsg=false;
+						}
 					}//end 8-bit to 32-bit
 					else {
-						RReporting.ShowErr("Can't Draw unless both images are 32-bit BGRA, or source is 8-bit and dest is 32-bit.  This method is designed for fast copying between images with similar color formats.","","RImage DrawSmallerWithoutCropElseCancel {"+"riDest.iBytesPP:"+riDest.iBytesPP.ToString()+ "; iBytesPP:"+riSrc.iBytesPP.ToString()+"}");
+						if (bShowDrawSmallerWithoutCropElseCancelMsg||RReporting.bMegaDebug) {
+							//Console.Error.WriteLine("FAILED (non-implemented bitdepth conversion)");//debug only
+							bShowDrawSmallerWithoutCropElseCancelMsg=false;
+						}
+						RReporting.ShowErr("Can't DrawFrom unless both images are 32-bit BGRA, or source is 8-bit and dest is 32-bit.  This method is designed for fast copying between images with similar color formats.","","RImage DrawToLargerWithoutCropElseCancel {"+"riDest.iBytesPP:"+riDest.iBytesPP.ToString()+ "; iBytesPP:"+riSrc.iBytesPP.ToString()+"}");
 					}
 				}//end if does not need to crop
+				else {
+					if (bShowDrawSmallerWithoutCropElseCancelMsg||RReporting.bMegaDebug) {
+						//Console.Error.WriteLine("FAILED (crop needed--should have used cropping method)");//debug only
+						bShowDrawSmallerWithoutCropElseCancelMsg=false;
+					}
+				}
 			}
 			catch (Exception exn) {
 				bGood=false;
-				RReporting.ShowExn(exn,"","RImage DrawSmallerWithoutCropElseCancel");
+				if (bShowDrawSmallerWithoutCropElseCancelMsg||RReporting.bMegaDebug) {
+					//Console.Error.WriteLine("FAILED (could not finish)");//debug only
+					bShowDrawSmallerWithoutCropElseCancelMsg=false;
+				}
+				RReporting.ShowExn(exn,"drawing image to larger skipping if clipped","RImage DrawToLargerWithoutCropElseCancel");
 			}
 			return bGood;
-		}//end DrawSmallerWithoutCropElseCancel
-		#endregion Draw Overlay methods
-		#region Draw methods
+		}//end DrawToLargerWithoutCropElseCancel
+		
+		/// <summary>
+		/// Bitdepth-Insensitive copy; does not crop, only prevents overflow
+		/// </summary>
+		/// <param name="riDest"></param>
+		/// <param name="ipSrc"></param>
+		/// <param name="riSrc"></param>
+		/// <returns></returns>
+		public static bool DrawToSmallerCopyAlphaSaferBitdepthInsensitive(ref RImage riDest, ref IPoint ipSrc, ref RImage riSrc) { //formerly OverlayCropRawSafer formerly RawCropSafer
+			bool bGood=true;
+			int iByDest=0;
+			int iBySrc;//=ipSrc.Y*riSrc.iStride+ipSrc.X*riSrc.iBytesPP;
+			int yDest;
+			int xDest;
+			//int src_WhenLineStarts=
+			try {
+				if (riDest.iBytesPP!=riSrc.iBytesPP) throw new ApplicationException("Mismatched image bitdepths, refusing to copy byte-for-byte!");
+				for (yDest=0; yDest<riDest.iHeight; yDest++) {
+					for (xDest=0; xDest<riDest.iWidth; xDest++) {
+						iBySrc=(yDest+ipSrc.Y)*riSrc.iStride+(xDest+ipSrc.X)*riSrc.iBytesPP;
+						for (int iComponent=0; iComponent<riDest.iBytesPP; iComponent++) {
+							if (iBySrc>=0&&iBySrc<riSrc.iBytesTotal) riDest.byarrData[iByDest]=riSrc.byarrData[iBySrc];
+							else riDest.byarrData[iByDest]=0;
+							iByDest++;
+							iBySrc++;
+						}
+						//iByDest+=riDest.iBytesPP;
+					}
+				}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"copying byte-for-byte","RImage DrawToSmallerCopyAlphaSaferBitdepthInsensitive");
+				bGood=false;
+			}
+			return bGood;
+		}//end DrawToSmallerCopyAlphaSaferBitdepthInsensitive
+		
+		/// <summary>
+		/// Bitdepth-Ignorant BYTE ARRAY version: riDest must be true color 24- or 32-bit for the raw source
+		/// to be represented correctly.
+		/// </summary>
+		/// <param name="byarrSrc"></param>
+		/// <param name="riDest"></param>
+		/// <param name="iSrcWidth"></param>
+		/// <param name="iSrcHeight"></param>
+		/// <param name="iSrcBytesPP"></param>
+		/// <returns></returns>
+		public static bool DrawToLargerNoClipBitdepthInsensitive(ref RImage riDest, ref IPoint ipAt, ref byte[] byarrSrc, int iSrcWidth, int iSrcHeight, int iSrcBytesPP) { //formerly OverlayToBigNoClipRaw formerly RawOverlayNoClipToBig
+			int iSrcByte;
+			int iDestByte;
+			bool bGood=true;
+			int iDestAdder;
+			try {
+				if (iSrcBytesPP==16) {
+					RReporting.ShowErr("16-bit source isn't implemented in this function","overlaying 16-bit source image","RImage DrawToLargerNoClip");
+				}
+				iDestByte=ipAt.Y*riDest.iStride+ipAt.X*riDest.iBytesPP;
+				RImage riSrc=new RImage(iSrcWidth, iSrcHeight, iSrcBytesPP, false);
+				riSrc.byarrData=byarrSrc;
+				iDestAdder=riDest.iStride - riSrc.iWidth*riDest.iBytesPP;//intentionally riDest.iBytesPP
+				iSrcByte=0;
+				int iSlack=(riSrc.iBytesPP>riDest.iBytesPP)?(riSrc.iBytesPP-riDest.iBytesPP):1;
+						//offset of next source pixel after loop
+				for (int ySrc=0; ySrc<riSrc.iHeight; ySrc++) {
+					for (int xSrc=0; xSrc<riSrc.iWidth; xSrc++) {
+						for (int iChannel=0; iChannel<riDest.iBytesPP; iChannel++) {
+							riDest.byarrData[iDestByte]=riSrc.byarrData[iSrcByte];
+							if ((iChannel+1)<riSrc.iBytesPP) iSrcByte++;//don't advance to next pixel
+							iDestByte++;
+						}
+						iSrcByte+=iSlack;
+					}
+					iDestByte+=iDestAdder;
+				}
+				if (!bGood) {
+					RReporting.ShowErr("Error copying graphics buffer data","","RImage DrawToLargerNoClip");
+				}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"drawing to larger array without checking clipping copying all channels","RImage DrawToLargerNoClipBitdepthInsensitive");
+				bGood=false;
+			}
+			return bGood;
+		}//end DrawToLargerNoClip
+
+		/// <summary>
+		/// Version of Alpha overlay with RGradient as lightmap
+		/// </summary>
+		/// <param name="riDest"></param>
+		/// <param name="riSrc"></param>
+		/// <param name="ipDest"></param>
+		/// <param name="rgradientLightmap"></param>
+		/// <param name="iSrcChannel"></param>
+		/// <returns></returns>
+		public static bool DrawToLargerNoClip(ref RImage riDest, ref IPoint ipDest, ref RImage riSrc, ref RGradient rgradientLightmap, int iSrcChannel) { //formerly OverlayToBigNoClip formerly OverlayNoClipToBig
+			int iSrcByte;
+			int iDestByte;
+			int iDestAdder;
+			bool bGood=true;
+			try {
+				iDestByte=ipDest.Y*riDest.iStride+ipDest.X*riDest.iBytesPP;
+				iSrcByte=(iSrcChannel<riSrc.iBytesPP)?iSrcChannel:riSrc.iBytesPP-1;
+				iDestAdder=riDest.iStride - riDest.iBytesPP*riSrc.iWidth;//intentionally the dest BytesPP
+				for (int ySrc=0; ySrc<riSrc.iHeight; ySrc++) {
+					for (int xSrc=0; xSrc<riSrc.iWidth; xSrc++) {
+						if (!rgradientLightmap.ShadeAlpha(ref riDest.byarrData, iDestByte, riSrc.byarrData[iSrcByte])) {
+							bGood=false;
+						}
+						iSrcByte+=riSrc.iBytesPP;
+						iDestByte+=riDest.iBytesPP;
+					}
+					iDestByte+=iDestAdder;
+				}
+				if (!bGood) {
+					RReporting.ShowErr("Error accessing gradient","","RImage DrawToLargerNoClip gradient to "+IPoint.ToString(ipDest));
+				}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"drawing to larger without checking clipping using gradient","RImage DrawToLargerNoClip gradient to "+ipDest!=null?ipDest.ToString():"null point");
+				bGood=false;
+			}
+			return bGood;
+		}//end DrawToLargerNoClip, using gradient
+		
+		
+		/// <summary>
+		/// CopyAlpha (no blending) overlay, using gradient as lightmap
+		/// </summary>
+		/// <param name="riDest"></param>
+		/// <param name="ipAt"></param>
+		/// <param name="riSrc"></param>
+		/// <param name="rgradientLightmap"></param>
+		/// <param name="iSrcChannel"></param>
+		/// <returns></returns>
+		public static bool DrawToLargerNoClipCopyAlpha(ref RImage riDest, ref IPoint ipAt, ref RImage riSrc, ref RGradient rgradientLightmap, int iSrcChannel) { //formerly OverlayToBigNoClipCopyAlpha formerly OverlayNoClipToBigCopyAlpha
+			int iSrcByte;
+			int iDestByte;
+			int iDestAdder;
+			bool bGood=true;
+			try {
+				iDestByte=ipAt.Y*riDest.iStride+ipAt.X*riDest.iBytesPP;
+				iSrcByte=(iSrcChannel<riSrc.iBytesPP)?iSrcChannel:riSrc.iBytesPP-1;
+				iDestAdder=riDest.iStride - riSrc.iWidth*riDest.iBytesPP;//intentionally the dest BytesPP
+				for (int ySrc=0; ySrc<riSrc.iHeight; ySrc++) {
+					for (int xSrc=0; xSrc<riSrc.iWidth; xSrc++) {
+						if (!rgradientLightmap.Shade(ref riDest.byarrData, iDestByte, riSrc.byarrData[iSrcByte])) {
+							bGood=false;
+						}
+						iSrcByte+=riSrc.iBytesPP;
+						iDestByte+=riDest.iBytesPP;
+					}
+					iDestByte+=iDestAdder;
+				}
+				if (!bGood) {
+					RReporting.ShowErr("Error copying graphics buffer data","","RImage DrawToLargerNoClipCopyAlpha gradient");
+				}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"drawing to larger without checking clipping copying alpha","RImage DrawToLargerNoClipCopyAlpha gradient");
+				bGood=false;
+			}
+			return bGood;
+		} //end DrawToLargerNoClipCopyAlpha gradient
+		
+		/// <summary>
+		/// CopyAlpha overlay function.  
+		/// "ToBig" functions must overlay small
+		/// image to big image without cropping else unexpected results occur.
+		/// </summary>
+		/// <param name="riDest"></param>
+		/// <param name="ipAt"></param>
+		/// <param name="riSrc"></param>
+		/// <returns></returns>
+		public static bool DrawToLargerNoClipCopyAlpha(ref RImage riDest, ref IPoint ipAt, ref RImage riSrc) {
+			int iSrcByte;
+			int iDestByte;
+			bool bGood=true;
+			try {
+				iDestByte=ipAt.Y*riDest.iStride+ipAt.X*riDest.iBytesPP;
+				iSrcByte=0;
+				for (int ySrc=0; ySrc<riSrc.iHeight; ySrc++) {
+					if (!RMemory.CopyFast(ref riDest.byarrData, ref riSrc.byarrData, iDestByte, iSrcByte, riSrc.iStride)) {
+						bGood=false;
+					}
+					iSrcByte+=riSrc.iStride;
+					iDestByte+=riDest.iStride;
+				}
+				if (!bGood) {
+					RReporting.ShowErr("Error copying graphics buffer data","","RImage DrawToLargerNoClipCopyAlpha");
+				}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"drawing to larger without checking clipping copying alpha with fast pointers","RImage DrawToLargerNoClipCopyAlpha");
+				bGood=false;
+			}
+			return bGood;
+		} //end DrawToLargerNoClipCopyAlpha
+		
+		/// <summary>
+		/// Safe version does NOT use RMemory copy method.
+		/// </summary>
+		/// <param name="riDest"></param>
+		/// <param name="ipAt"></param>
+		/// <param name="riSrc"></param>
+		/// <returns></returns>
+		public static bool DrawToLargerNoClipCopyAlphaSafe(ref RImage riDest, ref IPoint ipAt, ref RImage riSrc) { //formerly OverlayToBigNoClipCopyAlphaSafe formerly OverlayNoClipToBigCopyAlphaSafe
+			int iSrcByte;
+			int iDestByte;
+			bool bGood=true;
+			int iSrcByteNow;
+			int iDestByteNow;
+			int iPastLine;//the byte location after the end of the line
+			try {
+				iDestByte=ipAt.Y*riDest.iStride+ipAt.X*riDest.iBytesPP;
+				iSrcByte=0;
+				for (int ySrc=0; ySrc<riSrc.iHeight; ySrc++) {
+					if ((iSrcByte+riSrc.iStride)-1 >= riSrc.iBytesTotal) {
+					//Fix overflow:
+						iDestByteNow=iDestByte;
+						iPastLine=iSrcByte+riSrc.iStride;
+						for (iSrcByteNow=iSrcByte; iSrcByteNow<iPastLine; iSrcByteNow++) {
+							if (iSrcByteNow>=riSrc.iBytesTotal || iSrcByteNow<0) riDest.byarrData[iDestByteNow]=0;
+							else riDest.byarrData[iDestByteNow]=riSrc.byarrData[iSrcByteNow];
+						}
+					}
+					else if (iSrcByte<0) {
+					//Fix underflow:
+						iDestByteNow=iDestByte;
+						iPastLine=iSrcByte+riSrc.iStride;
+						for (iSrcByteNow=iSrcByte; iSrcByteNow<iPastLine; iSrcByteNow++) {
+							if (iSrcByteNow<0) riDest.byarrData[iDestByteNow]=0;
+							else riDest.byarrData[iDestByteNow]=riSrc.byarrData[iSrcByteNow];
+						}
+					}
+					else {//just copy if within bounds
+						if (!RMemory.CopyFast(ref riDest.byarrData, ref riSrc.byarrData, iDestByte, iSrcByte, riSrc.iStride)) {
+							bGood=false;
+						}
+					}
+					iSrcByte+=riSrc.iStride;
+					iDestByte+=riDest.iStride;
+				}
+				if (!bGood) {
+					RReporting.ShowErr("Error copying graphics buffer data","","RImage DrawToLargerNoClipCopyAlpha");
+				}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"drawing to larger copying alpha without checking clipping (using fast array copy if in range)","RImage DrawToLargerNoClipCopyAlphaSafe");
+				bGood=false;
+			}
+			return bGood;
+		} //end DrawToLargerNoClipCopyAlphaSafe
+		
+		/// <summary>
+		/// Version of iDrawMode-based Draw using area cropped by rectangle--primary overload of pre-cropped version
+		/// --Does not check cropping rect--STOPS if out of range of either image!.
+		/// </summary>
+		/// <param name="riDest"></param>
+		/// <param name="ipDest"></param>
+		/// <param name="riSrc"></param>
+		/// <param name="rectSrc"></param>
+		/// <param name="iDrawMode"></param>
+		/// <returns></returns>
+		public static bool DrawTo(RImage riDest, IPoint ipDest, RImage riSrc, IRect rectSrc, int iDrawMode) {
+			bool bGood=false;
+			try {
+				int xSrc=rectSrc.X;
+				int ySrc=rectSrc.Y;
+				int xDest=ipDest.X;
+				int yDest=ipDest.Y;
+				int xDestRel=0;
+				int yDestRel=0;
+				int DestLineNow_StartIndex=riDest.XYToLocation(xDest,yDest);
+				int SrcLineNow_StartIndex=riSrc.XYToLocation(xSrc,ySrc);
+				int iDest=DestLineNow_StartIndex;
+				int iSrc=SrcLineNow_StartIndex;
+				//Console.Error.WriteLine("debug DrawTo: "+riDest.Description()+"; at:"+ipDest.ToString()+"; from:"+riSrc.Description()+"; from rect:"+rectSrc.ToString()+"; DrawMode:"+DrawModeToString(iDrawMode));//debug only
+				if (DestLineNow_StartIndex>=0&&SrcLineNow_StartIndex>=0) {
+					bGood=true;
+					while (yDestRel<riDest.Height&&(ySrc<rectSrc.Y+rectSrc.Height)) { //OK SINCE yDestRel is incremented when xDestRel is past RIGHT EDGE (see below)!
+						if (!DrawPixel(riDest,iDest,riSrc,iSrc,iDrawMode)) {
+							RReporting.ShowErr("Could not draw pixel","drawing from image to image","rimage_32bgra DrawFrom(riDest="+(riDest!=null?riDest.Description():"null")+", ipDest="+(ipDest!=null?ipDest.ToString():"null")+", riSrc="+(riSrc!=null?riSrc.Description():"null")+", rectSrc="+(rectSrc!=null?rectSrc.ToString():"null")+", DrawMode="+RImage.DrawModeToString(iDrawMode)+") {xDest:"+xDest+"; yDest:"+yDest+"; xSrc:"+xSrc+"; ySrc:"+ySrc+"; iSrc:"+iSrc+"; iDest:"+iDest+"}");
+							bGood=false;
+							break;
+						}
+						xDestRel++;
+						xSrc++;
+						xDest++;
+						iSrc+=riSrc.iBytesPP;
+						iDest+=riDest.iBytesPP;
+						if (xSrc>=rectSrc.X+rectSrc.Width) {//if (xDestRel>=rectDest.Width) {
+							DestLineNow_StartIndex+=riDest.iStride;
+							SrcLineNow_StartIndex+=riSrc.iStride;
+							iDest=DestLineNow_StartIndex;
+							iSrc=SrcLineNow_StartIndex;
+							xDestRel=0;
+							yDestRel++;
+							ySrc++;
+							yDest++;
+							xSrc=rectSrc.X;
+							xDest=ipDest.X;
+						}
+					}
+				}
+				else {
+					RReporting.ShowErr("Cannot draw image at specified overlay location.","","DrawFrom(riDest,ipDest,riSrc,rectSrc,iDrawMode){ipDest:"+ipDest.ToString()+"; rectSrc:"+IRect.ToString(rectSrc)+"}");
+				}
+			}
+			catch (Exception exn) {
+				bGood=false;
+				RReporting.ShowExn(exn,"drawing pre-cropped rect sensitive to DrawMode","DrawTo(riDest,ipDest,riSrc,rectSrc,iDrawMode)");
+			}
+			return bGood;
+		}//end DrawTo
+		
+		/// <summary>
+		/// Scaled Drawing method (float version)--automatically crops (then creates compensated
+		/// source rect to maintain scale) then calls RImage.DrawTo(RImage,float,float,float,float,RImage,float,float,float,float,int iDrawMode)
+		/// --fixes (from_X,from_Y) and (to_X,to_y) by subtracting -.5 to cover the entire pixel
+		/// --leaves to_W and to_H the same since the exclusivity becomes negligible in floating point math
+		/// (the margin is a whole pixel when using integers, but the inclusiveness of the top-.5 and left-.5
+		/// makes the exclusiveness of to_W and to_H result in proper width.  There would seem to be loss
+		/// from the bottom left by subtracting, but this is not the case.)
+		/// </summary>
+		/// <param name="xDest"></param>
+		/// <param name="yDest"></param>
+		/// <param name="dest_Width"></param>
+		/// <param name="dest_Height"></param>
+		/// <param name="source"></param>
+		/// <param name="iDrawMode"></param>
+		/// <returns></returns>
+		public bool DrawFrom(float to_X, float to_Y, float to_W, float to_H, RImage source, int iDrawMode) {
+			//this is nonstatic so that the calling method can handle null reference exceptions
+			bool bGood=true; //MUST start true for logic below to work
+			try {
+				////from_X-=.5f;//cover entire pixel
+				////from_Y-=.5f;//cover entire pixel
+				to_X-=.5f;//cover entire pixel
+				to_Y-=.5f;//cover entire pixel
+				float from_X=-.5f, from_Y=-.5f, from_W=(float)source.Width, from_H=(float)source.Height; //used to subtract .5f from source.Width and .Height
+				float boundary_X=-.5f;
+				float boundary_Y=-.5f;
+				float boundary_W=(float)this.Width;//destination boundary Width (boundary_R would be width-.5 since LastPixel+.5 is size-.5)
+				float boundary_H=(float)this.Height;//destination boundary Height (boundary_B would be height-.5 since LastPixel+.5 is size-.5)
+				if (RReporting.bUltraDebug) Console.Error.WriteLine("DrawFrom-step1 {dest-rect:"+FRect.ToString(to_X,to_Y,to_W,to_H)+",source-image:"+RImage.Description(source)+"} (since dest(x-.5,y-.5) is top-left of pixel)");//debug only
+				if (!RImage.CropSourceRectAndGetNewDestScaled(ref from_X, ref from_Y, ref from_W, ref from_H, ref to_X, ref to_Y, ref to_W, ref to_H, boundary_X, boundary_Y, boundary_W, boundary_H))
+					bGood=false;
+				if (RReporting.bUltraDebug) Console.Error.WriteLine("DrawFrom-step2 {dest-rect:"+FRect.ToString(to_X,to_Y,to_W,to_H)+",source-rect:"+FRect.ToString(from_X,from_Y,from_W,from_H)+"}"+(bGood?" (about to do DrawTo since image is within dest)":" (skipping DrawTo since none of image is within dest)"));//debug only
+				if (bGood) {
+					if (!RImage.DrawTo(this,to_X,to_Y,to_W,to_H,source,from_X,from_Y,from_W,from_H,iDrawMode)) {
+						bGood=false;
+					}
+				}
+			}
+			catch (Exception exn) {
+				bGood=false;
+				RReporting.ShowExn(exn,"drawing from scaled RImage automatically cropping","DrawFrom(float,float,float,float,source"+((source!=null)?"!=null":"==null")+",int iDrawMode)");
+			}
+			return bGood;
+		}//end DrawFrom
+		/*
+		/// <summary>
+		/// Scaled Drawing method (double-precision version)--automatically crops (then creates compensated source rect to maintain scale) then calls RImage.DrawTo(RImage,double,double,double,double,RImage,double,double,double,double,int iDrawMode)
+		/// </summary>
+		/// <param name="xDest"></param>
+		/// <param name="yDest"></param>
+		/// <param name="dest_Width"></param>
+		/// <param name="dest_Height"></param>
+		/// <param name="source"></param>
+		/// <param name="iDrawMode"></param>
+		/// <returns></returns>
+		public bool DrawFrom(double to_X, double to_Y, double to_W, double to_H, RImage source, int iDrawMode) {
+			bool bGood=false;
+			try {
+				double from_X=-.5f, from_Y=-.5f, from_W=(double)source.Width, from_H=(double)source.Height;
+				double boundary_X=-.5f;
+				double boundary_Y=-.5f;
+				double boundary_W=(double)this.Width;
+				double boundary_H=(double)this.Height;
+				Console.WriteLine("DrawFrom-step1: DrawFrom(dest-rect:"+DRect.ToString(to_X,to_Y,to_W,to_H)+",source-image:"+RImage.Description(source)+")");//debug only
+				RImage.CropSourceRectAndGetNewDestScaled(ref from_X, ref from_Y, ref from_W, ref from_H, ref to_X, ref to_Y, ref to_W, ref to_H, boundary_X, boundary_Y, boundary_W, boundary_H);
+				Console.WriteLine("DrawFrom-step2: DrawFrom(dest-rect:"+DRect.ToString(to_X,to_Y,to_W,to_H)+",source-rect:"+DRect.ToString(from_X,from_Y,from_W,from_H)+")");//debug only
+				bGood=RImage.DrawTo(this,to_X,to_Y,to_W,to_H,source,from_X,from_Y,from_W,from_H,iDrawMode);
+			}
+			catch (Exception exn) {
+				bGood=false;
+				RReporting.ShowExn(exn,"drawing from scaled RImage automatically cropping (double-precision version)","DrawFrom(double,double,double,double,RImage,int iDrawMode");
+			}
+			return bGood;
+		}//end DrawFrom
+		*/
+
+		
+		
+		#endregion Draw methods (all should have nonstatic counterparts)
+
+		
+		
+		#region file operations
+		public unsafe bool Load(string sFile, int iAsBytesPP) {
+			bool bGood=true;
+			try {
+				if (!File.Exists(sFile)) {
+					RReporting.ShowErr("Missing resource \""+sFile+"\"","","RImage Load");
+					return false;
+				}
+				bmpLoaded=new Bitmap(sFile);
+				bGood=Load(bmpLoaded,iAsBytesPP);
+				bmpLoaded.Dispose();
+				bmpLoaded=null;
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"loading file","RImage Load(sFile,int)");
+				bGood=false;
+			}
+			return bGood;
+		}
+		//public unsafe bool Load(System.Drawing.Image img, int iAsBytesPP) {
+		//	bool bGood=true;
+		//	try {
+		//		iWidth=img.Width;
+		//		iHeight=img.Height;
+		//		iStride=iWidth*iAsBytesPP;
+		//		iBytesPP=iStride/iWidth;//!!Stride is relative, determined upon locking above!! //ByteDepthFromPixelFormat();//iBytesPP=iStride/iWidth;
+		//		iBytesTotal=iStride*iHeight;
+		//		iPixelsTotal=iWidth*iHeight;
+		//		//img.Lo
+		//		
+		//		//g.
+		//		//Bitmap bmp=new Bitmap(
+		//	}
+		//	catch (Exception exn) {
+		//		RReporting.ShowExn(exn,"loading Image object","RImage Load(Bitmap,int)");
+		//		bGood=false;
+		//	}
+		//	return bGood;
+		//}
+		public unsafe bool Load(Bitmap bitmap, int iAsBytesPP) {
+			bool bGood=true;
+			try {
+				iWidth=bitmap.Width;
+				iHeight=bitmap.Height;
+				iStride=iWidth*iAsBytesPP;
+				iBytesPP=iAsBytesPP;//ByteDepthFromPixelFormat();//iBytesPP=iStride/iWidth;
+				iBytesTotal=iStride*iHeight;
+				iPixelsTotal=iWidth*iHeight;
+				if (iBytesTotal>0 && iBytesPP!=2 && iBytesPP<=4) {
+					if (byarrData==null||byarrData.Length!=iBytesTotal) byarrData=new byte[iBytesTotal];
+					int iNow=0;
+					Color colorNow;
+					for (int y=0; y<iHeight; y++) {
+						for (int x=0; x<iWidth; x++) {
+							colorNow=bitmap.GetPixel(x,y);
+							if (iAsBytesPP==4) {
+								byarrData[iNow]=colorNow.B;
+								iNow++;
+								byarrData[iNow]=colorNow.G;
+								iNow++;
+								byarrData[iNow]=colorNow.R;
+								iNow++;
+								byarrData[iNow]=colorNow.A;
+								iNow++;
+							}
+							else if (iAsBytesPP==3) {
+								byarrData[iNow]=colorNow.B;
+								iNow++;
+								byarrData[iNow]=colorNow.G;
+								iNow++;
+								byarrData[iNow]=colorNow.R;
+								iNow++;
+							}
+							else if (iAsBytesPP==1) {
+								byarrData[iNow]=(byte)( ((double)(colorNow.B+colorNow.G+colorNow.R))/3.0  );
+								iNow++;
+							}
+							else {
+								RReporting.ShowErr("Failed to load "+(iAsBytesPP*8).ToString()+"-bit buffer.","","RImage Load");
+								bGood=false;
+								break;
+							}
+						}//end for x
+					}//end for y
+				}
+				else RReporting.ShowErr("Can't create a "+iWidth.ToString()+"x"+iHeight.ToString()+"x"+iAsBytesPP.ToString()+"-bit buffer","","RImage Load");
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"loading Bitmap object","RImage Load(Bitmap,int)");
+				bGood=false;
+			}
+			return bGood;
+		}//end Load
+		public bool Save(string sSetFile) {
+			//TODO:? check for tga extension
+			RString.SplitFileName(out sPathFileBaseName, out sFileExt, sSetFile);
+			return Save(sPathFileBaseName+"."+sFileExt, RImage.ImageFormatFromNameElseCapitalizedPng(ref sPathFileBaseName, out sFileExt));
+		}
+		public bool Save(string FileNameWithoutExtension, string FileExtension) {
+			//TODO:? check for tga extension
+			sPathFileBaseName=FileNameWithoutExtension;
+			sFileExt=FileExtension;
+			return Save(FileNameWithoutExtension+"."+FileExtension, RImage.ImageFormatFromExt(FileExtension));
+		}
+		
+		public bool Save(string sFileNow, ImageFormat imageformatNow) {
+			bool bGood=true;
+			try {
+				bmpLoaded=new Bitmap(iWidth, iHeight, PixelFormatNow());
+				if (iBytesPP==1) SetGrayPalette();
+				int iNow=0;
+				for (int y=0; y<iHeight; y++) {
+					for (int x=0; x<iWidth; x++) {
+						if (iBytesPP==1) bmpLoaded.SetPixel(x,y,Color.FromArgb(255,byarrData[iNow],byarrData[iNow],byarrData[iNow]));
+						else if (iBytesPP==3) bmpLoaded.SetPixel(x,y,Color.FromArgb(255,byarrData[iNow+2],byarrData[iNow+1],byarrData[iNow]));
+						else if (iBytesPP==4) bmpLoaded.SetPixel(x,y,Color.FromArgb(byarrData[iNow+3],byarrData[iNow+2],byarrData[iNow+1],byarrData[iNow]));
+						else {
+							RReporting.ShowErr("Failed to save "+(iBytesPP*8).ToString()+"-bit buffer.","","RImage Save");
+							bGood=false;
+							break;
+						}
+						iNow+=iBytesPP;
+					}
+				}
+				bmpLoaded.Save(sFileNow, imageformatNow);
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"saving image from 32-bit buffer using ImageFormat","RImage Save(\""+sFileNow+"\", "+imageformatNow.ToString()+")");
+				bGood=false;
+			}
+			return bGood;
+		}//end Save
+		public bool SaveRaw(string sFileNow) {
+			bool bGood=true;
+			try {
+				RFile byterTemp=new RFile(iBytesTotal);
+				if (!byterTemp.Write(ref byarrData, iBytesTotal)) {
+					bGood=false;
+					RReporting.ShowErr("Failed to write raw data to buffer","","RImage SaveRaw("+sFileNow+")");
+				}
+				if (!byterTemp.Save(sFileNow)) {
+					bGood=false;
+					RReporting.ShowErr("Failed to save raw data to file","","RImage SaveRaw("+sFileNow+")");
+				}
+				//TODO: save a description text file
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"saving raw image","RImage SaveRaw("+sFileNow+")");
+				bGood=false;
+			}
+			return bGood;
+		}//end SaveRaw
+		/*
+		public unsafe bool Save(string sFileNow, ImageFormat imageformatNow) {
+			bool bGood=true;
+			BitmapData bmpdata;
+			GraphicsUnit gunit;
+			RectangleF rectNowF;
+			Rectangle rectNow;
+			try {
+				bmpLoaded=new Bitmap(iWidth, iHeight, PixelFormatNow());
+				gunit = GraphicsUnit.Pixel;
+				rectNowF = bmpLoaded.GetBounds(ref gunit);
+				rectNow = new Rectangle((int)rectNowF.X, (int)rectNowF.Y,
+									(int)rectNowF.Width, (int)rectNowF.Height);
+				bmpdata = bmpLoaded.LockBits(rectNow, ImageLockMode.WriteOnly, PixelFormatNow());
+				//MessageBox.Show("Saving: iBytesPP="+iBytesPP.ToString()+" PixelFormatNow():"+PixelFormatNow());
+				byte* lpbyNow = (byte*) bmpdata.Scan0.ToPointer();
+				for (int iBy=0; iBy<iBytesTotal; iBy++) {
+					*lpbyNow=byarrData[iBy];
+					lpbyNow++;
+				}
+				bmpLoaded.UnlockBits(bmpdata);
+				bmpLoaded.Save(sFileNow, imageformatNow);
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"saving image file via format object","RImage Save(\""+sFileNow+"\", "+imageformatNow.ToString()+")");
+				bGood=false;
+			}
+			return bGood;
+		}
+		*/
+		/*
+		public unsafe bool Load(string sFile, int iAsBytesPP) {
+			bool bGood=true;
+			BitmapData bmpdata;
+			GraphicsUnit gunit;
+			RectangleF rectNowF;
+			Rectangle rectNow;
+			try {//TODO: re-implement exception handling
+				bmpLoaded=new Bitmap(sFile);
+				gunit = GraphicsUnit.Pixel;
+				rectNowF = bmpLoaded.GetBounds(ref gunit);
+				rectNow = new Rectangle((int)rectNowF.X, (int)rectNowF.Y,
+									(int)rectNowF.Width, (int)rectNowF.Height);
+				bmpdata = bmpLoaded.LockBits(rectNow, ImageLockMode.ReadOnly,
+				                             bmpLoaded.PixelFormat);//TODO: change to custom pixel format (OR use a softer get method)?????
+				iStride=bmpdata.Stride;
+				iWidth=rectNow.Width;
+				iHeight=rectNow.Height;
+				iBytesPP=iStride/iWidth;//!!Stride is relative, determined upon locking above!! //ByteDepthFromPixelFormat();//iBytesPP=iStride/iWidth;
+				iBytesTotal=iStride*iHeight;
+				iPixelsTotal=iWidth*iHeight;
+				byarrData=new byte[iBytesTotal];
+				byte* lpbyNow = (byte*) bmpdata.Scan0.ToPointer();
+				for (int iBy=0; iBy<iBytesTotal; iBy++) {
+					byarrData[iBy]=*lpbyNow;
+					lpbyNow++;
+				}
+				if (iAsBytesPP==2 && iBytesPP==4) {
+					//int iBytesPPNew=2;
+					int iBytesTotalNew=iWidth*iHeight*2;
+					int iSrc;
+					byte r=255,g=255,b=255;
+					ushort wVal;
+					decimal yMaxSrc=RConvert.ChrominanceD(ref r, ref g, ref b);
+					decimal dMaxShort=0xFFFF;
+					Byter byterShorts=new Byter(iBytesTotalNew);
+					int iDest;
+					for (int iDestPix=0; iDestPix<iPixelsTotal; iDestPix++) {
+						iSrc=iDestPix*iBytesPP;
+						wVal=(ushort)((RConvert.ChrominanceD(ref byarrData[iSrc+2], ref byarrData[iSrc+1], ref byarrData[iSrc])/yMaxSrc)*dMaxShort);
+						byterShorts.Write(ref wVal);
+					}
+					Init(iWidth,iHeight,iAsBytesPP,false);//sets iBytesPP etc
+					byarrData=byterShorts.byarr;
+				}
+				bmpLoaded.UnlockBits(bmpdata);
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"loading image using fast pointers","unsafe RImage Load");
+				bGood=false;
+			}
+			return bGood;
+		}//end Load
+		*/
+		#endregion file operations
+		
+		#region utilities
+		
+		///<summary>
+		///Returns true if dimensions, number of channels, and total buffer size are the same as riTest.
+		///</summary>
+		public bool IsLike(RImage riTest) {//formerly IsSameAs
+			bool bReturn=false;
+			if (riTest!=null) {
+				if ( riTest.iWidth==iWidth
+					&& riTest.iHeight==iHeight
+					&& riTest.Channels()==Channels()
+					&& riTest.iBytesTotal==iBytesTotal )
+					bReturn=true;
+			}
+			return bReturn;
+		}
+		/// <summary>
+		/// Crops source rectangle so that it fits into destination at the given point in the destination.
+		/// --Fixes to_X and to_Y if top/left was cut off from source rect after finished cropping.
+		/// </summary>
+		/// <param name="from_X"></param>
+		/// <param name="from_Y"></param>
+		/// <param name="from_W"></param>
+		/// <param name="from_H"></param>
+		/// <param name="to_X"></param>
+		/// <param name="to_Y"></param>
+		/// <param name="riDest"></param>
+		/// <returns>Returns false if source is not within riDest</returns>
+		public static bool CropSourceRectAndGetNewDest(ref int from_X, ref int from_Y, ref int from_W, ref int from_H, ref int to_X, ref int to_Y, RImage riDest) {
+			//change to dest coordinates:
+			bool bGood=false;
+			try {
+				int original_from_X=from_X;
+				int original_from_Y=from_Y;
+				from_X+=to_X;
+				from_Y+=to_Y;
+				//Console.Error.WriteLine("{"
+				//                        +"from_X:"+from_X.ToString()
+				//                        +"; from_Y:"+from_Y.ToString()
+				//                        +"; from_W:"+from_W.ToString()
+				//                        +"; from_H:"+from_H.ToString()
+				//                        +"; riDest.Width:"+riDest.Width.ToString()
+				//                        +"; riDest.Height:"+riDest.Height.ToString()
+				//                        +"}");//debug only
+				bGood=riDest!=null?RMath.CropRect(ref from_X,ref from_Y,ref from_W,ref from_H, 0,0,riDest.Width,riDest.Height):false;
+				//change back to source coordinates:
+				from_X-=to_X;
+				from_Y-=to_Y;
+				//now get new dest position in case source top-left changed:
+				to_X+=(from_X-original_from_X);
+				to_Y+=(from_Y-original_from_Y);
+			}
+			catch (Exception exn) {
+				bGood=false;
+				RReporting.ShowExn(exn,"clipping source rectangle","RImage CropSourceRectAndGetNewDest(int,...)");
+			}
+			return bGood;
+		}//end CropSourceRectAndGetNewDest(int,...)
+		/// <summary>
+		/// Crops source rectangle so that it fits into destination at the given point in the destination (float version).
+		/// --Fixes to_X and to_Y if top/left was cut off from source rect after finished cropping.
+		/// </summary>
+		/// <param name="from_X"></param>
+		/// <param name="from_Y"></param>
+		/// <param name="from_W"></param>
+		/// <param name="from_H"></param>
+		/// <param name="to_X"></param>
+		/// <param name="to_Y"></param>
+		/// <param name="to_W"></param>
+		/// <param name="to_H"></param>
+		/// <returns>Returns false if source is not within dest</returns>
+		public static bool CropSourceRectAndGetNewDestScaled(ref float from_X, ref float from_Y, ref float from_W, ref float from_H, ref float to_X, ref float to_Y, ref float to_W, ref float to_H, float boundary_X, float boundary_Y, float boundary_W, float boundary_H) {
+			//change to dest coordinates:
+			bool bWithinDest=false;
+			try {
+				float original_from_X=from_X;
+				float original_from_W=from_W;//for debug log only
+				float original_from_Y=from_Y;
+				float original_from_H=from_H;//for debug log only
+				float original_to_X=to_X;
+				float original_to_W=to_W;//for debug log only
+				float original_to_Y=to_Y;
+				float original_to_H=to_H;//for debug log only
+				float xInverseScale=from_W/to_W;//float xScale=to_W/from_W;
+				float yInverseScale=from_H/to_H;//float yScale=to_H/from_H;
+				//Console.WriteLine(" CropSourceRectAndGetNewDestScaled step 1: {" +"to_X:"+to_X.ToString() +"; to_Y:"+to_Y.ToString() +"; to_W:"+to_W.ToString() +"; to_H:"+to_H.ToString() +"; from_X:"+from_X.ToString() +"; from_Y:"+from_Y.ToString() +"; from_W:"+from_W.ToString() +"; from_H:"+from_H.ToString() +"} (before doing anything)");//debug only
+				//RMath.CropRect only crops top or left if LESS THAN boundary, only crops bottom or right IF GREATER than edge:
+				//bGood=RMath.CropRect(ref to_X, ref to_Y, ref to_W, ref to_H, boundary_X, boundary_Y, boundary_W, boundary_H); //use FULL width&height since measuring from -.5 to last pixel+.5
+				//BELOW has to be done as opposed to RMath.CropRect since source width has to be adjusteed ONLY when dest does, not every time it ends up changing due to top-left cropping
+				if (to_X<boundary_X) {
+					//subtract from width since X must be moved to the right (or vise versa)
+					to_W-=(boundary_X-to_X);//i.e. (0 - -1 = 1 ; so subtract 1 from width) OR i.e. 1 - 0 = 1 ; so subtract 1 from width
+					to_X=boundary_X;
+					from_X+=(to_X-original_to_X)*xInverseScale;
+					from_W-=from_X-original_from_X;//do not multiply by inverse scale since these are source values
+				}
+				if (to_Y<boundary_Y) {
+					//subtract from height since Y must be moved down (or vise versa)
+					to_H-=(boundary_Y-to_Y);
+					to_Y=boundary_Y;
+					from_Y+=(to_Y-original_to_Y)*yInverseScale;
+					from_H-=from_Y-original_from_Y;//do not multiply by inverse scale since these are source values
+				}
+				//Now only crop edges if GREATER than width:
+				float boundary_R=boundary_X+boundary_W;
+				float to_R=to_X+to_W; //ok since to_X AND to_W were modified oppositely above
+				if (to_R>boundary_R) {
+					to_W-=to_R-boundary_R;
+					from_W-=(to_R-boundary_R)*xInverseScale;//(original_to_W-to_W)*xInverseScale;
+				}
+				float boundary_B=boundary_Y+boundary_H;
+				float to_B=to_Y+to_H;  //ok since to_Y AND to_H were modified oppositely above
+				if (to_B>boundary_B) {
+					to_H-=to_B-boundary_B;
+					from_H-=(to_B-boundary_B)*xInverseScale;//(original_to_H-to_H)*xInverseScale;
+				}
+				bWithinDest=true;
+				if (to_W<=0) {
+					RReporting.ShowErr("Math fail!","cropping float destination {"
+					                   +Environment.NewLine
+					                   +"to_W:"+to_X.ToString()+"; "
+					                   +"to_W:"+to_W.ToString()+"; "
+					                   +"from_X:"+from_X.ToString()+"; "
+					                   +"from_W:"+from_W.ToString()+"; "
+					                   +"boundary_X:"+boundary_X.ToString()+"; "
+					                   +"boundary_W:"+boundary_W.ToString()+"; "
+					                   +"  original{"
+					                   +Environment.NewLine
+					                   +"to_X:"+original_to_X.ToString()+"; "
+					                   +"to_W:"+original_to_W.ToString()+"; "
+					                   +"from_X:"+original_from_X.ToString()+"; "
+					                   +"from_W:"+original_from_W.ToString()+"; "
+					                   +"}");
+					to_W=0;
+					bWithinDest=false;
+				}
+				if (to_H<=0) {
+					RReporting.ShowErr("Math fail!","cropping float destination {"
+					                   +Environment.NewLine
+					                   +"\t"+"to_Y:"+to_Y.ToString()+"; "
+					                   +"to_H:"+to_H.ToString()+"; "
+					                   +"from_Y:"+from_Y.ToString()+"; "
+					                   +"from_H:"+from_H.ToString()+"; "
+					                   +"boundary_Y:"+boundary_Y.ToString()+"; "
+					                   +"boundary_H:"+boundary_H.ToString()+"; "
+					                   +"}"
+					                   +"  original{"
+					                   +Environment.NewLine
+					                   +"\t"+"to_Y:"+original_to_Y.ToString()+"; "
+					                   +"to_H:"+original_to_H.ToString()+"; "
+					                   +"from_Y:"+original_from_Y.ToString()+"; "
+					                   +"from_H:"+original_from_H.ToString()+"; "
+					                   +"}");
+					to_H=0;
+					bWithinDest=false;
+				}
+			}
+			catch (Exception exn) {
+				bWithinDest=false;
+				RReporting.ShowExn(exn,"clipping source rectangle","RImage CropSourceRectAndGetNewDestScaled(float,...)");
+			}
+			return bWithinDest;
+		}//end CropSourceRectAndGetNewDestScaled(float,...)
+		
+		
+		/// <summary>
+		/// Crops destination rectangle to destination
+		/// </summary>
+		/// <param name="to_X"></param>
+		/// <param name="to_Y"></param>
+		/// <param name="to_Width"></param>
+		/// <param name="to_Height"></param>
+		/// <param name="riDest"></param>
+		/// <returns>Returns false if rect is not within riDest</returns>
+		public static bool CropDestRect(ref int to_X, ref int to_Y, ref int to_Width, ref int to_Height, RImage riDest) {
+			return riDest!=null?RMath.CropRect(ref to_X,ref to_Y,ref to_Width,ref to_Height, 0,0,riDest.Width,riDest.Height):false;
+		}
+		public bool NeedsToCropToFitInto(RImage riDest, int xDest, int yDest) {
+			bool bReturn=true;
+			if (bFirstRunNeedsToCropToFitInto) RReporting.DebugWrite("check NeedsToCropToFitInto...");
+			if (iBytesTotal==0) {
+				RReporting.ShowErr("Getting status on zero-length buffer!","","NeedsToCropToFitInto");
+			}
+			try {
+				if (xDest>=0 && yDest>=0
+					&& xDest+iWidth<=riDest.iWidth
+					&& yDest+iHeight<=riDest.iHeight) bReturn=false;
+			}
+			catch {bReturn=true;}
+			if (bFirstRunNeedsToCropToFitInto) RReporting.DebugWrite(((bReturn)?"yes...":"no..."));
+			bFirstRunNeedsToCropToFitInto=false;
+			return bReturn;
+		}//end NeedsToCropToFitInto
+
+		public bool CanFit(RImage source, int xDest, int yDest) {
+			bool bReturn=false;
+			try {
+				if (source!=null) {
+					bReturn=xDest>=0&&yDest>=0
+						&&xDest+source.Width<=Width
+						&&yDest+source.Height<=Height;
+				}
+			}
+			catch {
+				bReturn=false;
+			}
+			return bReturn;
+		}//end CanFit
+		/// <summary>
+		/// Detect image format or non-usability.
+		/// </summary>
+		/// <param name="sSetFileExt"></param>
+		/// <returns>returns image format--if not usable, return.Guid==Guid.Empty </returns>
+		public static ImageFormat ImageFormatFromExt(string sSetFileExt) {
+			//System.Drawing.Imaging.ImageFormat.MemoryBmp
+			string sLower=sSetFileExt.ToLower();
+			if (sLower==("png")) return ImageFormat.Png;
+			else if (sLower==("jpg")) return ImageFormat.Jpeg;
+			else if (sLower==("jpe")) return ImageFormat.Jpeg;
+			else if (sLower==("jpeg"))return ImageFormat.Jpeg;
+			else if (sLower==("gif")) return ImageFormat.Gif;
+			else if (sLower==("exi")) return ImageFormat.Exif;
+			else if (sLower==("exif"))return ImageFormat.Exif;
+			else if (sLower==("emf")) return ImageFormat.Emf;
+			else if (sLower==("tif")) return ImageFormat.Tiff;
+			else if (sLower==("tiff"))return ImageFormat.Tiff;
+			else if (sLower==("ico")) return ImageFormat.Icon;
+			else if (sLower==("wmf")) return ImageFormat.Wmf;
+			else if (sLower==("bmp")) return ImageFormat.Bmp;
+			else {
+				ImageFormat imgfmt=new ImageFormat(Guid.Empty);
+				return imgfmt;
+			}
+		}// ImageFormatFromExt
+		/// <summary>
+		/// Get lowercase extension of given file IF known image file type, else return blank.
+		/// </summary>
+		/// <param name="sNameToTruncate"></param>
+		/// <param name="sExt"></param>
+		/// <returns></returns>
+		public static string KnownExtensionFromNameElseBlank(string NameToAnalyze) {
+			if (NameToAnalyze!=null) {
+				NameToAnalyze=NameToAnalyze.ToLower();
+				if (NameToAnalyze.EndsWith(".png")) { return "png"; }
+				else if (NameToAnalyze.EndsWith(".jpg")) { return "jpg";}
+				else if (NameToAnalyze.EndsWith(".jpe")) { return "jpe";}
+				else if (NameToAnalyze.EndsWith(".jpeg")){ return "jpeg";}
+				else if (NameToAnalyze.EndsWith(".gif")) { return "gif"; }
+				else if (NameToAnalyze.EndsWith(".exi")) { return "exi";}
+				else if (NameToAnalyze.EndsWith(".exif")){ return "exif";}
+				else if (NameToAnalyze.EndsWith(".emf")) { return "emf"; }
+				else if (NameToAnalyze.EndsWith(".tif")) { return "tif";}
+				else if (NameToAnalyze.EndsWith(".tiff")){ return "tiff";}
+				else if (NameToAnalyze.EndsWith(".ico")) { return "ico";}
+				else if (NameToAnalyze.EndsWith(".wmf")) { return "wmf"; }
+				else if (NameToAnalyze.EndsWith(".bmp")) { return "bmp"; }
+			}
+			return "";
+		}// KnownExtensionFromNameElseBlank
+		public static ImageFormat ImageFormatFromNameElseCapitalizedPng(ref string sNameToTruncate, out string sExt) {
+			sExt=KnownExtensionFromNameElseBlank(sNameToTruncate);
+			if (sExt=="") sExt="PNG";//return ImageFormat.Png;
+			else RString.ShrinkByRef(ref sNameToTruncate, sExt.Length+1);
+			if (sExt=="png"||sExt=="PNG") { return ImageFormat.Png; }
+			else if (sExt=="jpg") { return ImageFormat.Jpeg;}
+			else if (sExt=="jpe") { return ImageFormat.Jpeg;}
+			else if (sExt=="jpeg"){ return ImageFormat.Jpeg;}
+			else if (sExt=="gif") { return ImageFormat.Gif; }
+			else if (sExt=="exi") { return ImageFormat.Exif;}
+			else if (sExt=="exif"){ return ImageFormat.Exif;}
+			else if (sExt=="emf") { return ImageFormat.Emf; }
+			else if (sExt=="tif") { return ImageFormat.Tiff;}
+			else if (sExt=="tiff"){ return ImageFormat.Tiff;}
+			else if (sExt=="ico") { return ImageFormat.Icon;}
+			else if (sExt=="wmf") { return ImageFormat.Wmf; }
+			else if (sExt=="bmp") { return ImageFormat.Bmp; }
+			else {
+				sExt="PNG";
+				return ImageFormat.Png;
+			}
+		}//end ImageFormatFromNameElseCapitalizedPng
+		public IRect ToRect() {
+			return new IRect(0,0,Width,Height);
+		}
+		public void ToRect(ref IRect rectReturn) {
+			if (rectReturn==null) rectReturn=new IRect(0,0,Width,Height);
+			else rectReturn.Set(0,0,Width,Height);
+		}
+		/// <summary>
+		/// Gets the bitdepth-sensitive buffer location at (x,y)
+		/// </summary>
+		/// <param name="x"></param>
+		/// <param name="y"></param>
+		/// <returns></returns>
+		private int XYToLocation(int x, int y) {
+			if (x>=0&&y>=0&&x<Width&&y<Height) return y*iStride+x*iBytesPP;
+			else {
+				RReporting.Debug("XYToLocation("+x.ToString()+","+y.ToString()+") is outside of "+Width.ToString()+"x"+Height.ToString()+" image.");
+				return y*iStride+x*iBytesPP;;
+			}
+		}
+		public static string DrawModeToString(int iDrawMode) {
+			string sReturn="uninitialized-drawmode";
+			try {
+				sReturn=sarrDrawMode[iDrawMode];
+			}
+			catch {
+				sReturn="nonexistant-drawmode-\""+iDrawMode.ToString()+"\"";
+			}
+			return sReturn;
+		}
+		public static int DrawMode(string DrawModeString) {
+			int iReturn=-1;
+			try {
+				for (int iNow=0; iNow<sarrDrawMode.Length; iNow++) {
+					if (DrawModeString==sarrDrawMode[iNow]) {
+						iReturn=iNow;
+						break;
+					}
+				}
+			}
+			catch {
+				iReturn=-1;
+			}
+			return iReturn;
+		}
+		///<summary>
+		///Synonym for VariableMessage
+		///</summary>
+		public static string ToString(RImage val) {
+			return VariableMessage(val);
+		}
+		public static string VariableMessage(RImage val) {
+			try {
+				return (val!=null) ? val.Description() : "null" ;
+			}
+			catch {//do not report this
+				return "incorrectly-initialized-rimage";
+			}
+		}
+		public void Dump(string sFile) {
+			string sData=DumpStyle();
+			sData+=Environment.NewLine;
+			int iLineStart=0;
+			for (int iLine=0; iLine<iHeight; iLine++, iLineStart+=iStride) {
+				//sStatus="Dumping line "+iLine.ToString();
+				sData+=RConvert.ToHex(this.byarrData, iLineStart, iStride, iBytesPP);
+				sData+=Environment.NewLine;
+			}
+			if (sData.EndsWith(Environment.NewLine))
+				sData=sData.Substring(0,sData.Length-Environment.NewLine.Length);
+			RString.StringToFile(sFile, sData);
+		}
+		public string Description() {
+			return iWidth.ToString()+"x"+iHeight.ToString()+"x"+iBytesPP.ToString()+(this.byarrData!=null?"["+this.byarrData.Length+"bytes]":"[NULL-BUFFER]");
+		}
+		public string DumpStyle() {
+			return DumpStyle(true);
+		}
+		public string DumpStyle(bool bIncludeBraces) {
+			return String.Format( ((bIncludeBraces)?"{{":"")+"{0}{1}{2}{3}{4}{5}"+((bIncludeBraces)?"}}":""),
+			RReporting.DebugStyle("iWidth",iWidth,true),
+			RReporting.DebugStyle("iHeight",iHeight,true),
+			RReporting.DebugStyle("iBytesPP",iBytesPP,true),
+			RReporting.DebugStyle("iStride",iStride,true),
+			RReporting.DebugStyle("iBytesTotal",iBytesTotal,true),
+			RReporting.DebugStyle("iPixelsTotal",iPixelsTotal,!bIncludeBraces) );
+		}
+		//public unsafe bool FromTarga(string sFile) {
+			//TODO: finish this: targa loader
+		//}
+		public int Channels() {
+			return iBytesPP;
+		}
+		public PixelFormat PixelFormatNow() {
+			if (this.iBytesPP==1) return PixelFormat.Format8bppIndexed;//assumes no grayscale in framework
+			else if (this.iBytesPP==3) return PixelFormat.Format24bppRgb;//assumes BGR, though says Rgb
+			else if (this.iBytesPP==2) return PixelFormat.Format16bppGrayScale;//assumes no 16bit color
+			return PixelFormat.Format32bppArgb;
+		}
+		public void SetGrayPalette() {
+			SetGrayPalette(ref bmpLoaded);
+		}
+		public static void SetGrayPalette(ref Bitmap bmpNow) {
+			try {
+				if (bmpNow!=null) {
+					for (int index=0; index<256; index++) {
+						bmpNow.Palette.Entries.SetValue(Color.FromArgb(index,index,index,index), index);
+					}
+				}
+				else RReporting.ShowErr("Image not initialized.","","RImage SetGrayPalette");
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"setting palette of Bitmap object to gray","RImage SetGrayPalette");
+			}
+		}
+		public static Color Multiply(Color colorX, double multiplier) {
+			return Color.FromArgb(colorX.A, RMath.ByRound((double)colorX.R*multiplier), RMath.ByRound((double)colorX.G*multiplier), RMath.ByRound((double)colorX.B*multiplier));
+		}
+		public static int SafeLength(RImage[] val) {	
+			int iReturn=0;
+			try {
+				if (val!=null) iReturn=val.Length;
+			}
+			catch (Exception exn) {
+				iReturn=0;
+				RReporting.Debug(exn,"","RImage SafeLength(RImage[])");
+			}
+			return iReturn;
+		}
+		public static bool Redim(ref RImage[] valarr, int iSetSize) {
+			bool bGood=false;
+			if (iSetSize==0) valarr=null;
+			else if (iSetSize>0) {
+				if (iSetSize!=SafeLength(valarr)) {
+					RImage[] valarrNew=new RImage[iSetSize];
+					for (int iNow=0; iNow<iSetSize; iNow++) {
+						if (iNow<SafeLength(valarr)) valarrNew[iNow]=valarr[iNow];
+						else valarrNew[iNow]=null;
+					}
+					valarr=valarrNew;
+					bGood=true;
+				}
+			}
+			else {
+				string sCallStack=RReporting.StackTraceToLatinCallStack(new System.Diagnostics.StackTrace());
+				RReporting.ShowErr("Prevented setting a buffer array to a negative size ", "setting buffer array length", "Redim(rimage array," + iSetSize.ToString() + ",sender:" + sCallStack+")");
+			}
+			return bGood;
+		}//end Redim(RImage[],...)
+// 		public byte BrushR() {
+// 			return rpaintFore.R;
+// 		}
+// 		public byte BrushG() {
+// 			return rpaintFore.G;
+// 		}
+// 		public byte BrushB() {
+// 			return rpaintFore.B;
+// 		}
+		public float PixelsPerDegAt(float rPixelsRadius) {
+			float x1,y1,x2,y2;
+			x1=(RConvert.XOFRTHETA_DEG(rPixelsRadius,0));
+			y1=-(RConvert.YOFRTHETA_DEG(rPixelsRadius,0));//negative to flip to non-cartesian monitor loc
+			x2=(RConvert.XOFRTHETA_DEG(rPixelsRadius,1));
+			y2=-(RConvert.YOFRTHETA_DEG(rPixelsRadius,1));//negative to flip to non-cartesian monitor loc
+			return RMath.Dist(x1,y1,x2,y2);
+		}
+		public double PixelsPerDegAt(double rPixelsRadius) {
+			double x1,y1,x2,y2;
+			x1=(RConvert.XOFRTHETA_DEG(rPixelsRadius,0));
+			y1=-(RConvert.YOFRTHETA_DEG(rPixelsRadius,0));//negative to flip to non-cartesian monitor loc
+			x2=(RConvert.XOFRTHETA_DEG(rPixelsRadius,1));
+			y2=-(RConvert.YOFRTHETA_DEG(rPixelsRadius,1));//negative to flip to non-cartesian monitor loc
+			return RMath.Dist(x1,y1,x2,y2);
+		}
+		public float PixelsPerRadAt(float rPixelsRadius) {
+			float x1,y1,x2,y2;
+			x1=(RConvert.XOFRTHETA_RAD(rPixelsRadius,0));
+			y1=-(RConvert.YOFRTHETA_RAD(rPixelsRadius,0));//negative to flip to non-cartesian monitor loc
+			x2=(RConvert.XOFRTHETA_RAD(rPixelsRadius,1));
+			y2=-(RConvert.YOFRTHETA_RAD(rPixelsRadius,1));//negative to flip to non-cartesian monitor loc
+			return RMath.Dist(x1,y1,x2,y2);
+		}
+		public double PixelsPerRadAt(double rPixelsRadius) {
+			double x1,y1,x2,y2;
+			x1=(RConvert.XOFRTHETA_RAD(rPixelsRadius,0));
+			y1=-(RConvert.YOFRTHETA_RAD(rPixelsRadius,0));//negative to flip to non-cartesian monitor loc
+			x2=(RConvert.XOFRTHETA_RAD(rPixelsRadius,1));
+			y2=-(RConvert.YOFRTHETA_RAD(rPixelsRadius,1));//negative to flip to non-cartesian monitor loc
+			return RMath.Dist(x1,y1,x2,y2);
+		}
+		public void Clear(Color colorNow) {//keep this, to mimic the equivalent Graphics object method
+			Fill(new byte[] {colorNow.B,colorNow.G,colorNow.R,colorNow.A});
+		}
+		public void Fill(byte byGrayVal) {
+			RMemory.Fill(ref byarrData,byGrayVal,0,iBytesTotal);
+		}
+		public void Fill(uint dwPixelBGRA) {
+			if (iBytesPP==4) {
+				RMemory.Fill(ref byarrData,dwPixelBGRA,0,iBytesTotal/4);
+			}
+			else RReporting.ShowErr("Filling this type of surface with 32-bit color is not implemented","",String.Format("Fill(32-bit){{ImageBitDepth:{0}}}",(iBytesPP*8)));
+		}
+		public void Fill(byte[] byarrPixel32bit) {
+			if (iBytesPP==4) {
+				RMemory.Fill4(ref byarrData,ref byarrPixel32bit,0,0,iBytesTotal/4);
+			}
+			else RReporting.ShowErr("Filling this type of surface with 32-bit color is not implemented","",String.Format("Fill(32-bit){{ImageBitDepth:{0}}}",(iBytesPP*8)));
+		}
+		#endregion utilities
+
+		#region Pattern Recognition
+		public bool IsTransparentVLine(int x, int y, int iPixelCount) {
+			int iFound=0;
+			try {
+				int iBuffer=XYToLocation(x,y);
+				if (iBuffer>-1&&iBuffer<iBytesTotal) {
+					for (int iNow=0; iNow<iPixelCount; iNow++) {
+						if (byarrData[iBuffer+3]==0) iFound++; //+3 assumes 32-bit BGRA
+						iBuffer+=iStride;
+					}
+				}
+				else {
+					RReporting.ShowErr( "No line of pixels exists at location", "checking for transparent line", String.Format("IsTransparentVLine(x:{0},y:{1},count:{2}){found:{3}}",x,y,iPixelCount,iFound) );
+				}
+			}
+			catch (Exception exn) {
+				//do not modify bReturn, since exception implies nonexistent pixel
+				RReporting.ShowExn( exn, "checking for transparent line", String.Format("IsTransparentVLine(x:{0},y:{1},count:{2}){found:{3}}",x,y,iPixelCount,iFound) );
+			}
+			return iFound==iPixelCount;
+		}//end IsTransparentVLine
+		#endregion Pattern Recognition
+		
+		#region Get Methods
+		public Color GetPixel(int x, int y) {//keep this same to mimic the Bitmap method of the same name
+			//TODO: wrapping modes
+			int iLoc=XYToLocation(x,y);
+			if (iLoc>0) {
+				if (iBytesPP==4) return Color.FromArgb(byarrData[iLoc+3], byarrData[iLoc+2], byarrData[iLoc+1], byarrData[iLoc]);
+				else if (bShowGetPixelError) {
+					 RReporting.Warning("Getting ARGB Color object from non-32bit RImage is not implemented");
+					 bShowGetPixelError=false;
+				}
+			}
+			return Color.FromArgb(0,0,0,0);
+		}
+		public byte Alpha(int x, int y) {
+			return ChannelValue(x,y,iBytesPP-1);//debug silently degrades (fixes) if grayscale (since iBytesPP-1 is 0 which is first channel)
+		}
+		public byte ChannelValue(int x, int y, int iChannel) {
+			byte byReturn=0;
+			try {
+				//TODO: wrapping & other out-of-range handling modes go here
+				return byarrData[y*iStride+x*iBytesPP+iChannel];
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"getting a channel value at (x,y)","RImage ChannelValue");
+			}
+			return byReturn;
+		}
+		#endregion Get Methods
+		
+		#region Per-pixel Interpolation Methods
+		public static bool InterpolatePixel(ref RImage riDest, ref RImage riSrc, int iDest, ref FPoint pSrc) {
+			bool bGood=false;
+			bool bOnX;
+			bool bOnY;
+			float dWeightNow;
+			float dWeightTotal;
+			float dHeavyChannel;
+			FPoint[] dparrQuad; //rounded
+			int iSrcRoundX;
+			int iSrcRoundY;
+			float dSrcRoundX;
+			float dSrcRoundY;
+			//int iSampleQuadIndex;
+			float xMaxSrc;
+			float yMaxSrc;
+			float dQuarterWeight;
+			int iQuad;
+			int iChan;
+			int iDestNow;
+			int iTotal=0;
+			int[] iarrLocOfQuad;
+			try {
+				iarrLocOfQuad=new int[4];
+				xMaxSrc=(float)riSrc.iWidth-1.0f;
+				yMaxSrc=(float)riSrc.iHeight-1.0f;
+				//iDest=riDest.iStride*ipDest.Y+riDest.iBytesPP*ipDest.X;
+				dWeightNow=0;
+				dWeightTotal=0;
+				dparrQuad=new FPoint[4];
+				iSrcRoundX=(int)(pSrc.X+.5f);
+				iSrcRoundY=(int)(pSrc.Y+.5f);
+				dSrcRoundX=(float)iSrcRoundX;
+				dSrcRoundY=(float)iSrcRoundY;
+				if (dSrcRoundX<pSrc.X) {
+					if (dSrcRoundY<pSrc.Y) {
+						//iSampleQuadIndex=0;
+						dparrQuad[0].X=dSrcRoundX;		dparrQuad[0].Y=dSrcRoundY;
+						dparrQuad[1].X=dSrcRoundX+1.0f;	dparrQuad[1].Y=dSrcRoundY;
+						dparrQuad[2].X=dSrcRoundX;		dparrQuad[2].Y=dSrcRoundY+1.0f;
+						dparrQuad[3].X=dSrcRoundX+1.0f;	dparrQuad[3].Y=dSrcRoundY+1.0f;
+					}
+					else {
+						//iSampleQuadIndex=2;
+						dparrQuad[0].X=dSrcRoundX;		dparrQuad[0].Y=dSrcRoundY-1.0f;
+						dparrQuad[1].X=dSrcRoundX+1.0f;	dparrQuad[1].Y=dSrcRoundY-1.0f;
+						dparrQuad[2].X=dSrcRoundX;		dparrQuad[2].Y=dSrcRoundY;
+						dparrQuad[3].X=dSrcRoundX+1.0f;	dparrQuad[3].Y=dSrcRoundY;
+					}
+				}
+				else {
+					if (dSrcRoundY<pSrc.Y) {
+						//iSampleQuadIndex=1;
+						dparrQuad[0].X=dSrcRoundX-1.0f;	dparrQuad[0].Y=dSrcRoundY;
+						dparrQuad[1].X=dSrcRoundX;		dparrQuad[1].Y=dSrcRoundY;
+						dparrQuad[2].X=dSrcRoundX-1.0f;	dparrQuad[2].Y=dSrcRoundY+1.0f;
+						dparrQuad[3].X=dSrcRoundX;		dparrQuad[3].Y=dSrcRoundY+1.0f;
+					}
+					else {
+						//iSampleQuadIndex=3;
+						dparrQuad[0].X=dSrcRoundX-1.0f;	dparrQuad[0].Y=dSrcRoundY-1.0f;
+						dparrQuad[1].X=dSrcRoundX;		dparrQuad[1].Y=dSrcRoundY-1.0f;
+						dparrQuad[2].X=dSrcRoundX-1.0f;	dparrQuad[2].Y=dSrcRoundY;
+						dparrQuad[3].X=dSrcRoundX;		dparrQuad[3].Y=dSrcRoundY;
+					}
+				}
+				if (pSrc.X<0) {
+					for (iQuad=0; iQuad<4; iQuad++) {
+						if (dparrQuad[iQuad].X<0) dparrQuad[iQuad].X=0;
+					}
+				}
+				else if (pSrc.X>xMaxSrc) {
+					for (iQuad=0; iQuad<4; iQuad++) {
+						if (dparrQuad[iQuad].X>xMaxSrc) dparrQuad[iQuad].X=xMaxSrc;
+					}
+				}
+				if (pSrc.Y<0) {
+					for (iQuad=0; iQuad<4; iQuad++) {
+						if (dparrQuad[iQuad].Y<0) dparrQuad[iQuad].Y=0;
+					}
+				}
+				else if (pSrc.Y>yMaxSrc) {
+					for (iQuad=0; iQuad<4; iQuad++) {
+						if (dparrQuad[iQuad].Y>yMaxSrc) dparrQuad[iQuad].Y=yMaxSrc;
+					}
+				}
+				if (pSrc.X==(float)iSrcRoundX) bOnX=true;
+				else bOnX=false;
+				if (pSrc.Y==(float)iSrcRoundY) bOnY=true;
+				else bOnY=false;
+				
+				if (bOnY&&bOnX) {
+					RMemory.CopyFastVoid(ref riDest.byarrData, ref riSrc.byarrData, iDest, iSrcRoundY*riSrc.iStride+iSrcRoundX*riSrc.iBytesPP, riDest.iBytesPP);
+				}
+				else {
+					iDestNow=iDest;
+					for (iQuad=0; iQuad<4; iQuad++) {
+						iarrLocOfQuad[iQuad]=riSrc.iStride*(int)dparrQuad[iQuad].Y + riSrc.iBytesPP*(int)dparrQuad[iQuad].X;
+					}
+					for (iChan=0; iChan<riSrc.iBytesPP; iChan++, iTotal++) {
+						dHeavyChannel=0;
+						dWeightTotal=0;
+						for (iQuad=0; iQuad<4; iQuad++) {
+							dWeightNow=fDiagonalUnit-RMath.Dist(ref pSrc, ref dparrQuad[iQuad]);//RMath.SafeDivide(fDiagonalUnit,RMath.Dist(ref pSrc, ref dparrQuad[iQuad]),fDiagonalUnit);
+							dWeightTotal+=dWeightNow; //debug performance, this number always becomes the same theoretically
+							dHeavyChannel+=(float)riSrc.byarrData[iarrLocOfQuad[iQuad]+iChan]*dWeightNow;
+						}
+						//dQuarterWeight=dWeightTotal/4.0
+						riDest.byarrData[iDestNow]=(byte)(dHeavyChannel/dWeightTotal);
+						iDestNow++;
+					}
+				}
+				bGood=true;
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"interpolating pixel","RImage InterpolatePixel(dest="+RImage.Description(riDest)+",source="+RImage.Description(riSrc)+",iDest="+iDest.ToString()+",source-FPoint="+RMath.ToString(pSrc)+")");
+				bGood=false; //debug show error
+			}
+			return bGood;
+		}//end InterpolatePixel(...,FPoint)
+		
+		public static bool InterpolatePixel(ref RImage riDest, ref RImage riSrc, int iDest, ref DPoint pSrc) {
+			bool bGood=false;
+			bool bOnX;
+			bool bOnY;
+			double dWeightNow;
+			double dWeightTotal;
+			double dHeavyChannel;
+			DPoint[] dparrQuad; //rounded
+			int iSrcRoundX;
+			int iSrcRoundY;
+			double dSrcRoundX;
+			double dSrcRoundY;
+			//int iSampleQuadIndex;
+			double xMaxSrc;
+			double yMaxSrc;
+			int iQuad;
+			int iChan;
+			int iDestNow;
+			int iTotal=0;
+			int[] iarrLocOfQuad;
+			try {
+				iarrLocOfQuad=new int[4];
+				xMaxSrc=(double)riSrc.iWidth-1.0d;
+				yMaxSrc=(double)riSrc.iHeight-1.0d;
+				//iDest=riDest.iStride*ipDest.Y+riDest.iBytesPP*ipDest.X;
+				dWeightNow=0;
+				dWeightTotal=0;
+				dparrQuad=new DPoint[4];
+				iSrcRoundX=(int)(pSrc.X+.5);
+				iSrcRoundY=(int)(pSrc.Y+.5);
+				dSrcRoundX=(double)iSrcRoundX;
+				dSrcRoundY=(double)iSrcRoundY;
+				if (dSrcRoundX<pSrc.X) {
+					if (dSrcRoundY<pSrc.Y) {
+						//iSampleQuadIndex=0;
+						dparrQuad[0].X=dSrcRoundX;		dparrQuad[0].Y=dSrcRoundY;
+						dparrQuad[1].X=dSrcRoundX+1.0d;	dparrQuad[1].Y=dSrcRoundY;
+						dparrQuad[2].X=dSrcRoundX;		dparrQuad[2].Y=dSrcRoundY+1.0d;
+						dparrQuad[3].X=dSrcRoundX+1.0d;	dparrQuad[3].Y=dSrcRoundY+1.0d;
+					}
+					else {
+						//iSampleQuadIndex=2;
+						dparrQuad[0].X=dSrcRoundX;		dparrQuad[0].Y=dSrcRoundY-1.0d;
+						dparrQuad[1].X=dSrcRoundX+1.0d;	dparrQuad[1].Y=dSrcRoundY-1.0d;
+						dparrQuad[2].X=dSrcRoundX;		dparrQuad[2].Y=dSrcRoundY;
+						dparrQuad[3].X=dSrcRoundX+1.0d;	dparrQuad[3].Y=dSrcRoundY;
+					}
+				}
+				else {
+					if (dSrcRoundY<pSrc.Y) {
+						//iSampleQuadIndex=1;
+						dparrQuad[0].X=dSrcRoundX-1.0d;	dparrQuad[0].Y=dSrcRoundY;
+						dparrQuad[1].X=dSrcRoundX;		dparrQuad[1].Y=dSrcRoundY;
+						dparrQuad[2].X=dSrcRoundX-1.0d;	dparrQuad[2].Y=dSrcRoundY+1.0d;
+						dparrQuad[3].X=dSrcRoundX;		dparrQuad[3].Y=dSrcRoundY+1.0d;
+					}
+					else {
+						//iSampleQuadIndex=3;
+						dparrQuad[0].X=dSrcRoundX-1.0d;	dparrQuad[0].Y=dSrcRoundY-1.0d;
+						dparrQuad[1].X=dSrcRoundX;		dparrQuad[1].Y=dSrcRoundY-1.0d;
+						dparrQuad[2].X=dSrcRoundX-1.0d;	dparrQuad[2].Y=dSrcRoundY;
+						dparrQuad[3].X=dSrcRoundX;		dparrQuad[3].Y=dSrcRoundY;
+					}
+				}
+				if (pSrc.X<0) {
+					for (iQuad=0; iQuad<4; iQuad++) {
+						if (dparrQuad[iQuad].X<0) dparrQuad[iQuad].X=0;
+					}
+				}
+				else if (pSrc.X>xMaxSrc) {
+					for (iQuad=0; iQuad<4; iQuad++) {
+						if (dparrQuad[iQuad].X>xMaxSrc) dparrQuad[iQuad].X=xMaxSrc;
+					}
+				}
+				if (pSrc.Y<0) {
+					for (iQuad=0; iQuad<4; iQuad++) {
+						if (dparrQuad[iQuad].Y<0) dparrQuad[iQuad].Y=0;
+					}
+				}
+				else if (pSrc.Y>yMaxSrc) {
+					for (iQuad=0; iQuad<4; iQuad++) {
+						if (dparrQuad[iQuad].Y>yMaxSrc) dparrQuad[iQuad].Y=yMaxSrc;
+					}
+				}
+				if (pSrc.X==(double)iSrcRoundX) bOnX=true;
+				else bOnX=false;
+				if (pSrc.Y==(double)iSrcRoundY) bOnY=true;
+				else bOnY=false;
+				
+				if (bOnY&&bOnX) {
+					RMemory.CopyFastVoid(ref riDest.byarrData, ref riSrc.byarrData, iDest, iSrcRoundY*riSrc.iStride+iSrcRoundX*riSrc.iBytesPP, riDest.iBytesPP);
+				}
+				else {
+					iDestNow=iDest;
+					for (iQuad=0; iQuad<4; iQuad++) {
+						iarrLocOfQuad[iQuad]=riSrc.iStride*(int)dparrQuad[iQuad].Y + riSrc.iBytesPP*(int)dparrQuad[iQuad].X;
+					}
+					for (iChan=0; iChan<riSrc.iBytesPP; iChan++, iTotal++) {
+						dHeavyChannel=0;
+						dWeightTotal=0;
+						for (iQuad=0; iQuad<4; iQuad++) {
+							dWeightNow=dDiagonalUnit-RMath.Dist(ref pSrc, ref dparrQuad[iQuad]);
+							dWeightTotal+=dWeightNow; //debug performance, this number is always the same theoretically
+							dHeavyChannel+=(double)riSrc.byarrData[iarrLocOfQuad[iQuad]+iChan]*dWeightNow;
+						}
+						riDest.byarrData[iDestNow]=(byte)(dHeavyChannel/dWeightTotal);
+						iDestNow++;
+					}
+				}
+				bGood=true;
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"interpolating pixel","RImage InterpolatePixel(dest:"+RImage.Description(riDest)+",source:"+RImage.Description(riSrc)+",iDest"+iDest.ToString()+",source-DPoint:"+RMath.ToString(pSrc)+")");
+				bGood=false; //debug show error
+			}
+			return bGood;
+		}//end InterpolatePixel(...,DPoint)
+		
+		#endregion Per-pixel Interpolation Methods
+		
+		public static string Description(RImage rimage) {
+			return (rimage!=null)?rimage.Description():"null";
+		}
+
+		#region Pixel-based Geometry Raster Drawing
 		public bool InvertPixel(int x, int y) {
 			bool bGood=false;
 			try {
 				int iDestNow=XYToLocation(x,y);
 				for (int iChan=0; iChan<iBytesPP; iChan++) {
-					if (byarrData[iDestNow]==255&&RMath.SubstractBytes[255][(int)byarrData[iDestNow]]!=0) Console.Error.WriteLine("SubtractBytes array is incorrect");//debug only
+					if (byarrData[iDestNow]==255&&RMath.SubtractBytes[255][(int)byarrData[iDestNow]]!=0) Console.Error.WriteLine("SubtractBytes array is incorrect");//debug only
 					byarrData[iDestNow]=RMath.SubtractBytes[255][(int)byarrData[iDestNow]];
 					iDestNow++;
 				}
@@ -1753,6 +2889,56 @@ namespace ExpertMultimedia {
 			}
 			return bGood;
 		}
+		void DrawAlphaPix(int xPix, int yPix, byte r, byte g, byte b, byte a) {
+			try {
+				int iChannel=yPix*iStride+xPix*iBytesPP;
+				//The ++ operators are right:
+				//float fAlphaTo1;
+				//if ((iChannel+2>=0) && (iChannel+2<iPixelsTotal))
+				if ((iChannel+2)<iBytesTotal) {//+2 assumes only touching first 3 channels //if (((iChannel+3)/4)<iPixelsTotal) { //fAlphaTo1=(float)a/255.0f;
+					byarrData[iChannel]=RMath.AlphaLook[b][byarrData[iChannel]][a];//(byte)RMath.Approach((float)byarrData[iChannel], (float)b, fAlphaTo1);
+					byarrData[++iChannel]=RMath.AlphaLook[g][byarrData[iChannel]][a];//(byte)RMath.Approach((float)byarrData[iChannel], (float)g, fAlphaTo1);
+					byarrData[++iChannel]=RMath.AlphaLook[r][byarrData[iChannel]][a];//(byte)RMath.Approach((float)byarrData[iChannel], (float)r, fAlphaTo1);
+				}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"drawing transparent pixel using 4 channel values","DrawAlphaPix");
+			}
+		}//end DrawAlphaPix
+		///<summary>
+		///Sets pixel using foreground rpaint
+		///</summary>
+		public unsafe void SetPixel(int x, int y) {
+			SetPixel(rpaintFore,x,y);
+		}
+		///TODO: eliminate assumed rpaintFore overloads of ALL functions
+		public unsafe void SetPixel(RPaint rpaintX, int x, int y) {
+			try {
+				if (rpaintX==null) {
+					rpaintX=new RPaint();
+					rpaintX.SetRgb(255,255,255);
+				}
+				if (iBytesPP==4) {
+					fixed (byte* lpDest=&byarrData[XYToLocation(x,y)], lpSrc=rpaintX.data32) {
+						*((UInt32*)lpDest) = *((UInt32*)lpSrc);
+					}
+				}
+				else {
+					int iSrc=0;
+					int iDest=XYToLocation(x,y);
+					while (iSrc<iBytesPP) {
+						byarrData[iDest]=rpaintX.data32[iSrc];
+						iSrc++;
+						iDest++;
+					}
+				}//end else iBytesPP!=4
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"painting pixel using fast pointers","RImage SetPixel("+x.ToString()+","+y.ToString()+")");
+				//return false;
+			}
+			//return true;
+		}//end SetPixel(x,y)
 		public bool SetPixel(int x, int y, Color colorNow) {
 			return SetPixelArgb(x,y,colorNow.A,colorNow.R,colorNow.G,colorNow.B);
 		}
@@ -1775,7 +2961,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=true;
-				RReporting.ShowExn( exn, "drawing pixel", String.Format("SetPixelArgb({0},{1},...)",x,y) );
+				RReporting.ShowExn( exn, "drawing pixel leaving alpha unmodified", String.Format("SetPixelArgb({0},{1},...)",x,y) );
 			}
 			return bGood;
 		}
@@ -1803,7 +2989,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=true;
-				RReporting.ShowExn( exn, "drawing pixel", String.Format("SetPixelArgb({0},{1},...)",x,y) );
+				RReporting.ShowExn( exn, "drawing pixel ARGB value", String.Format("SetPixelArgb({0},{1},...)",x,y) );
 			}
 			return bGood;
 		}//end SetPixelArgb
@@ -1822,7 +3008,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=true;
-				RReporting.ShowExn(exn,"drawing to channel",String.Format("({0},{1},r)",x,y));
+				RReporting.ShowExn(exn,"drawing to red channel",String.Format("({0},{1},r)",x,y));
 			}
 			return bGood;
 		}//end SetPixelR
@@ -1841,7 +3027,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=true;
-				RReporting.ShowExn(exn, "drawing to channel", String.Format("SetPixelG({0},{1},...)",x,y));
+				RReporting.ShowExn(exn, "drawing to green channel", String.Format("SetPixelG({0},{1},...)",x,y));
 			}
 			return bGood;
 		}//end SetPixelG
@@ -1860,7 +3046,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=true;
-				RReporting.ShowExn( exn, "drawing to channel", String.Format("SetPixelB({0},{1},...)",x,y) );
+				RReporting.ShowExn( exn, "drawing to blue channel", String.Format("SetPixelB({0},{1},...)",x,y) );
 			}
 			return bGood;
 		}//end SetPixelB
@@ -1894,7 +3080,7 @@ namespace ExpertMultimedia {
 				bGood=true;
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"",String.Format("DrawPixelHSV({0},{1},...)",x,y));
+				RReporting.ShowExn(exn,"setting pixel using HSV copying alpha and converting alpha multiplier to byte (double-precision version)",String.Format("DrawPixelHSV({0},{1},...)",x,y));
 			}
 			return bGood;
 		}//end SetPixelHsva
@@ -1928,58 +3114,73 @@ namespace ExpertMultimedia {
 				bGood=true;
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"",String.Format("DrawPixelHSV({0},{1},...)",x,y));
+				RReporting.ShowExn(exn,"setting pixel using HSV copying alpha and converting alpha multiplier to byte (single-precision)",String.Format("DrawPixelHSV({0},{1},...)",x,y));
 			}
 			return bGood;
 		}//end SetPixelHsva
-		public bool DrawRectStyleCropped(Color colorNow, IRect rectDest) {
+		//public bool DrawRectStyleCropped(Color colorNow, IRect rectDest) {
+		//	try {
+		//		RPaint rpaintNow=RPaint.FromArgb(colorNow.A,colorNow.R,colorNow.G,colorNow.B);
+		//		if (rectDest!=null) return DrawRectStyleCropped(colorNow,rectDest.X, rectDest.Y, rectDest.Width, rectDest.Height);
+		//	}
+		//	catch (Exception exn) {
+		//		RReporting.ShowExn(exn,"setting paint but calling rectangle draw by Color object");
+		//	}
+		//	return false;
+		//}
+		public bool DrawRectStyleCropped(RPaint rpaint, IRect rectDest) {
 			try {
-				if (rectDest!=null) return DrawRectStyleCropped(colorNow,rectDest.Left, rectDest.Top, rectDest.Width, rectDest.Height);
+				if (rectDest!=null) return DrawRectStyleCropped(rpaint,rectDest.X, rectDest.Y, rectDest.Width, rectDest.Height);
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+				RReporting.ShowExn(exn,"calling rectangle draw using values from rect");
 			}
 			return false;
 		}
-		public RBrush brushTemp=new RBrush();
-		public bool DrawRectStyleCropped(RBrush rbX, int rect_Top, int rect_Left, int rect_Width, int rect_Height) {
-			RBrush brushForeOrig=brushFore;
-			//TODO: UseDrawRectBorderSym (...only for equally thick borders)
-			//TODO: CornerRadius
-			//rbX was formerly colorNow
-			if (rbX==null) rbX=brushFore.Copy();
-			brushFore=brushTemp;//rbX.Copy();//TODO: debug performance
-			brushFore.Set(rbX);//NOTE: this allows modifying the temporary brushFore while still referring to the original rbX parameter
+		public bool DrawRectStyleCropped(RPaint rpaintX, int rect_Top, int rect_Left, int rect_Width, int rect_Height) {
+			RPaint rpaintForeOrig=rpaintFore;
 			bool bGood=false;
-			if (brushFore.A==0) {
-				brushFore.SetRgb_IgnoreAlpha(128,128,128);
-			}
-			if (rect_Left<0) {
-				rect_Width+=rect_Left;//actually subtracts
-				rect_Left=0;
-			}
-			if (rect_Top<0) {
-				rect_Height+=rect_Top;//actually subtracts
-				rect_Top=0;
-			}
-			if (rect_Top+rect_Height>iHeight) rect_Height-=(rect_Top+rectHeight)-iHeight;
-			if (rect_Left+rect_Width>iWidth) rect_Width-=(rect_Left+rect_Width)-iWidth;
-			if (rect_Width>0&&rect_Height>0) {//if(rect_Left<iWidth&&rect_Left>=0&&rect_Height>=0&&rect_Top+rect_Height-1<rect_Height) 
-				if (brushFore.A!=0) {
-					DrawRectFilled(rect_Top,rect_Left,rect_Width,rect_Height);
+			try {
+				//TODO: UseDrawRectBorderHomogeneous (...only for equally thick borders)
+				//TODO: CornerRadius
+				//rpaintX was formerly colorNow
+				if (rpaintX==null) rpaintX=rpaintFore.Copy();
+				rpaintFore=rpaintTemp;//rpaintX.Copy();//TODO: debug performance
+				rpaintFore.Set(rpaintX);//NOTE: this allows modifying the temporary rpaintFore while still referring to the original rpaintX parameter
+				if (rpaintFore.A==0) {
+					rpaintFore.SetRgb_IgnoreAlpha(128,128,128);
 				}
-				//TODO: DrawRectStyle - vectorize and make color alpha polygons
-				//dark:
-				brushFore.SetRgb(SubtractBytes[rbX.R][85],SubtractBytes[rbX.G][85],SubtractBytes[rbX.B][85]);
-				DrawHorzLine(rect_Left, rect_Top+rect_Height-1, rect_Width, "DrawRectStyle(){part:B}");
-				DrawVertLine(rect_Left, rect_Top, rect_Height, "DrawRectStyle(){part:L}");//if (rect_Left>=0&&rect_Left<iWidth&&rect_Top>=0&&rectTop<iHeight) 
-				//light:
-				brushFore.SetRgb(AddBytes[rbX.R][85],AddBytes[rbX.G][85],AddBytes[rbX.B][85]);
-				DrawHorzLine(rect_Left, rect_Top, rect_Width, "DrawRectStyle(){part:T}");//if (rect_Left<iWidth&&rect_Left>=0&&rect_Height>0)
-				DrawVertLine(rect_Left+rect_Width-1,rect_Top,rect_Height,"DrawRectStyle(){part:R}");//if (rect_Left+rect_Width-1<iWidth&&rect_Top>=0&&rect_Width>0)
-				bGood=true;
+				if (rect_Left<0) {
+					rect_Width+=rect_Left;//actually subtracts
+					rect_Left=0;
+				}
+				if (rect_Top<0) {
+					rect_Height+=rect_Top;//actually subtracts
+					rect_Top=0;
+				}
+				if (rect_Top+rect_Height>iHeight) rect_Height-=(rect_Top+rect_Height)-iHeight;
+				if (rect_Left+rect_Width>iWidth) rect_Width-=(rect_Left+rect_Width)-iWidth;
+				if (rect_Width>0&&rect_Height>0) {//if(rect_Left<iWidth&&rect_Left>=0&&rect_Height>=0&&rect_Top+rect_Height-1<rect_Height) 
+					if (rpaintFore.A!=0) {
+						DrawRectFilled(rect_Top,rect_Left,rect_Width,rect_Height,"DrawRectStyle()");
+					}
+					//TODO: DrawRectStyle - vectorize and make color alpha polygons
+					//dark:
+					rpaintFore.SetRgb(RMath.SubtractBytes[rpaintX.R][85],RMath.SubtractBytes[rpaintX.G][85],RMath.SubtractBytes[rpaintX.B][85]);
+					DrawHorzLine(rect_Left, rect_Top+rect_Height-1, rect_Width);//, "DrawRectStyle(){part:B}");
+					DrawVertLine(rect_Left, rect_Top, rect_Height);//, "DrawRectStyle(){part:L}");//if (rect_Left>=0&&rect_Left<iWidth&&rect_Top>=0&&rectTop<iHeight)
+					//light:
+					rpaintFore.SetRgb(RMath.AddBytes[rpaintX.R][85],RMath.AddBytes[rpaintX.G][85],RMath.AddBytes[rpaintX.B][85]);
+					DrawHorzLine(rect_Left, rect_Top, rect_Width);//, "DrawRectStyle(){part:T}");//if (rect_Left<iWidth&&rect_Left>=0&&rect_Height>0)
+					DrawVertLine(rect_Left+rect_Width-1,rect_Top,rect_Height);//,"DrawRectStyle(){part:R}");//if (rect_Left+rect_Width-1<iWidth&&rect_Top>=0&&rect_Width>0)
+					bGood=true;
+				}
+				rpaintFore=rpaintForeOrig;
 			}
-			brushFore=brushForeOrig;
+			catch (Exception exn) {
+				string sStackFrames=RReporting.StackTraceToLatinCallStack(new System.Diagnostics.StackTrace());
+				RReporting.ShowExn(exn,"drawing css rectangle",sStackFrames);
+			}
 			return bGood;
 		}//end DrawRectStyle
 		public bool DrawRectCropped(IZone zoneNow) {
@@ -1990,50 +3191,51 @@ namespace ExpertMultimedia {
 		}
 		public bool DrawRectCropped(int xDest, int yDest, int iWidth, int iHeight) {
 			RMath.CropRect(ref xDest, ref yDest, ref iWidth, ref iHeight, 0, 0, Width, Height);
-			if (iWidth>0&&iHeight>0) return DrawRect(xDest,yDest,iWidth,iHeight,"DrawCroppedRect");
+			if (iWidth>0&&iHeight>0) return DrawRect(xDest,yDest,iWidth,iHeight);
 			else return true;
 		}
-		public bool DrawRect(int xDest, int yDest, int iWidth, int iHeight, string sSender_ForErrorTracking) {
+		//public bool DrawRect(int xDest, int yDest, int iWidth, int iHeight, string sSender_ForErrorTracking) {
 			
-		}
-		public bool DrawRect(int xDest, int yDest, int iWidth, int iHeight, string sSender_ForErrorTracking) {
+		//}
+		public bool DrawRect(int xDest, int yDest, int iWidth, int iHeight) {
 			bool bGood=true;
 			if (xDest>=0&&yDest>=0) {
-				if (!DrawHorzLine(xDest,yDest,iWidth,sSender_ForErrorTracking)) bGood=false;
+				if (!DrawHorzLine(xDest,yDest,iWidth)) bGood=false;
 				iHeight--;
-				if (!DrawHorzLine(xDest,yDest+iHeight,iWidth,sSender_ForErrorTracking)) bGood=false;
+				if (!DrawHorzLine(xDest,yDest+iHeight,iWidth)) bGood=false;
 				yDest++;
 				iHeight--;//skip the verticle lines' other end too
 				if (iHeight>0) {
-					if (!DrawVertLine(xDest,yDest,iHeight, sSender_ForErrorTracking)) bGood=false;
+					if (!DrawVertLine(xDest,yDest,iHeight)) bGood=false;
 					iWidth--;
-					if (!DrawVertLine(xDest+iWidth,yDest,iHeight,sSender_ForErrorTracking)) bGood=false;
+					if (!DrawVertLine(xDest+iWidth,yDest,iHeight)) bGood=false;
 				}
 			}
 			else {
-				RReporting.Warning(sSender_ForErrorTracking+" skipped drawing out-of-range rect. {rect:"+IRect.ToString(xDest,yDest,iWidth,iHeight)+"}");
+				string sCallStack=RReporting.StackTraceToLatinCallStack(new System.Diagnostics.StackTrace());
+				RReporting.Warning(sCallStack+" skipped drawing out-of-range rect. {rect:"+IRect.ToString(xDest,yDest,iWidth,iHeight)+"}");
 				bGood=false;
 			}
 			return bGood;
 		}
-		public bool DrawRect(ref IZone izoneExclusive, string sSender_ForErrorTracking) {
+		public bool DrawRect(ref IZone izoneExclusive) {
 			return DrawRect(izoneExclusive.Left, izoneExclusive.Top,
 						 izoneExclusive.Right-izoneExclusive.Left,
-						 izoneExclusive.Bottom-izoneExclusive.Top, sSender_ForErrorTracking);
+						 izoneExclusive.Bottom-izoneExclusive.Top);
 		}
-		public bool DrawRect(IRect rectRect, string sSender_ForErrorTracking) {
-			return DrawRect(rectRect.X, rectRect.Y, rectRect.Width, rectRect.Height, sSender_ForErrorTracking);
+		public bool DrawRect(IRect rectRect) {
+			return DrawRect(rectRect.X, rectRect.Y, rectRect.Width, rectRect.Height);
 		}
 		public bool DrawRectFilled(int xDest, int yDest, int iWidth, int iHeight, string sSender_ForErrorTracking) {
-			return DrawRectFilled(brushFore,xDest, yDest, iWidth, iHeight, sSender_ForErrorTracking);
+			return DrawRectFilled(rpaintFore,xDest, yDest, iWidth, iHeight);
 		}
-		public unsafe bool DrawRectFilled(RBrush brushX, int xDest, int yDest, int iWidth, int iHeight, string sSender_ForErrorTracking) {
+		public unsafe bool DrawRectFilled(RPaint rpaintX, int xDest, int yDest, int iWidth, int iHeight) {
 			//TODO: implement overlay modes here
 			if ((iWidth<1)||(iHeight<1)) return false;
 			bool bGood=true;
 			try {
 				int iDest=yDest*iStride+xDest*iBytesPP;
-				fixed (byte* lpDest=&byarrData[iDest], lpSrc=brushX.data32Copied64) { //keeps GC at bay
+				fixed (byte* lpDest=&byarrData[iDest], lpSrc=rpaintX.data32Copied64) { //keeps GC at bay
 					byte* lpDestNow;
 					byte* lpDestStart=lpDest;
 					for (int yNow=0; yNow<iHeight; yNow++) {
@@ -2051,14 +3253,15 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				RReporting.ShowExn(exn, "drawing filled rectangle", String.Format("RImage DrawRectFilled(x:{0},y:{1},width:{2},height:{3},sender:{4})",xDest,yDest,iWidth,iHeight,sSender_ForErrorTracking) );
+				string sCallStack=RReporting.StackTraceToLatinCallStack(new System.Diagnostics.StackTrace());
+				RReporting.ShowExn(exn, "drawing filled rectangle", String.Format("RImage DrawRectFilled(x:{0},y:{1},width:{2},height:{3},sender:{4})",xDest,yDest,iWidth,iHeight,sCallStack) );
 			}
 			return bGood;
 		} //DrawRectFilled
 		///<summary>
 		///Draws a gradient from top to bottom from Foreground to Background color
 		///</summary>
-		public bool DrawGradTopDownRectFilled(RBrush brushTop, RBrush brushBottom, int xDest, int yDest, int iWidth, int iHeight, string sSender_ForErrorTracking) {
+		public bool DrawGradTopDownRectFilled(RPaint rpaintTop, RPaint rpaintBottom, int xDest, int yDest, int iWidth, int iHeight) {
 			//TODO: implement overlay modes here
 			if ((iWidth<1)||(iHeight<1)) return false;
 			bool bGood=true;
@@ -2066,36 +3269,37 @@ namespace ExpertMultimedia {
 				int iLineStart=yDest*iStride+xDest*iBytesPP;
 				int iFullApproach=iHeight-1;
 				byte byApproachNow;
-				brushTemp.A=255;
+				rpaintTemp.A=255;
 				for (int yNow=0; yNow<iHeight; yNow++) {
 					//int iDest=iLineStart;
-					byApproachNow=(byte)RMath.SafeDivideRound(RMath.SafeMultiply(yNow,255),iFullApproach);
-					brushTemp.B=RMath.AlphaLook[brushBottom.B][brushTop.B][byApproachNow];
-					brushTemp.G=RMath.AlphaLook[brushBottom.G][brushTop.G][byApproachNow];
-					brushTemp.R=RMath.AlphaLook[brushBottom.R][brushTop.R][byApproachNow];
-					DrawHorzLine(brushTemp,xDest,yNow,iWidth,sSender_ForErrorTracking);
+					byApproachNow=(byte)RMath.SafeDivideRound(RMath.SafeMultiply(yNow,255),iFullApproach,255);
+					rpaintTemp.B=RMath.AlphaLook[rpaintBottom.B][rpaintTop.B][byApproachNow];
+					rpaintTemp.G=RMath.AlphaLook[rpaintBottom.G][rpaintTop.G][byApproachNow];
+					rpaintTemp.R=RMath.AlphaLook[rpaintBottom.R][rpaintTop.R][byApproachNow];
+					DrawHorzLine(rpaintTemp,xDest,yNow,iWidth);
 				}//end for yNow
 			}
 			catch (Exception exn) {
 				bGood=false;
-				RReporting.ShowExn(exn, "drawing filled rectangle", String.Format("RImage DrawGradTopDownRectFilled(x:{0},y:{1},width:{2},height:{3},sender:{4})",xDest,yDest,iWidth,iHeight,sSender_ForErrorTracking) );
+				string sCallStack=RReporting.StackTraceToLatinCallStack(new System.Diagnostics.StackTrace());
+				RReporting.ShowExn(exn, "drawing filled rectangle", String.Format("RImage DrawGradTopDownRectFilled(x:{0},y:{1},width:{2},height:{3},sender:{4})",xDest,yDest,iWidth,iHeight,sCallStack) );
 			}
 			return bGood;
 		} //DrawGradTopDownRectFilled
 		public bool DrawRectFilledCropped(int xDest, int yDest, int iWidth, int iHeight) {
-			return DrawRectFilledCropped(brushFore,xDest,yDest,iWidth,iHeight);
+			return DrawRectFilledCropped(rpaintFore,xDest,yDest,iWidth,iHeight);
 		}
-		public bool DrawRectFilledCropped(RBrush brushX, int xDest, int yDest, int iWidth, int iHeight) {
+		public bool DrawRectFilledCropped(RPaint rpaintX, int xDest, int yDest, int iWidth, int iHeight) {
 			//formerly DrawRectCroppedFilled
 			RMath.CropRect(ref xDest, ref yDest, ref iWidth, ref iHeight, 0, 0, Width, Height);
-			if (iWidth>0&&iHeight>0) return DrawRectFilled(brushX,xDest,yDest,iWidth,iHeight,"DrawRectFilledCropped");
+			if (iWidth>0&&iHeight>0) return DrawRectFilled(rpaintX,xDest,yDest,iWidth,iHeight);
 			else return true;
 		}
-		public bool DrawRectFilled(IRect rectRect, string sSender_ForErrorTracking) {
-			return DrawRectFilled(brushFore,rectRect,sSender_ForErrorTracking);
+		public bool DrawRectFilled(IRect rectRect) {
+			return DrawRectFilled(rpaintFore,rectRect);
 		}
-		public bool DrawRectFilled(RBrush brushX, IRect rectRect, string sSender_ForErrorTracking) {
-			return DrawRectFilled(brushX, rectRect.X, rectRect.Y, rectRect.Width, rectRect.Height, sSender_ForErrorTracking);
+		public bool DrawRectFilled(RPaint rpaintX, IRect rectRect) {
+			return DrawRectFilled(rpaintX, rectRect.X, rectRect.Y, rectRect.Width, rectRect.Height);
 		}
 		//public bool DrawRectFilledHsva(IRect rectDest, float h, float s, float v, float a) {
 		//	return DrawRectFilledHsva(rectDest.X,rectDest.Y,rectDest.Width,rectDest.Height,h,s,v,a);
@@ -2104,24 +3308,24 @@ namespace ExpertMultimedia {
 		//	return DrawRectFilledHsva(rectDest.X,rectDest.Y,rectDest.Width,rectDest.Height,h,s,v,a);
 		//}
 		//public bool DrawRectFilledHsva(int xDest, int yDest, int iWidth, int iHeight, float h, float s, float v, float a) {
-		//	brushFore.SetHsva(h,s,v,a);
+		//	rpaintFore.SetHsva(h,s,v,a);
 		//	return DrawRectFilled(xDest,yDest,iWidth,iHeight);
 		//}
 		//public bool DrawRectFilledHsva(int xDest, int yDest, int iWidth, int iHeight, double h, double s, double v, double a) {
-		//	brushFore.SetHsva(h,s,v,a);
+		//	rpaintFore.SetHsva(h,s,v,a);
 		//	return DrawRectFilled(xDest,yDest,iWidth,iHeight);
 		//}
 		//public bool DrawRectFilledCroppedHsva(int xDest, int yDest, int iWidth, int iHeight, double h, double s, double v, double a) {
-		//	brushFore.SetHsva(h,s,v,a);
+		//	rpaintFore.SetHsva(h,s,v,a);
 		//	return DrawRectFilledCropped(xDest,yDest,iWidth,iHeight);
 		//}
 		/// <summary>
-		/// DrawRectBorder horizontally and vertically symmetrical
+		/// DrawRectBorder horizontally and vertically with same thickness
 		/// </summary>
 		/// <param name="rectRect"></param>
 		/// <param name="rectHole"></param>
 		/// <returns></returns>
-		public bool DrawRectBorderSym(RBrush brushX, IRect rectRect, IRect rectHole, string sSender_ForErrorTracking) {
+		public bool DrawRectBorderHomogeneous(RPaint rpaintX, IRect rectRect, IRect rectHole) {//formerly DrawRectBorderSym
 			bool bGood=true;
 			int xNow;
 			int yNow;
@@ -2132,50 +3336,51 @@ namespace ExpertMultimedia {
 				yNow=rectRect.Y;
 				iWidthNow=rectRect.Width;
 				iHeightNow=rectHole.Y-rectRect.Y;
-				bool bTest=DrawRectFilled(brushX, xNow, yNow, iWidthNow, iHeightNow, sSender_ForErrorTracking);//Top full width
+				bool bTest=DrawRectFilled(rpaintX, xNow, yNow, iWidthNow, iHeightNow);//Top full width
 				if (!bTest) bGood=false;
 				yNow+=rectHole.Height+iHeightNow;
 				//would need to change iHeightNow here if asymmetrical
-				bTest=DrawRectFilled(brushX, xNow, yNow, iWidthNow, iHeightNow, sSender_ForErrorTracking);//Bottom full width
+				bTest=DrawRectFilled(rpaintX, xNow, yNow, iWidthNow, iHeightNow);//Bottom full width
 				if (!bTest) bGood=false;
 				yNow-=rectHole.Height;
 				iWidthNow=rectHole.X-rectRect.X;
 				iHeightNow=rectHole.Height;
-				bTest=DrawRectFilled(brushX, xNow, yNow, iWidthNow, iHeightNow, sSender_ForErrorTracking);//Left remaining height
+				bTest=DrawRectFilled(rpaintX, xNow, yNow, iWidthNow, iHeightNow);//Left remaining height
 				if (!bTest) bGood=false;
 				xNow+=rectHole.Width+iWidthNow;
 				//would need to change iWidthNow here if asymmetrical
-				bTest=DrawRectFilled(brushX, xNow, yNow, iWidthNow, iHeightNow, sSender_ForErrorTracking);//Right remaining height
+				bTest=DrawRectFilled(rpaintX, xNow, yNow, iWidthNow, iHeightNow);//Right remaining height
 				if (!bTest) bGood=false;
 			}
 			catch (Exception exn) {
 				bGood=false;
-				RReporting.ShowExn(exn,"","RImage DrawRectBorderSym");
+				string sCallStack=RReporting.StackTraceToLatinCallStack(new System.Diagnostics.StackTrace());
+				RReporting.ShowExn(exn,"drawing rectangle border with continuous thickness",sCallStack);
 			}
 			return bGood;
-		} //end DrawRectBorderSym
+		} //end DrawRectBorderHomogeneous
 		private IRect rectOuterTemp=new IRect();
 		private IRect rectInnerTemp=new IRect();
-		public bool DrawRectBorder(int xDest, int yDest, int iWidth, int iHeight, int iThick) {
+		public bool DrawRectBorder(RPaint rpaintX, int xDest, int yDest, int iWidth, int iHeight, int iThick) {
 			rectOuterTemp.Set(xDest,yDest,iWidth,iHeight);
 			rectInnerTemp.Set(xDest+iThick,yDest+iThick,iWidth-(iThick*2),iHeight-(iThick*2));
-			if ((rectInnerTemp.Width<=1) || (rectInnerTemp.Height<=1)) {
-				return DrawRectFilled(rectOuterTemp,"DrawRectBorder");
+			if ((rectInnerTemp.Width<=2) || (rectInnerTemp.Height<=2)) {
+				return DrawRectFilled(rpaintX,rectOuterTemp);
 			}
-			else return DrawRectBorderSym(rectOuterTemp, rectInnerTemp, "DrawRectBorder");
+			else return DrawRectBorderHomogeneous(rpaintX,rectOuterTemp, rectInnerTemp);
 		}//DrawRectBorder
-		//public unsafe bool DrawVertLine(int xDest, int yDest, int iPixelCopies, string sSender_ForErrorTracking) {
-		//	return DrawVertLine(xDest, yDest, iPixelCopies, false, sSender_ForErrorTracking);
-		//}
-		//public unsafe bool DrawVertLine(int xDest, int yDest, int iPixelCopies, bool bBackColor, string sSender_ForErrorTracking) {
-		//	return DrawVertLine(bBackColor?brushBack:brushFore, xDest,yDest,iPixelCopies,sSender_ForErrorTracking);
-		//}
-		public unsafe bool DrawVertLine(RBrush brushX, int xDest, int yDest, int iPixelCopies, string sSender_ForErrorTracking) {
+		public unsafe bool DrawVertLine(int xDest, int yDest, int iPixelCopies) {
+			return DrawVertLine(rpaintFore, xDest, yDest, iPixelCopies);
+		}
+		public unsafe bool DrawVertLine(int xDest, int yDest, int iPixelCopies, bool bBackColor) {
+			return DrawVertLine(bBackColor?rpaintBack:rpaintFore, xDest,yDest,iPixelCopies);
+		}
+		public unsafe bool DrawVertLine(RPaint rpaintX, int xDest, int yDest, int iPixelCopies) {
 			if (iPixelCopies<1) return false;
 			bool bGood=true;
 			try {
 				int iDest=yDest*iStride+xDest*iBytesPP;
-				fixed (byte* lpDest=&byarrData[iDest], lpSrc=brushX.data32) { //keeps GC at bay
+				fixed (byte* lpDest=&byarrData[iDest], lpSrc=rpaintX.data32) { //keeps GC at bay
 					byte* lpDestNow=lpDest;
 					//byte* lpSrcNow=lpSrc;
 					//lpSrcNow+=iSrcByte;
@@ -2188,23 +3393,23 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				RReporting.ShowExn(exn,"drawing line",String.Format("RImage DrawVertLine(x:{0},y:{1},copies:{2},sender:{3})", xDest, yDest, iPixelCopies, sSender_ForErrorTracking) );
+				RReporting.ShowExn(exn,"drawing vertical line using fast pointers",String.Format("RImage DrawVertLine(x:{0},y:{1},copies:{2},sender:{3})", xDest, yDest, iPixelCopies) );
 					
 			}
 			return bGood;
 		}//DrawVertLine
-		//public unsafe bool DrawHorzLine(int xDest, int yDest, int iPixelCopies, string sSender_ForErrorTracking) {
-		//	return DrawHorzLine(xDest, yDest, iPixelCopies, false, sSender_ForErrorTracking);
-		//}
-		//public unsafe bool DrawHorzLine(int xDest, int yDest, int iPixelCopies, bool bBackColor, string sSender_ForErrorTracking) {
-		//	return DrawHorzLine(bBackColor?brushBack:brushFore, xDest,yDest,iPixelCopies,sSender_ForErrorTracking);
-		//}
-		public unsafe bool DrawHorzLine(RBrush brushX, int xDest, int yDest, int iPixelCopies, string sSender_ForErrorTracking) {
+		public unsafe bool DrawHorzLine(int xDest, int yDest, int iPixelCopies) {
+			return DrawHorzLine(rpaintFore, xDest, yDest, iPixelCopies);
+		}
+		public unsafe bool DrawHorzLine(int xDest, int yDest, int iPixelCopies, bool bBackColor) {
+			return DrawHorzLine(bBackColor?rpaintBack:rpaintFore, xDest,yDest,iPixelCopies);
+		}
+		public unsafe bool DrawHorzLine(RPaint rpaintX, int xDest, int yDest, int iPixelCopies) {
 			if (iPixelCopies<1) return false;
 			bool bGood=true;
 			try {
 				int iDest=yDest*iStride+xDest*iBytesPP;
-				fixed (byte* lpDest=&byarrData[iDest], lpSrc=brushX.data32Copied64) { //keeps GC at bay
+				fixed (byte* lpDest=&byarrData[iDest], lpSrc=rpaintX.data32Copied64) { //keeps GC at bay
 					byte* lpDestNow=lpDest;
 					for (int i=iPixelCopies/2; i!=0; i--) {
 						*((UInt64*)lpDestNow) = *((UInt64*)lpSrc);
@@ -2217,167 +3422,11 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				RReporting.ShowExn(exn,"drawing line",String.Format("RImage DrawHorzLine(x:{0},y:{1},copies:{2},sender:{3})", xDest, yDest, iPixelCopies, sSender_ForErrorTracking) );
+				string sCallStack=RReporting.StackTraceToLatinCallStack(new System.Diagnostics.StackTrace());
+				RReporting.ShowExn(exn,"drawing horizonal line using fast pointers",String.Format("RImage DrawHorzLine(x:{0},y:{1},copies:{2},sender:{3})", xDest, yDest, iPixelCopies, sCallStack) );
 			}
 			return bGood;
-		}//end DrawHorzLine
-		/*
-		public bool DrawFractal(IRect rectDest, DPoint pPixelOrigin, double rPixelsPerUnit) {
-			return DrawFractal(rectDest,pPixelOrigin,rPixelsPerUnit,0.0);
-		}
-		public bool DrawFractal(IRect rectDest, DPoint pPixelOrigin, double rPixelsPerUnit, double rSeed) {
-			try {
-				if (fracNow==null) fracNow=new Fractal(Width,Height);
-				fracNow.SetView(pPixelOrigin.X,pPixelOrigin.Y,rPixelsPerUnit,rSeed);
-				fracNow.DrawIncrement(this);
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","RImage DrawFractal");
-			}
-		}
-		*/
-		#region advanced graphics 
-///TODO: try these in Test.cs
-		public bool DrawRainbowBurst(IRect rectDest, DPoint pOrigin, double rScale) {
-			bool bGood=false;
-			try {
-				//int xDest=rectDest.Left;
-				//int yDest=rectDest.Top;
-				int xEnder=rectDest.X+rectDest.Width;
-				int yEnder=rectDest.Y+rectDest.Height;
-				double rInverseScale=1.0/rScale;
-				double xSrcStart=-(pOrigin.X*rInverseScale);
-				double xSrc;
-				double rSpeed;
-				double ySrc=-(pOrigin.Y*rInverseScale);
-				for (int yDest=rectDest.Y; yDest<yEnder; yDest++) {
-					xSrc=xSrcStart;
-					for (int xDest=rectDest.X; xDest<xEnder; xDest++) {
-						//rSpeed=;
-						this.SetPixelHsva(xDest,yDest,RConvert.ROFXY(xSrc,ySrc)/360.0,1.0,1.0,1.0);
-						xSrc+=rScale;
-					}
-					ySrc+=rScale;
-				}
-				bGood=true;
-			}
-			catch (Exception exn) {	
-				RReporting.ShowExn(exn,"","DrawRainbowBurst");
-			}
-			return bGood;
-		}//end DrawRainbowBurst
-		//TODO: try this in Test.cs
-		public bool DrawWavyThing(IRect rectDest, DPoint pOrigin, double rScale) {
-			bool bGood=false;
-			try {
-				//int xDest=rectDest.Left;
-				//int yDest=rectDest.Top;
-				int xEnder=rectDest.X+rectDest.Width;
-				int yEnder=rectDest.Y+rectDest.Height;
-				double rInverseScale=1.0/rScale;
-				double xSrcStart=-(pOrigin.X*rInverseScale);
-				double xSrc;
-				double rSpeed;
-				double ySrc=-(pOrigin.Y*rInverseScale);
-				for (int yDest=rectDest.Y; yDest<yEnder; yDest++) {
-					xSrc=xSrcStart;
-					for (int xDest=rectDest.X; xDest<xEnder; xDest++) {
-						//rSpeed=;
-						this.SetPixelHsva(xDest,yDest,RConvert.ROFXY(xSrc,ySrc),1.0,.5,1.0);
-						xSrc+=rScale;
-					}
-					ySrc+=rScale;
-				}
-				bGood=true;
-			}
-			catch (Exception exn) {	
-				RReporting.ShowExn(exn,"","DrawWavyThing");
-			}
-			return bGood;
-		}//end DrawWavyThing
-		
-		void DrawAlphaPix(int xPix, int yPix, byte r, byte g, byte b, byte a) {
-			try {
-				int iChannel=yPix*iStride+xPix*iBytesPP;
-				//The ++ operators are right:
-				//float fAlphaTo1;
-				//if ((iChannel+2>=0) && (iChannel+2<iPixelsTotal))
-				if ((iChannel+2)<iBytesTotal) {//+2 assumes only touching first 3 channels //if (((iChannel+3)/4)<iPixelsTotal) { //fAlphaTo1=(float)a/255.0f;
-					byarrData[iChannel]=RMath.AlphaLook[b][byarrData[iChannel]][a];//(byte)RMath.Approach((float)byarrData[iChannel], (float)b, fAlphaTo1);
-					byarrData[++iChannel]=RMath.AlphaLook[g][byarrData[iChannel]][a];//(byte)RMath.Approach((float)byarrData[iChannel], (float)g, fAlphaTo1);
-					byarrData[++iChannel]=RMath.AlphaLook[r][byarrData[iChannel]][a];//(byte)RMath.Approach((float)byarrData[iChannel], (float)r, fAlphaTo1);
-				}
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"drawing transparent pixel using 4 channel values","DrawAlphaPix");
-			}
-		}//end DrawAlphaPix
-		public void DrawVectorDot(float xDot, float yDot, Pixel32 pixelColor) {
-			try {
-				//TODO: finish this (finish Vector accuracy)
-				// Begin header fields in order of writing //
-				//Targa struct reference:
-				//bySizeofID byMapType byTgaType wMapOrigin wMapLength byMapBitDepth
-				//xImageOrigin yImageOrigin width height byBitDepth bitsDescriptor sTag
-				//*byarrColorMap *byarrData footer;
-				bool bGood=true;
-				//LPIPOINT *lpipointarrNow=malloc(4*sizeof(LPIIPOINT));
-	
-				int xMin=(int)xDot;//FLOOR
-				int xMax=(int)System.Math.Ceiling(xDot);//TODO: make sure 1 doesn't return 2???
-				int yMin=(int)yDot;//FLOOR
-				int yMax=(int)System.Math.Ceiling(yDot);//TODO: make sure 1 doesn't return 2???
-				float xfMin=(float)xMin;
-				float xfMax=(float)xMax;
-				float yfMin=(float)yMin;
-				float yfMax=(float)yMax;
-				//int iBytesPP=byBitDepth/8;
-				//int iStride=iWidth*iBytesPP;
-				//int iStart=yMin*iStride+xMin*iBytesPP;
-				float xEccentric,yEccentric,xNormal,yNormal;
-				xNormal=1.0f-RMath.SafeAbs(xDot-xfMin);
-				xEccentric=1.0f-RMath.SafeAbs(xDot-xfMax);
-				yNormal=1.0f-RMath.SafeAbs(yDot-yfMin);
-				yEccentric=1.0f-RMath.SafeAbs(yDot-yfMax);
-				DrawAlphaPix(xMin,yMin,pixelColor.R,pixelColor.G,pixelColor.B,RMath.ByRound(pixelColor.A*xNormal*yNormal));
-				DrawAlphaPix(xMax,yMin,pixelColor.R,pixelColor.G,pixelColor.B,RMath.ByRound(pixelColor.A*xEccentric*yNormal));
-				DrawAlphaPix(xMin,yMax,pixelColor.R,pixelColor.G,pixelColor.B,RMath.ByRound(pixelColor.A*xNormal*yEccentric));
-				DrawAlphaPix(xMax,yMax,pixelColor.R,pixelColor.G,pixelColor.B,RMath.ByRound(pixelColor.A*xEccentric*yEccentric));
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"drawing pixel to Vector","DrawVectorDot");
-			}
-		}//end DrawVectorDot
-		public void DrawVectorDot(float xDot, float yDot, byte[] lpbySrcPixel) {
-			try {
-				if (lpbySrcPixel==null) {
-					lpbySrcPixel=new byte[4];
-					lpbySrcPixel[0]=0;
-					lpbySrcPixel[1]=0;
-					lpbySrcPixel[2]=0;
-					lpbySrcPixel[3]=0;
-				}
-				Pixel32 pixelNow=new Pixel32(lpbySrcPixel[3],lpbySrcPixel[2],lpbySrcPixel[1],lpbySrcPixel[0]); //debug performance
-				DrawVectorDot(xDot,yDot,pixelNow);
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"drawing pixel data to Vector","DrawVectorDot");
-			}
-		}//end DrawVectorDot(float xDot, float yDot, byte* lpbySrcPixel)
-		public void DrawVectorLine(ILine line1, Pixel32 pixelStart, Pixel32 pixelEndOrNull, float fSubpixelPrecisionIncrement) {
-			DrawVectorLine(RConvert.ToFloat(line1.X1), RConvert.ToFloat(line1.Y1), RConvert.ToFloat(line1.X2), RConvert.ToFloat(line1.Y2), pixelStart, pixelEndOrNull, fSubpixelPrecisionIncrement);
-		}
-		#endregion advanced graphics
-
-// 		public byte BrushR() {
-// 			return brushFore.R;
-// 		}
-// 		public byte BrushG() {
-// 			return brushFore.G;
-// 		}
-// 		public byte BrushB() {
-// 			return brushFore.B;
-// 		}
+		} //end DrawHorzLine
 		public bool DrawRectFilledSafe(int xDest, int yDest, int iDestW, int iDestH) {
 			bool bGood=false;
 			if (byarrData!=null) {
@@ -2387,11 +3436,11 @@ namespace ExpertMultimedia {
 					int xRel=0;
 					//int yRel=0;
 					int yDestEnder=yDest+iDestH;
-					byte byR=brushFore.R;
-					byte byG=brushFore.G;
-					byte byB=brushFore.B;
-					int iDestLine=XYToLocation(xAbs,yAbs);
-					int iDestNow=iDestLine;
+					byte byR=rpaintFore.R;
+					byte byG=rpaintFore.G;
+					byte byB=rpaintFore.B;
+					int DestLineNow_StartIndex=XYToLocation(xAbs,yAbs);
+					int iDestNow=DestLineNow_StartIndex;
 					if (iDestW>0&&iDestH>0) {
 						while (yAbs<yDestEnder&&yAbs<iHeight) {//yRel<iDestH) {
 							if (xAbs>=0&&yAbs>=0&&xAbs<iWidth) {//&&yAbs<iHeight) {
@@ -2414,8 +3463,8 @@ namespace ExpertMultimedia {
 							xRel++;
 							xAbs++;
 							if (xRel>=iDestW||xAbs>=iWidth) {
-								iDestLine+=iStride;
-								iDestNow=iDestLine;
+								DestLineNow_StartIndex+=iStride;
+								iDestNow=DestLineNow_StartIndex;
 								yAbs++;
 								//yRel++;
 								xAbs=0;
@@ -2439,140 +3488,18 @@ namespace ExpertMultimedia {
 			}
 			return bGood;
 		}//end DrawRectFilledSafe
-		public void DrawVectorLine(float xStart, float yStart, float xEnd, float yEnd,
-				Pixel32 pixelStart, Pixel32 pixelEndOrNull, float fSubpixelPrecisionIncrement) {
-			int iLoops=0;
-			int iStartTick=RPlatform.TickCount;
-			int iMaxTicks=50;//i.e. 20 per second minimum (soft minimum because of loop limit below)
-			int iMaxLoops=1000000; //debug hard-coded limitation
-			float xNow, yNow, xRelMax, yRelMax, rRelMax, theta, rRel;
-			bool bLimited=false;
-			xNow=xStart;
-			yNow=yStart;
-			xRelMax=xEnd-xStart;
-			yRelMax=yEnd-yStart;
-			rRelMax=RConvert.ROFXY(xRelMax,yRelMax);
-			theta=RConvert.THETAOFXY_RAD(xRelMax,yRelMax);
-			rRel=0;
-			rRel-=fSubpixelPrecisionIncrement; //the "0th" value
-			Pixel32 pixelColor=new Pixel32(pixelStart);
-			while (rRel<rRelMax && iLoops<iMaxLoops) {
-				rRel+=fSubpixelPrecisionIncrement;
-				if (pixelEndOrNull!=null) {
-					pixelColor.R=RMath.Approach(pixelStart.R,pixelEndOrNull.R,rRel/rRelMax);
-					pixelColor.G=RMath.Approach(pixelStart.G,pixelEndOrNull.G,rRel/rRelMax);
-					pixelColor.B=RMath.Approach(pixelStart.B,pixelEndOrNull.B,rRel/rRelMax);
-					pixelColor.A=RMath.Approach(pixelStart.A,pixelEndOrNull.A,rRel/rRelMax);
-				}
-				xNow=(RConvert.XOFRTHETA_RAD(rRel,theta))+xStart;
-				yNow=(RConvert.YOFRTHETA_RAD(rRel,theta))+yStart;
-				if (xNow>0&&yNow>0&&xNow<iWidth&&yNow<iHeight)
-					DrawVectorDot(xNow, yNow, pixelColor);
-				iLoops++;
-				if ((iLoops>=iMaxLoops)&&(RPlatform.TickCount-iStartTick>iMaxTicks)) {
-					bLimited=true;
-					break;//if (iLoops>=iMaxLoops) break;
-				}
-			}//end while drawing line
-			if (bLimited) {
-				RReporting.ShowErr("Line drawing loop overflow","drawing beyond line drawing safe limit","DrawVectorLine");
-			}
-		}//end DrawVectorLine
-	
-		public void DrawVectorLine(FPoint pointStart, FPoint pointEnd,
-				Pixel32 pixelStart, Pixel32 pixelEndOrNull, float fSubpixelPrecisionIncrement) {
-			DrawVectorLine(pointStart.X, pointStart.Y, pointEnd.X, pointEnd.Y,
-				pixelStart, pixelEndOrNull, fSubpixelPrecisionIncrement);
-		}//DrawVectorLine
-		public float PixelsPerDegAt(float rPixelsRadius) {
-			float x1,y1,x2,y2;
-			x1=(RConvert.XOFRTHETA_DEG(rPixelsRadius,0));
-			y1=-(RConvert.YOFRTHETA_DEG(rPixelsRadius,0));//negative to flip to non-cartesian monitor loc
-			x2=(RConvert.XOFRTHETA_DEG(rPixelsRadius,1));
-			y2=-(RConvert.YOFRTHETA_DEG(rPixelsRadius,1));//negative to flip to non-cartesian monitor loc
-			return RMath.Dist(x1,y1,x2,y2);
-		}
-		public double PixelsPerDegAt(double rPixelsRadius) {
-			double x1,y1,x2,y2;
-			x1=(RConvert.XOFRTHETA_DEG(rPixelsRadius,0));
-			y1=-(RConvert.YOFRTHETA_DEG(rPixelsRadius,0));//negative to flip to non-cartesian monitor loc
-			x2=(RConvert.XOFRTHETA_DEG(rPixelsRadius,1));
-			y2=-(RConvert.YOFRTHETA_DEG(rPixelsRadius,1));//negative to flip to non-cartesian monitor loc
-			return RMath.Dist(x1,y1,x2,y2);
-		}
-		public float PixelsPerRadAt(float rPixelsRadius) {
-			float x1,y1,x2,y2;
-			x1=(RConvert.XOFRTHETA_RAD(rPixelsRadius,0));
-			y1=-(RConvert.YOFRTHETA_RAD(rPixelsRadius,0));//negative to flip to non-cartesian monitor loc
-			x2=(RConvert.XOFRTHETA_RAD(rPixelsRadius,1));
-			y2=-(RConvert.YOFRTHETA_RAD(rPixelsRadius,1));//negative to flip to non-cartesian monitor loc
-			return RMath.Dist(x1,y1,x2,y2);
-		}
-		public double PixelsPerRadAt(double rPixelsRadius) {
-			double x1,y1,x2,y2;
-			x1=(RConvert.XOFRTHETA_RAD(rPixelsRadius,0));
-			y1=-(RConvert.YOFRTHETA_RAD(rPixelsRadius,0));//negative to flip to non-cartesian monitor loc
-			x2=(RConvert.XOFRTHETA_RAD(rPixelsRadius,1));
-			y2=-(RConvert.YOFRTHETA_RAD(rPixelsRadius,1));//negative to flip to non-cartesian monitor loc
-			return RMath.Dist(x1,y1,x2,y2);
-		}
-		public void DrawVectorArc(float xCenter, float yCenter, float fRadius, Pixel32 pixelColor) {
-			DrawVectorArc(xCenter,yCenter,fRadius,1.0f,0.0f,0.0f,360.0f,pixelColor,1.0f,0.0f);
-		}
-		public void DrawVectorArc(float xCenter, float yCenter,
-					float fRadius, float fWidthMultiplier, float fRotate,
-					float fDegStart, float fDegEnd,
-					Pixel32 pixelColor,
-					float fSubpixelPrecisionIncrement, float fPushSpiralPixPerRotation) {
-
-			float fTemp,xNow,yNow;
-			///TODO: make the fSubpixelPrecisionIncrement a pixel increment to match other Vector draw functions
-			if (fDegStart>fDegEnd) {
-				fTemp=fDegStart;
-				fDegStart=fDegEnd;
-				fDegEnd=fTemp;
-			}
-			int iLoops=0;
-			int iMaxLoops=1000000;
-			float fPrecisionIncrementDeg=fSubpixelPrecisionIncrement*(1.0f/PixelsPerDegAt(fRadius));
-			for (float fNow=fDegStart; fNow<fDegEnd; fNow+=fPrecisionIncrementDeg) {
-				xNow=(RConvert.XOFRTHETA_DEG(fRadius,fNow));
-				yNow=-(RConvert.YOFRTHETA_DEG(fRadius,fNow));//negative to flip to non-cartesian monitor loc
-				xNow*=fWidthMultiplier;
-				RMath.Rotate(ref xNow,ref yNow,fRotate);
-				xNow+=xCenter;
-				yNow+=yCenter;
-				if (xNow>0&&yNow>0&&xNow<iWidth&&yNow<iHeight)
-					DrawVectorDot(xNow, yNow, pixelColor);
-				iLoops++;
-				if (iLoops>=iMaxLoops) break;
-				if (fPushSpiralPixPerRotation!=0.0f) {
-					fRadius+=fPushSpiralPixPerRotation/360.0f;
-					fPrecisionIncrementDeg=PixelsPerDegAt(fRadius);
-				}
-			}
-			if (iLoops>=iMaxLoops) {
-				RReporting.ShowErr("DrawVectorArc loop overflow!","drawing arc past time limit performance setting","DrawVectorArc");
-			}
-		}//DrawVectorArc
-		public void Clear(Color colorNow) {//keep this, to mimic the equivalent Graphics object method
-			Fill(new byte[] {colorNow.B,colorNow.G,colorNow.R,colorNow.A});
-		}
-		public void Fill(byte byGrayVal) {
-			RMemory.Fill(ref byarrData,byGrayVal,0,iBytesTotal);
-		}
-		public void Fill(uint dwPixelBGRA) {
-			if (iBytesPP==4) {
-				RMemory.Fill(ref byarrData,dwPixelBGRA,0,iBytesTotal/4);
-			}
-			else RReporting.ShowErr("Filling this type of surface with 32-bit color is not implemented","",String.Format("Fill(32-bit){{ImageBitDepth:{0}}}",(iBytesPP*8)));
-		}
-		public void Fill(byte[] byarrPixel32bit) {
-			if (iBytesPP==4) {
-				RMemory.Fill4(ref byarrData,ref byarrPixel32bit,0,0,iBytesTotal/4);
-			}
-			else RReporting.ShowErr("Filling this type of surface with 32-bit color is not implemented","",String.Format("Fill(32-bit){{ImageBitDepth:{0}}}",(iBytesPP*8)));
-		}
+		//public static bool DrawPixel(RImage riDest, int iDestBufferLoc, RImage riSrc, int iSrcBufferLoc, int iDrawMode) {
+		//	bool bGood=false;
+		//	if (riSrc!=null) {
+		//		bGood=DrawPixel(riDest,iDestBufferLoc,riSrc.byarrData,iSrcBufferLoc,riSrc.iBytesPP,iDrawMode);
+		//	}
+		//	else {
+		//		RReporting.ShowErr("Null source image was sent to DrawPixel!","drawing pixel","RImage DrawPixel");
+		//	}
+		//	return bGood;
+		//}
+		//public static bool DrawPixel(RImage riDest, int iDestBufferLoc, byte [] riSrc_byarrData, int iSrcBufferLoc, int riSrc_iBytesPP, int iDrawMode) {
+		//}
 		public static bool DrawPixel(RImage riDest, int iDestBufferLoc, RImage riSrc, int iSrcBufferLoc, int iDrawMode) {
 			bool bGood=true;
 			int iBytesPPMin=-1;//must start as -1
@@ -2585,6 +3512,8 @@ namespace ExpertMultimedia {
 						iBytesPPMin=(riSrc.iBytesPP<riDest.iBytesPP)?riSrc.iBytesPP:riDest.iBytesPP;
 						if (iBytesPPMin>=3) {
 							bGood=RMemory.CopyFast(ref riDest_byarrData, ref riSrc_byarrData, iDestBufferLoc, iSrcBufferLoc, iBytesPPMin);
+							if (!bGood) throw new ApplicationException("CopyFast failed (self-generated exception)");
+							//TODO: set alpha to 255 if source 24-bit and dest 32-bit (?)
 						}
 						else {
 							if (riDest.iBytesPP==4&&riSrc.iBytesPP==1) {	
@@ -2686,7 +3615,7 @@ namespace ExpertMultimedia {
 								bGood=RMemory.CopyFast(ref riDest_byarrData, ref riSrc_byarrData, iDestBufferLoc, iSrcBufferLoc, iBytesPPMin);
 							}
 						}
-						break;
+						break; //end DrawModeKeepDestAlpha
 					default:
 						RReporting.Warning("DrawPixel mode "+iDrawMode.ToString()+" is not implemented");
 						bGood=false;
@@ -2695,24 +3624,686 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				RReporting.ShowExn(exn,"drawing pixel","DrawPixel {riDest:"+riDest!=null?riDest.Description():"null"
-				+"; riSrc:"+riSrc!=null?riSrc.Description():"null"
-				+"; iDestBufferLoc:"+iDestBufferLoc.ToString()
-				+"; iSrcBufferLoc:"+iSrcBufferLoc.ToString()
-				+"; iDrawMode:"+DrawModeToString(iDrawMode)
-				+"; iBytesPPMin:"+((iBytesPPMin!=-1)?iBytesPPMin.ToString():"unused")
-				+"; fCookedAlpha:"+((fCookedAlpha!=-1.0f)?fCookedAlpha.ToString():"unused")
-				+"}"
-				);
+				RReporting.ShowExn(exn,"drawing pixel at buffer location sensitive to DrawMode","DrawPixel {riDest:"+(riDest!=null?riDest.Description():"null")
+						+"; riSrc:"+(riSrc!=null?riSrc.Description():"null")
+						+"; iDestBufferLoc:"+iDestBufferLoc.ToString()
+						+"; iSrcBufferLoc:"+iSrcBufferLoc.ToString()
+						+"; iDrawMode:"+DrawModeToString(iDrawMode)
+						+"; iBytesPPMin:"+((iBytesPPMin!=-1)?iBytesPPMin.ToString():"unused")
+						+"; fCookedAlpha:"+((fCookedAlpha!=-1.0f)?fCookedAlpha.ToString():"unused")
+						+"}"
+					);
 			}
 			return bGood;
 		}//end DrawPixel
-		public bool DrawTo(Bitmap bmpDest) {//, Graphics Graphics_FromImage_bmpDest) {
+
+		#endregion Pixel-based Geometry Raster Drawing
+		
+		
+
+		#region Vector Geometry Drawing
+		public void DrawVectorDot(float xDot, float yDot) {
+			try {
+				//TODO: finish this (finish Vector accuracy)
+				// Begin header fields in order of writing //
+				//Targa struct reference:
+				//bySizeofID byMapType byTgaType wMapOrigin wMapLength byMapBitDepth
+				//xImageOrigin yImageOrigin width height byBitDepth bitsDescriptor sTag
+				//*byarrColorMap *byarrData footer;
+				bool bGood=true;
+				//LPIPOINT *lpipointarrNow=malloc(4*sizeof(LPIIPOINT));
+	
+				//+1 is okay even when exact since that would result in xEccentric==0 and yEccentric==0
+				int xMin=(int)xDot;//FLOOR
+				int xMax=xMin+1;//(int)System.Math.Ceiling(xDot);//TODO: make sure 1 doesn't return 2???
+				int yMin=(int)yDot;//FLOOR
+				int yMax=yMin+1;//(int)System.Math.Ceiling(yDot);//TODO: make sure 1 doesn't return 2???
+				float xfMin=(float)xMin;
+				float xfMax=(float)xMax;
+				float yfMin=(float)yMin;
+				float yfMax=(float)yMax;
+				//float xfMin=RMath.Floor(xDot);
+				//float xfMax=xfMin+1.0f;
+				//float yfMin=RMath.Floor(yDot);
+				//float yfMax=yfMin+1.0f;
+				////int iBytesPP=byBitDepth/8;
+				////int iStride=iWidth*iBytesPP;
+				////int iStart=yMin*iStride+xMin*iBytesPP;
+				float xEccentric,yEccentric,xNormal,yNormal;
+				xNormal=1.0f-RMath.SafeAbs(xDot-xfMin);
+				xEccentric=1.0f-RMath.SafeAbs(xDot-xfMax);
+				yNormal=1.0f-RMath.SafeAbs(yDot-yfMin);
+				yEccentric=1.0f-RMath.SafeAbs(yDot-yfMax);
+				//TODO:(?) add fast version where on column and(on pixel)/or row?
+				float rpaintFore_fA=(float)rpaintFore.A;
+				DrawAlphaPix(xMin,yMin,rpaintFore.R,rpaintFore.G,rpaintFore.B,RMath.ByRound(rpaintFore_fA*xNormal*yNormal));
+				DrawAlphaPix(xMax,yMin,rpaintFore.R,rpaintFore.G,rpaintFore.B,RMath.ByRound(rpaintFore_fA*xEccentric*yNormal));
+				DrawAlphaPix(xMin,yMax,rpaintFore.R,rpaintFore.G,rpaintFore.B,RMath.ByRound(rpaintFore_fA*xNormal*yEccentric));
+				DrawAlphaPix(xMax,yMax,rpaintFore.R,rpaintFore.G,rpaintFore.B,RMath.ByRound(rpaintFore_fA*xEccentric*yEccentric));
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"drawing rpaintFore as Vector Dot at subpixel location","DrawVectorDot");
+			}
+		}//end DrawVectorDot
+		public void DrawVectorDot(float xDot, float yDot, Pixel32 pixelColor) {
+			try {
+				//TODO: finish this (finish Vector accuracy)
+				// Begin header fields in order of writing //
+				//Targa struct reference:
+				//bySizeofID byMapType byTgaType wMapOrigin wMapLength byMapBitDepth
+				//xImageOrigin yImageOrigin width height byBitDepth bitsDescriptor sTag
+				//*byarrColorMap *byarrData footer;
+				bool bGood=true;
+				//LPIPOINT *lpipointarrNow=malloc(4*sizeof(LPIIPOINT));
+	
+				//TODO: is this a problem when floor would be same??? since changed to +1 for max; see below
+				int xMin=(int)xDot;//FLOOR
+				int xMax=xMin+1;//(int)System.Math.Ceiling(xDot);//TODO: make sure 1 doesn't return 2???
+				int yMin=(int)yDot;//FLOOR
+				int yMax=yMin+1;//(int)System.Math.Ceiling(yDot);//TODO: make sure 1 doesn't return 2???
+				float xfMin=(float)xMin;
+				float xfMax=(float)xMax;
+				float yfMin=(float)yMin;
+				float yfMax=(float)yMax;
+				//int iBytesPP=byBitDepth/8;
+				//int iStride=iWidth*iBytesPP;
+				//int iStart=yMin*iStride+xMin*iBytesPP;
+				float xEccentric,yEccentric,xNormal,yNormal;
+				xNormal=1.0f-RMath.SafeAbs(xDot-xfMin);
+				xEccentric=1.0f-RMath.SafeAbs(xDot-xfMax);
+				yNormal=1.0f-RMath.SafeAbs(yDot-yfMin);
+				yEccentric=1.0f-RMath.SafeAbs(yDot-yfMax);
+				//TODO:(?) add case where on column and(on pixel)/or row?
+				DrawAlphaPix(xMin,yMin,pixelColor.R,pixelColor.G,pixelColor.B,RMath.ByRound(pixelColor.A*xNormal*yNormal));
+				DrawAlphaPix(xMax,yMin,pixelColor.R,pixelColor.G,pixelColor.B,RMath.ByRound(pixelColor.A*xEccentric*yNormal));
+				DrawAlphaPix(xMin,yMax,pixelColor.R,pixelColor.G,pixelColor.B,RMath.ByRound(pixelColor.A*xNormal*yEccentric));
+				DrawAlphaPix(xMax,yMax,pixelColor.R,pixelColor.G,pixelColor.B,RMath.ByRound(pixelColor.A*xEccentric*yEccentric));
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"drawing Pixel32 as Vector Dot at subpixel location","DrawVectorDot");
+			}
+		}//end DrawVectorDot
+		public void DrawVectorDot(float xDot, float yDot, byte[] lpbySrcPixel) {
+			try {
+				if (lpbySrcPixel==null) {
+					lpbySrcPixel=new byte[4];
+					lpbySrcPixel[0]=0;
+					lpbySrcPixel[1]=0;
+					lpbySrcPixel[2]=0;
+					lpbySrcPixel[3]=0;
+				}
+				Pixel32 pixelNow=new Pixel32(lpbySrcPixel[3],lpbySrcPixel[2],lpbySrcPixel[1],lpbySrcPixel[0]); //debug performance
+				DrawVectorDot(xDot,yDot,pixelNow);
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"drawing array as Vector Dot at subpixel location","DrawVectorDot");
+			}
+		}//end DrawVectorDot(float xDot, float yDot, byte* lpbySrcPixel)
+		public void DrawVectorLine(ILine line1, Pixel32 pixelStart, Pixel32 pixelEndOrNull, float fSubpixelPrecisionIncrement) {
+			DrawVectorLine(RConvert.ToFloat(line1.X1), RConvert.ToFloat(line1.Y1), RConvert.ToFloat(line1.X2), RConvert.ToFloat(line1.Y2), pixelStart, pixelEndOrNull, fSubpixelPrecisionIncrement);
+		}
+		public void DrawVectorLine(float xStart, float yStart, float xEnd, float yEnd,
+				Pixel32 pixelStart, Pixel32 pixelEndOrNull, float fSubpixelPrecisionIncrement) {
+			int iLoops=0;
+			int iStartTick=RPlatform.TickCount;
+			int iMaxTicks=50;//i.e. 20 per second minimum (soft minimum because of loop limit below)
+			int iMaxLoops=1000000; //debug hard-coded limitation
+			float xNow, yNow, xRelMax, yRelMax, rRelMax, theta, rRel;
+			bool bLimited=false;
+			xNow=xStart;
+			yNow=yStart;
+			xRelMax=xEnd-xStart;
+			yRelMax=yEnd-yStart;
+			rRelMax=RConvert.ROFXY(xRelMax,yRelMax);
+			theta=RConvert.THETAOFXY_RAD(xRelMax,yRelMax);
+			rRel=0;
+			rRel-=fSubpixelPrecisionIncrement; //the "0th" value
+			Pixel32 pixelColor=new Pixel32(pixelStart);
+			while (rRel<rRelMax && iLoops<iMaxLoops) {
+				rRel+=fSubpixelPrecisionIncrement;
+				if (pixelEndOrNull!=null) {
+					pixelColor.R=RMath.Approach(pixelStart.R,pixelEndOrNull.R,rRel/rRelMax);
+					pixelColor.G=RMath.Approach(pixelStart.G,pixelEndOrNull.G,rRel/rRelMax);
+					pixelColor.B=RMath.Approach(pixelStart.B,pixelEndOrNull.B,rRel/rRelMax);
+					pixelColor.A=RMath.Approach(pixelStart.A,pixelEndOrNull.A,rRel/rRelMax);
+				}
+				xNow=(RConvert.XOFRTHETA_RAD(rRel,theta))+xStart;
+				yNow=(RConvert.YOFRTHETA_RAD(rRel,theta))+yStart;
+				if (xNow>0&&yNow>0&&xNow<iWidth&&yNow<iHeight)
+					DrawVectorDot(xNow, yNow, pixelColor);
+				iLoops++;
+				if ((iLoops>=iMaxLoops)&&(RPlatform.TickCount-iStartTick>iMaxTicks)) {
+					bLimited=true;
+					break;//if (iLoops>=iMaxLoops) break;
+				}
+			}//end while drawing line
+			if (bLimited) {
+				RReporting.ShowErr("Line drawing loop overflow","drawing beyond line drawing safe limit","DrawVectorLine");
+			}
+		}//end DrawVectorLine
+	
+		public void DrawVectorLine(FPoint pointStart, FPoint pointEnd,
+				Pixel32 pixelStart, Pixel32 pixelEndOrNull, float fSubpixelPrecisionIncrement) {
+			DrawVectorLine(pointStart.X, pointStart.Y, pointEnd.X, pointEnd.Y,
+				pixelStart, pixelEndOrNull, fSubpixelPrecisionIncrement);
+		}//DrawVectorLine
+		public void DrawVectorArc(float xCenter, float yCenter, float fRadius, Pixel32 pixelColor) {
+			DrawVectorArc(xCenter,yCenter,fRadius,1.0f,0.0f,0.0f,360.0f,pixelColor,1.0f,0.0f);
+		}
+		public void DrawVectorArc(float xCenter, float yCenter,
+					float fRadius, float fWidthMultiplier, float fRotate,
+					float fDegStart, float fDegEnd,
+					Pixel32 pixelColor,
+					float fSubpixelPrecisionIncrement, float fPushSpiralPixPerRotation) {
+
+			float fTemp,xNow,yNow;
+			///TODO: make the fSubpixelPrecisionIncrement a pixel increment to match other Vector draw functions
+			if (fDegStart>fDegEnd) {
+				fTemp=fDegStart;
+				fDegStart=fDegEnd;
+				fDegEnd=fTemp;
+			}
+			int iLoops=0;
+			int iMaxLoops=1000000;
+			float fPrecisionIncrementDeg=fSubpixelPrecisionIncrement*(1.0f/PixelsPerDegAt(fRadius));
+			for (float fNow=fDegStart; fNow<fDegEnd; fNow+=fPrecisionIncrementDeg) {
+				xNow=(RConvert.XOFRTHETA_DEG(fRadius,fNow));
+				yNow=-(RConvert.YOFRTHETA_DEG(fRadius,fNow));//negative to flip to non-cartesian monitor loc
+				xNow*=fWidthMultiplier;
+				RMath.Rotate(ref xNow,ref yNow,fRotate);
+				xNow+=xCenter;
+				yNow+=yCenter;
+				if (xNow>0&&yNow>0&&xNow<iWidth&&yNow<iHeight)
+					DrawVectorDot(xNow, yNow, pixelColor);
+				iLoops++;
+				if (iLoops>=iMaxLoops) break;
+				if (fPushSpiralPixPerRotation!=0.0f) {
+					fRadius+=fPushSpiralPixPerRotation/360.0f;
+					fPrecisionIncrementDeg=PixelsPerDegAt(fRadius);
+				}
+			}
+			if (iLoops>=iMaxLoops) {
+				RReporting.ShowErr("DrawVectorArc loop overflow!","drawing arc past time limit performance setting","DrawVectorArc");
+			}
+		}//DrawVectorArc
+		
+		#endregion Vector Geometry Drawing
+
+		/*
+		public bool DrawFractal(IRect rectDest, DPoint pPixelOrigin, double rPixelsPerUnit) {
+			return DrawFractal(rectDest,pPixelOrigin,rPixelsPerUnit,0.0);
+		}
+		public bool DrawFractal(IRect rectDest, DPoint pPixelOrigin, double rPixelsPerUnit, double rSeed) {
+			try {
+				if (fracNow==null) fracNow=new Fractal(Width,Height);
+				fracNow.SetView(pPixelOrigin.X,pPixelOrigin.Y,rPixelsPerUnit,rSeed);
+				fracNow.DrawIncrement(this);
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"drawing fractal (double-precision version)","RImage DrawFractal");
+			}
+		}
+		*/
+		
+		#region Advanced Vector Graphics Drawing 
+///TODO: try these in RetroEngineTest
+		public bool DrawRainbowBurst(IRect rectDest, DPoint pOrigin, double rScale) {
+			bool bGood=false;
+			try {
+				//int xDest=rectDest.Left;
+				//int yDest=rectDest.Top;
+				int xEnder=rectDest.X+rectDest.Width;
+				int yEnder=rectDest.Y+rectDest.Height;
+				double rInverseScale=1.0/rScale;
+				double xSrcStart=-(pOrigin.X*rInverseScale);
+				double xSrc;
+				double rSpeed;
+				double ySrc=-(pOrigin.Y*rInverseScale);
+				for (int yDest=rectDest.Y; yDest<yEnder; yDest++) {
+					xSrc=xSrcStart;
+					for (int xDest=rectDest.X; xDest<xEnder; xDest++) {
+						//rSpeed=;
+						this.SetPixelHsva(xDest,yDest,RConvert.ROFXY(xSrc,ySrc)/360.0,1.0,1.0,1.0);
+						xSrc+=rScale;
+					}
+					ySrc+=rScale;
+				}
+				bGood=true;
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"drawing fractal rainbow burst","DrawRainbowBurst");
+			}
+			return bGood;
+		}//end DrawRainbowBurst
+		//TODO: try this in Test.cs
+		public bool DrawWavyThing(IRect rectDest, DPoint pOrigin, double rScale) {
+			bool bGood=false;
+			try {
+				//int xDest=rectDest.Left;
+				//int yDest=rectDest.Top;
+				int xEnder=rectDest.X+rectDest.Width;
+				int yEnder=rectDest.Y+rectDest.Height;
+				double rInverseScale=1.0/rScale;
+				double xSrcStart=-(pOrigin.X*rInverseScale);
+				double xSrc;
+				double rSpeed;
+				double ySrc=-(pOrigin.Y*rInverseScale);
+				for (int yDest=rectDest.Y; yDest<yEnder; yDest++) {
+					xSrc=xSrcStart;
+					for (int xDest=rectDest.X; xDest<xEnder; xDest++) {
+						//rSpeed=;
+						this.SetPixelHsva(xDest,yDest,RConvert.ROFXY(xSrc,ySrc),1.0,.5,1.0);
+						xSrc+=rScale;
+					}
+					ySrc+=rScale;
+				}
+				bGood=true;
+			}
+			catch (Exception exn) {	
+				RReporting.ShowExn(exn,"drawing wavy fractal","DrawWavyThing");
+			}
+			return bGood;
+		}//end DrawWavyThing
+		
+		#endregion Advanced Vector Graphics Drawing
+
+		#region Effects
+		public static bool Invert(RImage riDest, int xAt, int yAt, int iSetWidth, int iSetHeight) {//TODO: move to rtextbox //formerly InvertRect
+			bool bGood=false;
+			if (RImage.CropDestRect(ref xAt, ref yAt, ref iSetWidth, ref iSetHeight,riDest)) {
+				int xAtRow=xAt;
+				int yRel=0;
+				int xRel=0;
+				int xAbs=xAt;
+				int yAbs=yAt;
+				Color colorNow;
+				try {
+					for (yRel=0; yRel<iSetHeight; yRel++) {
+						xAbs=xAtRow;
+						for (xRel=0; xRel<iSetWidth; xRel++) {
+							riDest.InvertPixel(xAbs,yAbs);
+							//colorNow=riDest.GetPixel(xAbs,yAbs);
+							//riDest.SetPixel(xAbs,yAbs,Color.FromArgb(255,255-colorNow.R,255-colorNow.G,255-colorNow.B));
+							//RReporting.WriteLine("("+colorNow.R.ToString()+","+colorNow.G.ToString()+","+colorNow.B.ToString()+")");
+							xAbs++;
+						}
+						yAbs++;
+					}
+					bGood=true;
+				}
+				catch (Exception exn) {
+					bGood=false;
+					RReporting.ShowExn(exn,"inverting color inside rectangle","rform Invert {"
+						+"xAt:"+xAt.ToString()+"; "
+						+"yAt:"+yAt.ToString()+"; "
+						+"xAbs:"+xAbs.ToString()+"; "
+						+"yAbs:"+yAbs.ToString()+"; "
+						+"iSetWidth:"+iSetWidth.ToString()+"; "
+						+"iSetHeight:"+iSetHeight.ToString()+"; "
+						+"}");
+				}
+			}
+			return bGood;
+		}//end Invert
+		public static bool Invert(Bitmap bmpNow, int xAt, int yAt, int iSetWidth, int iSetHeight) {//TODO: move to rtextbox //formerly InvertRect
+			bool bGood=false;
+			int xAtRow=xAt;
+			int yRel=0;
+			int xRel=0;
+			int xAbs=xAt;
+			int yAbs=yAt;
+			Color colorNow;
+			try {
+				for (yRel=0; yRel<iSetHeight; yRel++) {
+					xAbs=xAtRow;
+					for (xRel=0; xRel<iSetWidth; xRel++) {
+						colorNow=bmpNow.GetPixel(xAbs,yAbs);
+						bmpNow.SetPixel(xAbs,yAbs,Color.FromArgb(255,255-colorNow.R,255-colorNow.G,255-colorNow.B));
+						//RReporting.WriteLine("("+colorNow.R.ToString()+","+colorNow.G.ToString()+","+colorNow.B.ToString()+")");
+						xAbs++;
+					}
+					yAbs++;
+				}
+				bGood=true;
+			}
+			catch (Exception exn) {
+				bGood=false;
+				RReporting.ShowExn(exn,"inverting color inside rectangle","rform Invert(Bitmap) {"
+					+"xAt:"+xAt.ToString()+"; "
+					+"yAt:"+yAt.ToString()+"; "
+					+"xAbs:"+xAbs.ToString()+"; "
+					+"yAbs:"+yAbs.ToString()+"; "
+					+"iSetWidth:"+iSetWidth.ToString()+"; "
+					+"iSetHeight:"+iSetHeight.ToString()+"; "
+					+"}");
+			}
+			return bGood;
+		}//end Invert
+		public static bool MaskFromChannel(ref RImage riDest, ref RImage riSrc, int iByteInPixel) {
+			int iDestByte=0;
+			int iSrcByte=iByteInPixel;
+			int iBytesCopy;
+			int iBytesPPOffset;
+			try {
+				if (riDest==null) {
+					riDest=new RImage(riSrc.iWidth, riSrc.iHeight, 1);
+				}
+				iBytesCopy=riDest.iBytesTotal;
+				iBytesPPOffset=riSrc.iBytesPP;
+				for (iDestByte=0; iDestByte<iBytesCopy; iDestByte++) {
+					riDest.byarrData[iDestByte]
+						= riSrc.byarrData[iSrcByte];
+					iDestByte++;
+					iSrcByte+=iBytesPPOffset;
+				}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"creating mask from channel","RImage MaskFromChannel "
+					+"{"+Environment.NewLine
+					+"  "+"iByteInPixel:"+iByteInPixel.ToString()
+					//+"; iDestCharPitch:"+iDestCharPitch.ToString()
+					//+"; iChar1:"+iChar1.ToString()
+					//+"; iCharNow:"+iCharNow.ToString()
+					//+"; yNow:"+yNow.ToString()
+					//+"; xNow:"+xNow.ToString()
+					+"; iSrcByte:"+iSrcByte.ToString()
+					+"; iDestByte:"+iDestByte.ToString() +"}");
+				return false;
+			}
+			return true;
+		}// MaskFromChannel
+		public static bool MaskFromValue(ref RImage riDest, ref RImage riSrc) {
+			int iDestByte=0;
+			int iSrcByte=0;
+			int iPixels=0;
+			int iBytesPPOffset=0;
+			try {
+				if (riDest==null) {
+					riDest=new RImage(riSrc.iWidth, riSrc.iHeight, 1);
+				}
+				iPixels=riSrc.iWidth*riSrc.iHeight;
+				iBytesPPOffset=riSrc.iBytesPP;
+				for (iDestByte=0; iDestByte<iPixels; iDestByte++) {
+					if (riSrc.iBytesPP==4) {
+						riDest.byarrData[iDestByte]=(byte)(   
+							(  ( (float)riSrc.byarrData[iSrcByte]
+								+(float)riSrc.byarrData[iSrcByte+1]
+								+(float)riSrc.byarrData[iSrcByte+2] )  /  3.0f  )
+								   *   ((float)riSrc.byarrData[iSrcByte+3]/255.0f)   );
+					}
+					else if (riSrc.iBytesPP==1) {
+						riDest.byarrData[iDestByte]=riSrc.byarrData[iSrcByte];
+					}
+					else {
+						riDest.byarrData[iDestByte]=(byte)(((float)riSrc.byarrData[iSrcByte]
+								+(float)riSrc.byarrData[iSrcByte+1]
+								+(float)riSrc.byarrData[iSrcByte+2])/3.0f);
+					}
+					iSrcByte+=iBytesPPOffset;
+					//if (riDest.byarrData[iDestByte]>0) RReporting.DebugWrite(riDest.byarrData[iDestByte].ToString()+" ");
+				}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"creating mask"+((riDest!=null&riSrc!=null)?" (while attempting to copy as 8-, 24-, or 32-bit)":" (with null image(s)) "), "MaskFromValue "
+				   +"{"
+					//+"  "+"iByteInPixel:"+iByteInPixel.ToString()
+					//+"; iDestCharPitch:"+iDestCharPitch.ToString()
+					//+"; iChar1:"+iChar1.ToString()
+					//+"; iCharNow:"+iCharNow.ToString()
+					//+"; yNow:"+yNow.ToString()
+					//+"; xNow:"+xNow.ToString()
+					+"; riDest:"+(riDest!=null?riDest.Description():"null")
+					+"; riSrc:"+(riSrc!=null?riSrc.Description():"null")
+					//if (riSrc!=null)
+					//	+"; riSrc.iBytesPP:"+riSrc.iBytesPP.ToString()
+					+"; iPixels:"+iPixels.ToString()
+					+"; iBytesPPOffset:"+iBytesPPOffset.ToString()
+					+"; iSrcByte:"+iSrcByte.ToString()
+					+"; iDestByte:"+iDestByte.ToString() +"}");
+				return false;
+			}
+			return true;
+		}//end MaskFromValue
+		/// <summary>
+		/// Fakes motion blur.
+		///   Using a byDecayTotal of 255 makes the blur trail fade to transparent.
+		/// </summary>
+		public static bool EffectMoBlurSimModWidth(ref RImage riDest, ref RImage riSrc, int xOffsetTotal, byte byDecayTotal) {
+			bool bGood=true;
+			int xDirection;
+			int xLength;
+			int iDestByteStart;
+			if (xOffsetTotal<0) {
+				xDirection=-1;
+				xLength=xOffsetTotal*-1;
+			}
+			else {
+				xDirection=1;
+				xLength=xOffsetTotal;
+			}
+			try {
+				try {
+					riDest.iWidth=riSrc.iWidth+xLength;
+					riDest.iBytesPP=riSrc.iBytesPP;
+					riDest.iStride=riSrc.iStride;
+					riDest.iHeight=riSrc.iHeight;
+					riDest.iBytesTotal=riDest.iStride*riDest.iHeight;
+					riDest.iPixelsTotal=riDest.iWidth*riDest.iHeight;
+					if (riDest.byarrData==null || (riDest.byarrData.Length!=riDest.iBytesTotal))
+						riDest.byarrData=new byte[riDest.iBytesTotal];
+				}
+				catch (Exception exn) {
+					try {
+						riDest=new RImage(riSrc.iWidth+xLength, riSrc.iHeight, riSrc.iBytesPP);
+					}
+					catch (Exception exn2) {
+						RReporting.ShowExn(exn2,"trying to recover from previous exception by recreating object","EffectMoBlurSimModWidth { previous error: "+exn.ToString()+" }");
+					}
+				}
+				//int iHeight2=riDest.iHeight;
+				//int iWidth2=riDest.iWidth;
+				int iHeight1=riSrc.iHeight;//TODO: eliminate this var and use riSrc.iHeight
+				//int iWidth1=riSrc.iWidth;
+				int iStride=riSrc.iStride;
+				int iStride2=riDest.iStride;
+				int iSrcByte=0;
+				iDestByteStart=0;
+				if (xDirection<0) {
+					iDestByteStart=xLength;
+				}
+				int iDestByte=iDestByteStart;
+				bool bTest=true;
+				int yNow;
+				for (yNow=0; yNow<iHeight1; yNow++) {
+					bTest=RMemory.CopyFast(ref riDest.byarrData,
+								 	ref riSrc.byarrData,
+								  	iDestByte, iSrcByte, iStride);
+					if (!bTest) {
+						RReporting.ShowErr("Error precopying blur data","","RImage EffectMoBlurSimModWidth");
+						break;
+					}
+					iSrcByte+=iStride;
+					iDestByte+=iStride2;
+				}
+				int iOffsetEnder=xLength;
+				if (xDirection<0) {
+					iOffsetEnder=-1;
+				}
+				//debug float precision error on super-high res?
+				float fMultiplier=1.0f;
+				float fPixNow=0;
+				float fMaxPix=(float)(xLength-1);
+				float fDecayTotal=(float)byDecayTotal;
+				//bTest=true;
+				for (int iOffsetNow=iDestByteStart; fPixNow<=fMaxPix; iOffsetNow+=xDirection) {
+					if (!bTest) break;
+					iSrcByte=0;
+					iDestByte=iOffsetNow;
+					for (yNow=0; yNow<iHeight1; yNow++) {
+						bTest=RImage.EffectLightenOnly(ref riDest.byarrData,
+							ref riSrc.byarrData,iDestByte, iSrcByte, iStride, fMultiplier);
+						if (!bTest) {
+							RReporting.ShowErr("Error overlaying blur data.","","RImage EffectMoBlurSimModWidth");
+							break;
+						}
+						iSrcByte+=iStride;
+						iDestByte+=iStride2;
+					}
+					fPixNow++;
+					fMultiplier=(fDecayTotal/255.0f)*(fPixNow/fMaxPix);
+				}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"compositing blur data","RImage EffectMoBlurSimModWidth");
+				bGood=false;
+			}
+			return bGood;
+		}//EffectMoBlurSimModWidth
+		public static bool EffectSkewModWidth(ref RImage riDest, ref RImage riSrc, int xOffsetBottom) {
+			bool bGood=true;
+			int DestLineNow_StartIndex;
+			double xDirection;
+			double dHeight;
+			double yNow;
+			double dWidthDest;
+			double dWidthSrc;
+			double xNow;
+			double xAdd;
+			double yMaxSrc;
+			int iDestIndex;
+			DPoint dpSrc;
+			int iDestByte;
+			int iSrcByte;
+			if (xOffsetBottom<0) {
+				xDirection=-1;
+				xAdd=(double)(xOffsetBottom*-1);
+			}
+			else {
+				xDirection=1;
+				xAdd=(double)xOffsetBottom;
+			}
+			try {
+				try {
+					riDest.iWidth=riSrc.iWidth+((xOffsetBottom<0)?xOffsetBottom*-1:xOffsetBottom);
+					riDest.iBytesPP=riSrc.iBytesPP;
+					riDest.iStride=riSrc.iStride;
+					riDest.iHeight=riSrc.iHeight;
+					riDest.iBytesTotal=riDest.iStride*riDest.iHeight;
+					riDest.iPixelsTotal=riDest.iWidth*riDest.iHeight;
+					if (riDest.byarrData==null || (riDest.byarrData.Length!=riDest.iBytesTotal))
+						riDest.byarrData=new byte[riDest.iBytesTotal];
+				}
+				catch (Exception exn) {
+					try {
+						riDest=new RImage(riSrc.iWidth+xOffsetBottom, riSrc.iHeight, riSrc.iBytesPP);
+					}
+					catch (Exception exn2) {
+						RReporting.ShowExn(exn2,"trying to recover from previous exception by recreating destination","RImage EffectSkewModWidth { previous exception:"+exn.ToString()+" }");
+					}
+				}
+				iSrcByte=0;
+				iDestByte=0;//iDestByteStart;//TODO: Uncomment, and separate the blur code here and make alpha overlay version
+				bool bTest=true;
+				DestLineNow_StartIndex=0;
+				dpSrc=new DPoint();
+				dpSrc.Y=0;
+				dHeight=(double)riDest.iHeight;
+				dWidthDest=(double)riDest.iWidth;
+				//dWidthSrc=(double)riSrc.iWidth;
+				yMaxSrc=dHeight-1.0d;
+				iDestIndex=0;
+				for (yNow=0; yNow<dHeight; yNow+=1.0d) {
+					dpSrc.X=(yNow/yMaxSrc)*xAdd;
+					if (xOffsetBottom<0) dpSrc.X=(xAdd-dpSrc.X);
+					for (xNow=0; xNow<dWidthDest; xNow+=1.0d) {
+						if (dpSrc.X>-1.0d) {
+							if (dpSrc.X<dWidthDest)
+								bTest=RImage.InterpolatePixel(ref riDest, ref riSrc, iDestIndex, ref dpSrc);
+						}
+						if (!bTest) {
+							bGood=false;
+							break;
+						}
+						iDestIndex+=riSrc.iBytesPP;
+					}
+					if (!bGood) break;
+					//DestLineNow_StartIndex+=riDest.iStride;
+					dpSrc.Y+=1.0d;
+				}
+				if (!bGood) {
+					RReporting.ShowErr("Error calculating skew data.","interpolating pixel","RImage EffectSkewModWidth");
+				}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"calculating skew data","RImage EffectSkewModWidth");
+				bGood=false;
+			}
+			return bGood;
+		}//end EffectSkewModWidth
+		
+		/// <summary>
+		/// Keeps the greater value for each byte
+		/// </summary>
+		/// <param name="byarrDest"></param>
+		/// <param name="byarrSrc"></param>
+		/// <param name="iDestByte"></param>
+		/// <param name="iSrcByte"></param>
+		/// <param name="iBytes"></param>
+		/// <returns></returns>
+		public static bool EffectLightenOnly(ref byte[] byarrDest, ref byte[] byarrSrc, int iDestByte, int iSrcByte, int iBytes) {
+			try {
+				for (int iByteNow=0; iByteNow<iBytes; iByteNow++) {
+					if (byarrSrc[iSrcByte]>byarrDest[iDestByte]) byarrDest[iDestByte]=byarrSrc[iSrcByte];
+					iDestByte++;
+					iSrcByte++;
+				}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"copying channels to destination only where source has higher value","RImage EffectLightenOnly");
+				return false;
+			}
+			return true;
+		}
+		
+		/// <summary>
+		/// Keeps the greater value for each byte, multiplying source by fMultiplySrc
+		/// </summary>
+		/// <param name="byarrDest"></param>
+		/// <param name="byarrSrc"></param>
+		/// <param name="iDestByte"></param>
+		/// <param name="iSrcByte"></param>
+		/// <param name="iBytes"></param>
+		/// <param name="fMultiplySrc"></param>
+		/// <returns></returns>
+		public static bool EffectLightenOnly(ref byte[] byarrDest, ref byte[] byarrSrc, int iDestByte, int iSrcByte, int iBytes, float fMultiplySrc) {
+			if (fMultiplySrc>1.0f) fMultiplySrc=1.0f;
+			byte bySrc;
+			float fVal;
+			try {
+				for (int iByteNow=0; iByteNow<iBytes; iByteNow++) {
+					fVal=((float)byarrSrc[iSrcByte]*fMultiplySrc);
+					if (fVal>255.0) fVal=255;
+					bySrc=RMath.ByRound(fVal);
+					if (bySrc>byarrDest[iDestByte]) byarrDest[iDestByte]=bySrc;
+					iDestByte++;
+					iSrcByte++;
+				}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"copying channels to destination only where source modified by multiplier has higher value","RImage EffectLightenOnly");
+				return false;
+			}
+			return true;
+		}
+		#endregion Effects		
+		
+		#region DrawAs other image type
+		public bool DrawAs(Bitmap bmpDest) {//, Graphics Graphics_FromImage_bmpDest) {
 			bool bGood=true;
 			Exception exn2=null;
 			//Pen penNow=new Pen();
 			//Color colorNow=new Color();
-		BitmapData bmpdataDest = bmpDest.LockBits(new Rectangle(0, 0,
+			BitmapData bmpdataDest = bmpDest.LockBits(new Rectangle(0, 0,
 										bmpDest.Width, bmpDest.Height),
 										ImageLockMode.WriteOnly, ///take notice
 										PixelFormat.Format32bppArgb);
@@ -2743,13 +4334,19 @@ namespace ExpertMultimedia {
 			catch (Exception exn) { exn2=exn; iExceptions++;}
 			if (exn2!=null) {
 				bGood=false;
-				RReporting.ShowExn(exn2,"drawing form bitmap from rimage","RImage DrawTo(Bitmap) {x:"+x.ToString()+"; y:"+y.ToString()+"; iSrc:"+iSrc.ToString()+"; "+DumpStyle(false)+"; iExceptions:"+iExceptions.ToString()+"}");
+				RReporting.ShowExn(exn2,"drawing RImage to Bitmap object using fast pointers","RImage DrawAs(Bitmap) {x:"+x.ToString()+"; y:"+y.ToString()+"; iSrc:"+iSrc.ToString()+"; "+DumpStyle(false)+"; iExceptions:"+iExceptions.ToString()+"}");
 			}
 			try {if (bmpDest!=null) bmpDest.UnlockBits(bmpdataDest);}
 			catch {}
 			return bGood;
-		}//end DrawTo
-		public bool DrawToSafe(Bitmap bmpDest) {
+		}//end DrawAs
+		
+		/// <summary>
+		/// Safe version does NOT use RMemory copy method.
+		/// </summary>
+		/// <param name="bmpDest"></param>
+		/// <returns></returns>
+		public bool DrawAsSafe(Bitmap bmpDest) {
 			bool bGood=true;
 			Exception exn2=null;
 			//Pen penNow=new Pen();
@@ -2759,7 +4356,8 @@ namespace ExpertMultimedia {
 			int iSrc=-1;
 			int iExceptions=0;
 			try {
-				//debug performance--try: using(Graphics gNow = Graphics.FromImage(bmpDest)) {//do drawing here}
+				//debug performance--try:
+				//using(Graphics gNow = Graphics.FromImage(bmpDest)) {//do drawing here}
 				for (y=0; y<Height; y++) {
 					iSrc=iLineStart;
 					try {
@@ -2786,12 +4384,12 @@ namespace ExpertMultimedia {
 			catch (Exception exn) { exn2=exn; iExceptions++;}
 			if (exn2!=null) {
 				bGood=false;
-				RReporting.ShowExn(exn2,"drawing form bitmap from rimage","RImage DrawTo(Bitmap){x:"+x.ToString()+"; y:"+y.ToString()+"; iSrc:"+iSrc.ToString()+"; "+DumpStyle(false)+"; iExceptions:"+iExceptions.ToString()+"}");
+				RReporting.ShowExn(exn2,"drawing RImage to Bitmap object","RImage DrawAs(Bitmap){x:"+x.ToString()+"; y:"+y.ToString()+"; iSrc:"+iSrc.ToString()+"; "+DumpStyle(false)+"; iExceptions:"+iExceptions.ToString()+"}");
 			}
 			return bGood;
-		}//end DrawToSafe
+		}//end DrawAsSafe
 		
-/*		public bool DrawTo(Graphics gDest) {
+/*		public bool DrawAs(Graphics gDest) { //SLOW
 			bool bGood=true;
 			Exception exn2=null;
 			//Pen penNow=new Pen();
@@ -2816,7 +4414,7 @@ namespace ExpertMultimedia {
 							else {
 								colorNow=Color.FromArgb(255,byarrData[iSrc],byarrData[iSrc],byarrData[iSrc]);
 								iSrc++;
-							} 
+							}
 							gDest.DrawRectangle(new Pen(colorNow),x,y,1,1);
 						}//end for x
 					}
@@ -2828,86 +4426,19 @@ namespace ExpertMultimedia {
 			if (exn2!=null) {
 				bGood=false;
 				Console.Error.WriteLine(exn2.ToString());
-				//RReporting.ShowExn(exn2,"drawing form graphics from rimage","RImage DrawTo(Graphics) {x:"+x.ToString()+"; y:"+y.ToString()+"; iSrc:"+iSrc.ToString()+"; "+DumpStyle(false)+"; iExceptions:"+iExceptions.ToString()+"}");
+				//RReporting.ShowExn(exn2,"drawing RImage to Graphics object","RImage DrawAs(Graphics) {x:"+x.ToString()+"; y:"+y.ToString()+"; iSrc:"+iSrc.ToString()+"; "+DumpStyle(false)+"; iExceptions:"+iExceptions.ToString()+"}");
 			}
 			return bGood;
-		}//end DrawTo
+		}//end DrawAs
 */	
-		/// <summary>
-		/// Non-scaled rect-to-rect draw method
-		/// </summary>
-		public static bool Draw(RImage riDest, IRect rectDest, RImage riSrc, IRect rectSrc, int iDrawMode) {
-			bool bGood=false;
-			try {
-				int xSrc=rectSrc.X;
-				int ySrc=rectSrc.Y;
-				int xDest=rectDest.X;
-				int yDest=rectDest.Y;
-				int xDestRel=0;
-				int yDestRel=0;
-				int iDestLine=riDest.XYToLocation(xDest,yDest);
-				int iSrcLine=riSrc.XYToLocation(xSrc,ySrc);
-				int iDest=iDestLine;
-				int iSrc=iSrcLine;
-				if (iDestLine>=0&&iSrcLine>=0) {
-					while (yDestRel<rectDest.Height) {
-						if (xDestRel>=rectDest.Width) {
-							iDestLine+=riDest.iStride;
-							iSrcLine+=riSrc.iStride;
-							iDest=iDestLine;
-							iSrc=iSrcLine;
-							xDestRel=0;
-							yDestRel++;
-							ySrc++;
-							yDest++;
-							xSrc=rectSrc.X;
-							xDest=rectDest.X;
-						}
-						DrawPixel(riDest,iDest,riSrc,iSrc,iDrawMode);
-						xDestRel++;
-						xSrc++;
-						xDest++;
-						iSrc+=riSrc.iBytesPP;
-						iDest+=riDest.iBytesPP;
-					}
-					bGood=true;
-				}
-				else {
-					RReporting.ShowErr("Cannot draw image at specified overlay location.","","Draw(riDest,rectDest,riSrc,rectSrc,iDrawMode){rectDest:"+IRect.ToString(rectDest)+"; rectSrc:"+IRect.ToString(rectSrc)+"}");
-				}
-			}
-			catch (Exception exn) {
-				bGood=false;
-				RReporting.ShowExn(exn,"","Draw(riDest,rectDest,riSrc,rectSrc,iDrawMode)");
-			}
-			return bGood;
-		}
 		
-		public bool Draw(IRect rectDest, RImage riSrc, IRect rectSrc) {
-			return Draw(this, rectDest, riSrc, rectSrc, DrawModeCopyAlpha);
-		}
-		public bool Draw(IRect rectDest, RImage riSrc, IRect rectSrc, int iDrawMode) {
-			return Draw(this,rectDest,riSrc,rectSrc,iDrawMode);
-		}
-		public bool Draw(IRect rectDest, RImage riSrc) {
-			return Draw(rectDest, riSrc, DrawModeCopyAlpha);
-		}
-		public bool Draw(IRect rectDest, RImage riSrc, int iDrawMode) {
-			bool bGood=false;
-			try {
-				bGood=DrawSmallerWithoutCropElseCancel(rectDest.X,rectDest.Y,riSrc,iDrawMode);
-				//bGood=riSrc.DrawToLargerWithoutCropElseCancel(this,rectDest.X,rectDest.Y,iDrawMode);
-				//TODO: finish this--add cropping capability (currently: cancels if no fit)
-			}
-			catch (Exception exn) {
-				bGood=false;
-				RReporting.ShowExn(exn,"","Draw(RImage riSrc,...)");
-			}
-			return bGood;
-		}
-		#endregion Draw methods
+		#endregion DrawAs other image type
 	}//end class RImage
 
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////// RIMageStack /////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	
 	public class RImageStack { //pack Stack -- array, order left(First) to right(Last) //formerly GBufferStack
 		private RImage[] riarr=null;
 		private int Maximum {
@@ -2915,7 +4446,7 @@ namespace ExpertMultimedia {
 				return (riarr==null)?0:riarr.Length;
 			}
 			set {
-				RImage.Redim(ref riarr,value,"RImageStack");
+				RImage.Redim(ref riarr,value);
 			}
 		}
 		private int iCount;
@@ -2978,25 +4509,25 @@ namespace ExpertMultimedia {
 			int iNew=iLoc+iLoc/2+1;
 			if (iNew>Maximum) Maximum=iNew;
 		}
-		public bool Push(RImage add) {
+		public bool Push(RImage rimageAdd) {
 			//if (!IsFull) {
 			try {
-				if (add!=null) {
+				if (rimageAdd!=null) {
 					if (NewIndex>=Maximum) SetFuzzyMaximumByLocation(NewIndex);
-					riarr[NewIndex]=add;
+					riarr[NewIndex]=rimageAdd;
 					iCount++;
 				}
 				else RReporting.ShowErr("Cannot push a null RImage to a stack.","pushing RImage to stack","RImageStack Push");
 				//sLogLine="debug enq iCount="+iCount.ToString();
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"putting image onto rimage stack","RImageStack Push("+((add==null)?"null RImage":"non-null")+"){new-location:"+NewIndex.ToString()+"}");
+				RReporting.ShowExn(exn,"stacking image","RImageStack Push("+((rimageAdd==null)?"null RImage":"non-null")+"){new-location:"+NewIndex.ToString()+"}");
 				return false;
 			}
 			return true;
 			//}
 			//else {
-			//	RReporting.ShowErr("RImageStack is full, can't push \""+add+"\"! ( "+iCount.ToString()+" RImages already used)","","RImageStack Push("+((add==null)?"null RImage":"non-null")+")");
+			//	RReporting.ShowErr("RImageStack is full, can't push \""+rimageAdd+"\"! ( "+iCount.ToString()+" RImages already used)","","RImageStack Push("+((rimageAdd==null)?"null RImage":"non-null")+")");
 			//	return false;
 			//}
 		}
@@ -3022,7 +4553,7 @@ namespace ExpertMultimedia {
 				else RReporting.ShowErr("Cannot copy a zero-length stack.","copying stack to array","RImageStack ToArrayByReferences");
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","RImageStack ToArrayByReferences");
+				RReporting.ShowExn(exn,"getting references to stacked images","RImageStack ToArrayByReferences");
 			}
 			return riarrReturn;
 		}
