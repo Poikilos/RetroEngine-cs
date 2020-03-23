@@ -22,7 +22,7 @@ namespace ExpertMultimedia {
 			get { return iCount; }
 		}
 		public StringQ() { //Constructor
-			Init(512);//TODO: Init(Base.settings.GetForcedInt("StringQueueDefaultMaximumSize"));//debug hard-coded limitation will block Enq commands! Don't allow changing during runtime due to circular nature of queuing!
+			Init(512);//TODO: Init(settings.GetForcedInt("StringQueueDefaultMaximumSize"));//debug hard-coded limitation will block Enq commands! Don't allow changing during runtime due to circular nature of queuing!
 		}
 		public StringQ(int iSetMax) { //Constructor
 			Init(iSetMax);
@@ -74,7 +74,7 @@ namespace ExpertMultimedia {
 			int iFound=-1;
 			if (arrobjects!=null) {
 				for (int iNow=0; iNow<Count; iNow++) {
-					if (RString.CompareAtI(Peek(iNow),val,0)) {
+					if (RString.CompareAtI(Peek(iNow),val,0,RString.SafeLength(val),true)) {
 						iFound=iNow;
 						break;
 					}

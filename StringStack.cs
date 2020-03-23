@@ -16,7 +16,7 @@ namespace ExpertMultimedia {
 				return (sarr==null)?0:sarr.Length;
 			}
 			set {
-				RMemory.Redim(ref sarr,value,"StringStack");
+				RMemory.Redim(ref sarr,value);
 			}
 		}
 		private int iCount;

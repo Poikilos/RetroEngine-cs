@@ -1,42 +1,62 @@
 using System;
 using System.Text.RegularExpressions;
-//using System.Text; //not neede (RString replaces StringBuilder)
+using System.Collections;//allows full arraylist parameters to be sent out	
+//using System.Text; //not needed (RString replaces StringBuilder)
+using System.IO;
+using System.Net; //for WebClient
+using System.Globalization; //for CultureInfo (used for case-insensitive IndexOf)
+using System.Text; //for part of FileToHash method
+using System.Security.Cryptography; //for hash
+
 
 namespace ExpertMultimedia {
 	public class RString { //like stringbuilder but a little better
 		#region variables
+		public static readonly string sCSVEDBQUOTE="&exmquo;";
+		public static string sDirSep=char.ToString(Path.DirectorySeparatorChar);//{ get {return char.ToString(Path.DirectorySeparatorChar);}	}
 		public static int DefaultMaxCapacity=1024;
 		public static bool bGoodString=true;
 		//public static DefaultOffset=0;
 		private char[] carrData=null;
 		private int iStart=0;
 		private int iEnder=0;//exclusive ender
-		private static readonly char[] sPossibleNewLineChars=new char[]{'\r','\n'};//(CR+LF, 0x0D 0x0A, {13,10})
-		private static readonly char[] sPossibleSpacingChars=new char[]{' ','\t','\0'};
-
-		public static readonly char[] carrLineBreakerInvisible=new char[]{' ','\t'};
-		public static readonly char[] carrLineBreakerVisible=new char[]{'-',';',':','>'};
+		private static readonly char[] carrPossibleNewLineChars=new char[]{'\r','\n'}; //(CR+LF, 0x0D 0x0A, {13,10})
+		private static readonly char[] carrPossibleHorizontalSpacingChars=new char[]{' ','\t','\0'};
+		public static bool bAllowNewLineInQuotes=false;//TODO: implement this EVERYWHERE
+		public static readonly char[] carrWordBreakerInvisible=new char[]{' ','\t'};//formerly called LineBreaker
+		public static readonly char[] carrWordBreakerVisible=new char[]{'-',';',':','>'};
 		public static readonly string[] sarrDigit=new string[] {"0","1","2","3","4","5","6","7","8","9"};
 		public static readonly char[] carrDigit=new char[] {'0','1','2','3','4','5','6','7','8','9'};
 		public static readonly char[] carrAlphabetUpper=new char[] {'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'};
 		public static readonly string[] sarrAlphabetUpper=new string[] {"A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"};
 		public static readonly char[] carrAlphabetLower=new char[] {'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z'};
 		public static readonly string[] sarrAlphabetLower=new string[] {"a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z"};
+		private static int[] iarrDeclPartsTemp=null;
 		public static bool IsAlphanumeric(char val) {
 			return IsUpper(val)||IsLower(val)||IsDigit(val);
 		}
-		public static string sRemoveSpacingBeforeNewLines1=" "+Environment.NewLine;
-		public static string sRemoveSpacingBeforeNewLines2="\t"+Environment.NewLine;
+		public static bool IsAlphanumeric(string val, int index) {
+			return index>=0&&val!=null&&index<val.Length&&IsAlphanumeric(val[index]);
+		}
+		//public static string sRemoveSpacingBeforeNewLines1=" "+Environment.NewLine;
+		//public static string sRemoveSpacingBeforeNewLines2="\t"+Environment.NewLine;
 		public static readonly string[] sarrConsonantLower=new string[] {"b","c","d","f","g","h","j","k","l","m","n","p","q","r","s","t","v","w","x","y","z"};
 		public static readonly string[] sarrConsonantUpper=new string[] {"B","C","D","F","G","H","J","K","L","M","N","P","Q","R","S","T","V","W","X","Y","Z"};
 		public static readonly string[] sarrVowelLower=new string[] {"a","e","i","o","u"};
 		public static readonly string[] sarrVowelUpper=new string[] {"A","E","I","O","U"};
 		public static readonly string[] sarrWordDelimiter=new string[] {"...","--",",",";",":","/","&","#","@","$","%","_","+","=","(",")","{","}","[","]","*",">","<","|","\"","'"," ","`","^","~"}; //CAN HAVE "'" since will simply be dealt differently when contraction, after words are split apart
 		public static readonly char[] carrSentenceDelimiter=new char[] {'.','!','?'};//formerly string[] sarrSentenceDelimiter
-		private const int AssignmentBetween=0;
-		private const int AssignmentName=1;
-		private const int AssignmentOperator=2;
-		private const int AssignmentValue=3;
+		public const int REGION_BETWEEN=0;
+		public const int REGION_NAME=1;
+		public const int REGION_OP=2;
+		public const int REGION_VALUE=3;
+		public static string RegionToString(int RegionNow) {
+			if (RegionNow==REGION_BETWEEN) return "between statements";
+			else if (RegionNow==REGION_NAME) return "name";
+			else if (RegionNow==REGION_OP) return "operator";
+			else if (RegionNow==REGION_VALUE) return "value";
+			return "";
+		}
 		//public const int iToLower=32;
 		public const char ui16ToLower=(char)32;
 		public const int iToUpper=-32;
@@ -44,6 +64,10 @@ namespace ExpertMultimedia {
 		public const char ui16UpperZ='Z';
 		public const char ui16LowerA='a';
 		public const char ui16LowerZ='z';
+ 		private static readonly string[] sarrCSType={      "string","int",  "bool",   "byte","sbyte","char","decimal","double","float", "uint",  "long", "ulong", "object","short","ushort"};
+		private static readonly string[] sarrCSTypeMapsTo={"String","Int32","Boolean","Byte","SByte","Char","Decimal","Double","Single","UInt32","Int64","UInt64","Object","Int16","UInt16"};//usually use assumed System.*
+		private static string[] sarrCSTypeMapsToFull=null;
+		public static CultureInfo cultureinfo = null;
 		///<summary>
 		///Optimized non-lowercase check (one comparison operation)
 		///</summary>
@@ -53,6 +77,18 @@ namespace ExpertMultimedia {
 		public static bool IsUpper(char cNow) {
 			return cNow<=ui16UpperZ&&cNow>=ui16UpperA;
 		}
+		public static bool HasAnyAlphanumericCharacters(string val) {
+			bool bReturn=false;
+			if (val!=null&&val.Length!=0) {
+				for (int iChar=0; iChar<val.Length; iChar++) {
+					if ( IsAlphanumeric(val[iChar]) ) {
+						bReturn=true;
+						break;
+					}
+				}
+			}
+			return bReturn;
+		}//end HasAnyAlphanumericCharacters
 		public static bool HasUpperCharacters(string sVal) {
 			if (sVal!=null) {
 				for (int iNow=0; iNow<sVal.Length; iNow++) {
@@ -71,7 +107,7 @@ namespace ExpertMultimedia {
 			return cNow<=ui16LowerZ&&cNow>=ui16LowerA;
 		}
 		public static char ToLower(char cNow) {
-			if (IsUpper(cNow)) return cNow+iToLower;
+			if (IsUpper(cNow)) return (char)((uint)cNow+ui16ToLower);
 			else return cNow;
 		}
 		///<summary>
@@ -80,14 +116,20 @@ namespace ExpertMultimedia {
 		public static bool EqualsI(char c1, char c2) {
 			return ToLower(c1)==ToLower(c2);
 		}
-		public static bool EqualsI_AssumingNeedleIsLower(string c1, string c2) {
-			return c1!=null&&c2!=null&&CompareAtI_AssumingNeedleIsLower(c1,c2,0,c2.Length);
+		/// <summary>
+		/// Compares the two strings (I is for case-insensitive overload)
+		/// </summary>
+		/// <param name="Needle1"></param>
+		/// <param name="Needle2"></param>
+		/// <returns></returns>
+		public static bool EqualsI_AssumingNeedle2IsLower(string Needle1, string Needle2) { //formerly EqualsI_AssumingNeedleIsLower
+			return Needle1!=null&&Needle2!=null&&CompareAtI_AssumingNeedleIsLower(Needle1,Needle2,0,Needle2.Length,false);
 		}
 		public static bool EqualsI(string c1, string c2) {
-			return c1!=null&&c2!=null&&CompareAtI(c1,c2,0,c2.Length);
+			return c1!=null&&c2!=null&&CompareAtI(c1,c2,0,c2.Length,false);
 		}
 		public static char ToUpper(char cNow) {
-			if (IsLower(cNow)) return cNow+iToUpper;
+			if (IsLower(cNow)) return RConvert.ToChar((int)cNow+iToUpper);
 			else return cNow;
 		}
 		public char this [int index] { //indexer
@@ -102,33 +144,38 @@ namespace ExpertMultimedia {
 			get { return MaxCapacity; }
 			set { MaxCapacity=value; }
 		}
-		public int MaxCapacity {
+		private int MaxCapacity {
 			get { return carrData!=null?carrData.Length:0; }
 			set {
-				if (value>0) {
-					if (carrData!=null) {
-						//MoveInternalStringToMiddle();
-						int iNewCapacity=RMath.SafeMultiply(value,2);
-						char[] carrOld=carrData;
-						carrData=new char[iNewCapacity];
-						//int iMin=carrData.Length<carrOld.Length?carrData.Length:carrOld.Length;
-						for (int iNow=iStart; iNow<carrData.Length; iNow++) {
-							if (iNow<carrOld.Length) carrData[iNow]=carrOld[iNow];
-							else break;
+				try {
+					if (value>0) {
+						if (carrData!=null) {
+							//MoveInternalStringToMiddle();
+							int iNewCapacity=RMath.SafeMultiply(value,2);
+							char[] carrOld=carrData;
+							carrData=new char[iNewCapacity];
+							//int iMin=carrData.Length<carrOld.Length?carrData.Length:carrOld.Length;
+							for (int iNow=iStart; iNow<carrData.Length; iNow++) {
+								if (iNow<carrOld.Length) carrData[iNow]=carrOld[iNow];
+								else break;
+							}
+							if (iEnder>carrData.Length) iEnder=carrData.Length;
 						}
-						if (iEnder>carrData.Length) iEnder=carrData.Length;
-					}
+						else {
+							carrData=new char[value*2];
+							iStart=value;
+							Length=0;
+						}
+					}//end if value>0
 					else {
-						carrData=new char[value*2];
-						iStart=value;
+						carrData=null;
+						iStart=0;
 						Length=0;
+						Console.Error.WriteLine("Warning: set Capacity to "+value.ToString()+" (null)");
 					}
-				}//end if value>0
-				else {
-					carrData=null;
-					iStart=0;
-					Length=0;
-					Console.Error.WriteLine("Warning: set Capacity to "+value.ToString()+" (null)");
+				}
+				catch (Exception exn) {
+					RReporting.ShowExn(exn,"setting RString capacity","rstring set MaxCapacity");
 				}
 			}//end set
 		}//end MaxCapacity get,set
@@ -147,11 +194,11 @@ namespace ExpertMultimedia {
 		public RString(int iCapacity) {
 			MaxCapacity=iCapacity;
 		}
-		public RString(char[] carrX, int StartX, int LenX) {
-			From(carrX,StartX,LenX);
+		public RString(char[] carrX, int start, int len) {
+			From(carrX,start,len);
 		}
-		public RString(RString fstrX) {
-			From(fstrX);
+		public RString(RString rstrX) {
+			From(rstrX);
 		}
 		public void From(string sNow) {
 			From(sNow,sNow.Length);
@@ -161,17 +208,17 @@ namespace ExpertMultimedia {
 			Capacity=iCapacity;
 			Append(sNow);
 		}
-		public void From(RString fstrX) {
-			MaxCapacity=fstrX.MaxCapacity;
-			From(fstrX.carrData,fstrX.iStart,fstrX.Length);
+		public void From(RString rstrX) {
+			MaxCapacity=rstrX.MaxCapacity;
+			From(rstrX.carrData,rstrX.iStart,rstrX.Length);
 		}
-		public void From(char[] carrX, int StartX, int LenX) {
+		public void From(char[] carrX, int start, int len) {
 			if (carrX!=null){
-				if (StartX+LenX>carrX.Length) {
-					RReporting.Warning( String.Format("Truncating source from Start:{0}; Length:{1} to fit source character array size {2}",StartX,LenX,carrX.Length) );
-					LenX=carrX.Length-StartX;
+				if (start+len>carrX.Length) {
+					RReporting.Warning( String.Format("Truncating source from Start:{0}; Length:{1} to fit source character array size {2}",start,len,carrX.Length) );
+					len=carrX.Length-start;
 				}
-				if (LenX>0) {
+				if (len>0) {
 					MaxCapacity=carrX.Length;
 					Length=0;
 					for (int iNow=0; iNow<carrX.Length; iNow++) {
@@ -180,7 +227,7 @@ namespace ExpertMultimedia {
 					}
 				}
 				else {
-					RReporting.Warning( String.Format("Getting no data from character array from Start:{0}; Length:{1} and source character array size {2}",StartX,LenX,carrX.Length) );
+					RReporting.Warning( String.Format("Getting no data from character array from Start:{0}; Length:{1} and source character array size {2}",start,len,carrX.Length) );
 					Length=0;
 				}
 			}
@@ -188,23 +235,33 @@ namespace ExpertMultimedia {
 				Length=0;
 			}
 		}
+		static RString() {//static constructor
+			sarrCSTypeMapsToFull=new string[sarrCSTypeMapsTo.Length];
+			for (int iNow=0; iNow<sarrCSTypeMapsTo.Length; iNow++) sarrCSTypeMapsToFull[iNow]="System."+sarrCSTypeMapsTo[iNow];
+		}
 		#endregion constructors
-
-		public void ReplaceAny(char[] sOld, char cNew) {
-			ReplaceAny(carrData,sOld,cNew,iStart,iEnder);
+		public void ReplaceAny(ref char[] sOld, char cNew) {
+			ReplaceAny(ref carrData,sOld,cNew,iStart,iEnder);
 		}
 		
-		public RString Substring(int StartX, int LenX) {
-			RString fstrReturn=new RString(this);
-			fstrReturn.Trim(StartX,LenX);
-			return fstrReturn;
+		public RString Substring(int start, int len) {
+			RString rstrReturn=new RString(this);
+			rstrReturn.Trim(start,len);
+			return rstrReturn;
 		}
-		public bool EndsWith(string sVal) {
+		public RString Substring(int start) {
+			RString rstrReturn=new RString(this);
+			rstrReturn.Trim(start);
+			return rstrReturn;
+		}
+		public static bool EndsWith(string Haystack, string Needle) {
 			try {
-				if (carrData!=null&&sVal!=null&&sVal.Length<=iEnder-iStart&&sVal.Length>0) {
+				int iEnder=RString.SafeLength(Haystack);
+				int iStart=0;
+				if (Haystack!=null && Needle!=null && Needle.Length<=iEnder-iStart && Needle.Length>0) {
 					int iRel=iEnder-1;
-					for (int iNow=sVal.Length-1; iNow>=0; iNow--) {
-						if (carrData[iRel]!=sVal[iNow]) return false;
+					for (int iNow=Needle.Length-1; iNow>=0; iNow--) {
+						if (Haystack[iRel]!=Needle[iNow]) return false;
 						iRel--;
 					}
 					return true;
@@ -215,12 +272,28 @@ namespace ExpertMultimedia {
 			}
 			return false;
 		}
-		public bool StartsWith(string sVal) {
+		public bool EndsWith(string Needle) {
 			try {
-				if (carrData!=null&&sVal!=null&&sVal.Length<=iEnder-iStart&&sVal.Length>0) {
+				if (carrData!=null && Needle!=null && Needle.Length<=iEnder-iStart && Needle.Length>0) {
+					int iRel=iEnder-1;
+					for (int iNow=Needle.Length-1; iNow>=0; iNow--) {
+						if (carrData[iRel]!=Needle[iNow]) return false;
+						iRel--;
+					}
+					return true;
+				}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn);
+			}
+			return false;
+		}
+		public bool StartsWith(string Needle) {
+			try {
+				if (carrData!=null && Needle!=null && Needle.Length<=iEnder-iStart && Needle.Length>0) {
 					int iRel=iStart;
-					for (int iNow=0; iNow<sVal.Length; iNow++) {
-						if (carrData[iRel]!=sVal[iNow]) return false;
+					for (int iNow=0; iNow<Needle.Length; iNow++) {
+						if (carrData[iRel]!=Needle[iNow]) return false;
 						iRel++;
 					}
 					return true;
@@ -233,7 +306,10 @@ namespace ExpertMultimedia {
 		}//end StartsWith
 		public static int CountInstances(string Haystack, string Needle) {
 			if (Haystack!=null&&Needle!=null) return CountInstances(Haystack, Needle, 0, RString.SafeLength(Haystack));
-			else return 0;
+			else {
+				RReporting.Debug("CountInstances: "+RReporting.StringMessage(Needle,true)+" in "+RReporting.StringMessage(Haystack,false)+" skipped.");
+				return 0;
+			}
 		} //end CountInstances(string,string)
 		///<summary>
 		///Does NOT count redundant instances i.e. CountInstances(rrr,rr,...) finds 1, 
@@ -241,11 +317,13 @@ namespace ExpertMultimedia {
 		///</summary>
 		public static int CountInstances(string Haystack, string Needle, int iStart, int iEndBefore) {
 			int iCount=0;
+			//RReporting.Debug("CountInstances: "+RReporting.StringMessage(Needle,true)+" in "+RReporting.StringMessage(Haystack,false)+" substring at "+iStart+" ending before "+iEndBefore);
 			try {
-				if (Needle.Length!=0) {
+				if (Needle!=null&&Needle.Length>0) {
 					while (iStart+Needle.Length<=iEndBefore) {
-						if (CompareAt(Haystack,Needle,iStartNow)) {
+						if (CompareAt(Haystack,Needle,iStart)) {
 							iCount++;
+							//RReporting.Debug("CountInstances: "+iCount);
 							iStart+=Needle.Length;
 						}
 						else iStart++;
@@ -263,13 +341,41 @@ namespace ExpertMultimedia {
 		///Does NOT count redundant instances i.e. CountInstances(rrr,rr,...) finds 1, 
 		/// i.e. CountInstances(rrrr,rr,...) finds 2;
 		///</summary>
+		public static int CountInstancesI_AssumingNeedleIsLower(string Haystack, string Needle, int iStart, int iEndBefore) {
+			int iCount=0;
+			//RReporting.Debug("CountInstancesI: "+RReporting.StringMessage(Needle,true)+" in "+RReporting.StringMessage(Haystack,false)+" substring at "+iStart+" ending before "+iEndBefore);
+			try {
+				if (Needle!=null&&Needle.Length!=0&&Haystack!=null) {
+					while (iStart+Needle.Length<=iEndBefore) {
+						if (RString.CompareAtI_AssumingNeedleIsLower(Haystack,Needle,iStart)) {
+							iCount++;
+							//RReporting.Debug("CountInstancesI: "+iCount);
+							iStart+=Needle.Length;
+						}
+						else iStart++;
+					}
+				}
+				else RReporting.ShowErr(  "Blank string search was skipped", "", 
+				  		String.Format("CountInstances({0},{1})", RReporting.DebugStyle("in",Haystack ,false,false),RReporting.DebugStyle("search-for",Needle ,false,false))  );
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn);
+			}
+			return iCount;
+		} //end CountInstancesI_AssumingNeedleIsLower(string,string,iStart,iEndEx)
+		///<summary>
+		///Does NOT count redundant instances i.e. CountInstances(rrr,rr,...) finds 1, 
+		/// i.e. CountInstances(rrrr,rr,...) finds 2;
+		///</summary>
 		public static int CountInstancesI(string Haystack, string Needle, int iStart, int iEndBefore) {
 			int iCount=0;
+			//RReporting.Debug("CountInstancesI: "+RReporting.StringMessage(Needle,true)+" in "+RReporting.StringMessage(Haystack,false)+" substring at "+iStart+" ending before "+iEndBefore+": \""+RString.SafeSubstringByExclusiveEnder(Haystack,iStart,iEndBefore)+"\"");
 			try {
 				if (Needle.Length!=0) {
 					while (iStart+Needle.Length<=iEndBefore) {
-						if (CompareAtI(Haystack,Needle,iStartNow)) {
+						if (CompareAtI(Haystack,Needle,iStart)) {
 							iCount++;
+							//RReporting.Debug("CountInstancesI: "+iCount);
 							iStart+=Needle.Length;
 						}
 						else iStart++;
@@ -284,17 +390,22 @@ namespace ExpertMultimedia {
 			return iCount;
 		} //end CountInstancesI(string,string,iStart,iEndEx)
  		public static int CountInstances(string Haystack, char Needle) {
- 			if (Haystack!=null&&Needle!=null) return CountInstances(Haystack, Needle, 0,Haystack.Length);
+ 			if (Haystack!=null) return CountInstances(Haystack, Needle, 0,Haystack.Length);
  			else return 0;
  		}
 		public static int CountInstances(string Haystack, char Needle, int iStart, int iEndBefore) {
+			return CountInstances(Haystack, Needle, true, iStart, iEndBefore);
+		}
+		public static int CountInstances(string Haystack, char Needle, bool bCountEvenIfInQuotes, int iStart, int iEndBefore) {
 			int iCount=0;
-			int iLocNow=0;
-			int iStartNow=0;
+			//int iLocNow=0;
+			//int iStartNow=0;
+			bool bInQuotes=false;
 			try {
 				if (Haystack!=null&&Haystack!="") {
 					for (int iChar=iStart; iChar<Haystack.Length&&iChar<iEndBefore; iChar++) {
-						if (Haystack[iChar]==Needle) iCount++;
+						if (Haystack[iChar]=='"') bInQuotes=!bInQuotes;
+						else if ( Haystack[iChar]==Needle && (bCountEvenIfInQuotes||!bInQuotes) ) iCount++;
 					}
 				}
 				else RReporting.ShowErr("Tried to count matching characters in blank string!","","CountInstances(string,char)");
@@ -453,7 +564,7 @@ namespace ExpertMultimedia {
 				if (length>0) {
 					if (location==0) { //if at beginning
 						iStart+=length;
-						//that's all since RString class is based on ender
+						//that's all since RString section is based on ender
 					}
 					if (location+length==Length) { //if at end
 						iEnder-=length;
@@ -503,27 +614,33 @@ namespace ExpertMultimedia {
 			}
 			return bGood;
 		}
-		public static explicit operator string(RString val) {
+		public static explicit operator string(RString val) { //explicit typecast from RString to string
 			return val.ToString();
 		}
-		public static explicit operator RString(string val) {
+		public static explicit operator RString(string val) { //explicit typecast from string to RString
 			return new RString(val);
 		}
 		public static string operator +(RString var1, string var2) {
 			return var1.ToString()+var2;
 		}
 		public static bool operator ==(RString a, RString b) {
-			if (a==null||b==null) return false;
-			return a.Equals(b);
+			//if (a.IsNull||b==null) return false;
+			try {
+				return a.Equals(b);
+			}
+			catch {
+				
+			}
+			return false;
 		}
 		public static bool operator !=(RString a, RString b) {
 			if (a==null||b==null) return true;
 			return !a.Equals(b);
 		}
-		public static bool CompareAt(RString fstr1, int iRel1, RString fstr2, int iRel2) {
+		public static bool CompareAt(RString rstr1, int iRel1, RString rstr2, int iRel2) {
 			try {
-				return (fstr1!=null&&fstr2!=null&&fstr1.Length>iRel1&&fstr2.Length>iRel2
-					&&fstr1.carrData[fstr1.iStart+iRel1]==fstr2.carrData[fstr2.iStart+iRel2]);
+				return (rstr1!=null&&rstr2!=null&&rstr1.Length>iRel1&&rstr2.Length>iRel2
+					&&rstr1.carrData[rstr1.iStart+iRel1]==rstr2.carrData[rstr2.iStart+iRel2]);
 			}
 			catch (Exception exn) {
 				RReporting.ShowExn(exn,"comparing character in RStrings (RString corruption)");
@@ -534,66 +651,83 @@ namespace ExpertMultimedia {
 		///Fast comparison (works without actually modifying the Haystack param)
 		///Returns true if match AND (iStopBeforeInHaystack-iAtHaystack)==Needle.Length
 		///</summary>
-		public static bool CompareAt(string Haystack, string Needle, int iAtHaystack, int iStopBeforeInHaystack) {
-			if (Haystack!=null&&Needle!=null) {
-				if ((iStopBeforeInHaystack-iAtHaystack)==Needle.Length) {
-					int iRel=0;
-					while (iAtHaystack<iStopBeforeInHaystack) {
-						if (Needle[iRel]!=Haystack[iAtHaystack]) return false;
-						iAtHaystack++;
-						iRel++;
-					}
-					return true;
-				}
-				else return false;
-			}
-			else RReporting.Warning("Received null string","looking for string",String.Format("CompareAt({0},{1},{2},{3})",RReporting.StringMessage(Haystack,false),RReporting.StringMessage(Needle,false),iAtHaystack,iStopBeforeInHaystack) );
-		}//end CompareAt(string,string,iStart,iEndEx)
-		public static bool CompareAt(string Haystack, string Needle, int iAtHaystack) {
-			bool bReturn=false;
-			int iAbs=iAtHaystack;
-			int iMatches=0;
+		public static bool CompareAt(string Haystack, string Needle, int iAtHaystack, int iStopBeforeInHaystack, bool bAllowRegionToBeLargerThanMatch) {
 			try {
-				//if (Haystack!=null && Needle!=null) {
-				if (Needle!=null&&Needle!="") {
-					for (int iRel=0; iRel<Needle.Length&&iAbs<Haystack.Length; iRel++) {
-						if (Needle[iRel]==Haystack[iAbs]) iMatches++;
-						else break;
-						iAbs++;
+				if ( Haystack!=null && IsNotBlank(Needle)) {
+					if (iAtHaystack>=0 && iAtHaystack<iStopBeforeInHaystack) {
+						if (bAllowRegionToBeLargerThanMatch||((iStopBeforeInHaystack-iAtHaystack)==Needle.Length)) {
+							int iRel=0;
+							if (bAllowRegionToBeLargerThanMatch) {
+								while (iRel<Needle.Length) {
+									if (iAtHaystack>=iStopBeforeInHaystack || Needle[iRel]!=Haystack[iAtHaystack]) return false;
+									iAtHaystack++;
+									iRel++;
+								}
+							}
+							else {
+								while (iAtHaystack<iStopBeforeInHaystack) { //iRel<Needle.Length) {
+									if (iRel>=Needle.Length || Needle[iRel]!=Haystack[iAtHaystack]) return false;
+									iAtHaystack++;
+									iRel++;
+								}
+							}
+							//while (bAllowRegionToBeLargerThanMatch ? (iRel<Needle.Length) : (iAtHaystack<iStopBeforeInHaystack) ) {
+								//(this line is replaced by using CompareAt() changing location>iStopBeforeInHaystack to -1 // if (bAllowRegionToBeLargerThanMatch?(iAtHaystack>=iStopBeforeInHaystack):(iRel>=Needle.Length)) return false;
+							//	if (!CompareAt(Haystack,Needle[iRel],iAtHaystack>=iStopBeforeInHaystack?-1:iAtHaystack)) return false; //if (Needle[iRel]!=Haystack[iAtHaystack]) return false;
+							//	iAtHaystack++;
+							//	iRel++;
+							//}
+							return iRel==Needle.Length;
+						}
+						else return false;
 					}
-					if (iMatches==Needle.Length) bReturn=true;
+					else {
+						if (RReporting.bDebug) RReporting.Warning("Checking location outside of range {"
+						                                          +"iAtHaystack:"+iAtHaystack.ToString()
+						                                          +"; iStopBeforeInHaystack:"+iStopBeforeInHaystack.ToString()
+						                                          +"; Needle:"+RReporting.StringMessage(Needle,true)
+						                                          +"}",
+						                                          "checking location",String.Format("CompareAt({0},{1},{2},{3})",RReporting.StringMessage(Haystack,false),RReporting.StringMessage(Needle,false),iAtHaystack,iStopBeforeInHaystack) );
+					}
 				}
-				//}
+				else RReporting.Warning("Received null string","looking for string",String.Format("CompareAt({0},{1},{2},{3})",RReporting.StringMessage(Haystack,false),RReporting.StringMessage(Needle,false),iAtHaystack,iStopBeforeInHaystack) );
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"comparing text substring");
-				bReturn=false;
+				RReporting.ShowExn(exn,"checking for string in string","CompareAt {"
+				                   +"Haystack.Length:"+RReporting.SafeLength(Haystack)
+				                   +"; Needle:"+RReporting.StringMessage(Needle,true)
+				                   +"; iAtHaystack:"+iAtHaystack.ToString()
+				                   +"; iStopBeforeInHaystack:"+iStopBeforeInHaystack.ToString()
+				                   +"; bAllowRegionToBeLargerThanMatch:"+RConvert.ToString(bAllowRegionToBeLargerThanMatch)
+				                   +"}");
 			}
-			return bReturn;
-		}//end CompareAt(string,string,iAt)
-		public static bool StartsWith(string Haystack, string Needle) {
-			return (Haystack!=null && CompareAt(Haystack,Needle,0,Needle.Length));
+			return false;
+		}//end CompareAt(string,string,iStart,iEndEx)
+		
+		public static bool CompareAtI_AssumingNeedleIsLower(string Haystack, string Needle, int iAtHaystack) {
+			return CompareAtI_AssumingNeedleIsLower(Haystack,Needle,iAtHaystack,RString.SafeLength(Haystack),true);
 		}
-		public static bool StartsWithI(string Haystack, string Needle) {
-			return (Haystack!=null && CompareAtI(Haystack,Needle,0));
-		}
-		public static bool StartsWithI_AssumingNeedleIsLower(string Haystack, string Needle) {
-			return (Haystack!=null && CompareAtI_AssumingNeedleIsLower(Haystack,Needle,0));
-		}
-		///<summary>
-		///Fast comparison (works without actually modifying the Haystack param)
-		///Returns true if match AND (iStopBeforeInHaystack-iAtHaystack)==Needle.Length
-		///</summary>
-		public static bool CompareAtI_AssumingNeedleIsLower(string Haystack, string Needle, int iAtHaystack, int iStopBeforeInHaystack) {
-			if (Haystack!=null&&Needle!=null) {
-				if ((iStopBeforeInHaystack-iAtHaystack)==Needle.Length) {
+		/// <summary>
+		/// Fast comparison (works without actually modifying the Haystack param)
+		///Returns true if match 
+		/// </summary>
+		/// <param name="Haystack"></param>
+		/// <param name="Needle"></param>
+		/// <param name="iAtHaystack"></param>
+		/// <param name="iStopBeforeInHaystack"></param>
+		/// <param name="bAllowRegionToBeLargerThanMatch">if true (iStopBeforeInHaystack-iAtHaystack) does not have to equal Needle.Length</param>
+		/// <returns></returns>
+		public static bool CompareAtI_AssumingNeedleIsLower(string Haystack, string Needle, int iAtHaystack, int iStopBeforeInHaystack, bool bAllowRegionToBeLargerThanMatch) {
+			if (Haystack!=null&&IsNotBlank(Needle)) {
+				if (bAllowRegionToBeLargerThanMatch||((iStopBeforeInHaystack-iAtHaystack)==Needle.Length)) {
 					int iRel=0;
-					while (iAtHaystack<iStopBeforeInHaystack) {
+					while (bAllowRegionToBeLargerThanMatch ? (iRel<Needle.Length) : (iAtHaystack<iStopBeforeInHaystack) ) {
+						if (bAllowRegionToBeLargerThanMatch ? (iAtHaystack>=iStopBeforeInHaystack) : (iRel>=Needle.Length) ) return false;
 						if (Needle[iRel]!=
-							( (Haystack[iAtHaystack]>=ui16UpperA&&Haystack[iAtHaystack]<=ui16UpperZ)
+							( (Haystack[iAtHaystack]>=ui16UpperA && Haystack[iAtHaystack]<=ui16UpperZ)
 								?(Haystack[iAtHaystack]+ui16ToLower)
 								:(Haystack[iAtHaystack]) )//forces inline ToLower(Haystack[iAtHaystack])
-						) return false;
+							) return false;
 						iAtHaystack++;
 						iRel++;
 					}
@@ -602,17 +736,28 @@ namespace ExpertMultimedia {
 				else return false;
 			}
 			else RReporting.Warning("Sent null string to CompareAtI","looking for string",String.Format("CompareAtI_AssumingNeedleIsLower({0},{1},{2},{3})",RReporting.StringMessage(Haystack,false),RReporting.StringMessage(Needle,false),iAtHaystack,iStopBeforeInHaystack) );
+			return false;
 		}//end CompareAtI_AssumingNeedleIsLower(string,string,iStart,iEndEx)
-		///<summary>
-		///Case-sensitive overload of CompareAt that only can return true if
-		/// match AND (iStopBeforeInHaystack-iAtHaystack)==Needle.Length
-		///</summary>
-		public static bool CompareAtI(string Haystack, string Needle, int iAtHaystack, int iStopBeforeInHaystack) {
+		public static bool CompareAtI(string Haystack, string Needle, int iAtHaystack) {
+			return CompareAtI(Haystack,Needle,iAtHaystack,RString.SafeLength(Haystack),true);
+		}
+		/// <summary>
+		/// Case-sensitive overload of CompareAt that only can return true if
+		/// match.
+		/// </summary>
+		/// <param name="Haystack"></param>
+		/// <param name="Needle"></param>
+		/// <param name="iAtHaystack"></param>
+		/// <param name="iStopBeforeInHaystack"></param>
+		/// <param name="bAllowRegionToBeLargerThanMatch">if true, iStopBeforeInHaystack-iAtHaystack may be larger than Needle.Length</param>
+		/// <returns></returns>
+		public static bool CompareAtI(string Haystack, string Needle, int iAtHaystack, int iStopBeforeInHaystack, bool bAllowRegionToBeLargerThanMatch) {
 			try {
 				if (Haystack!=null&&IsNotBlank(Needle)) {
-					if ((iStopBeforeInHaystack-iAtHaystack)==Needle.Length) {
+					if (bAllowRegionToBeLargerThanMatch||((iStopBeforeInHaystack-iAtHaystack)==Needle.Length)) {
 						int iRel=0;
-						while (iAtHaystack<iStopBeforeInHaystack) {
+						while (bAllowRegionToBeLargerThanMatch ? (iRel<Needle.Length) : (iAtHaystack<iStopBeforeInHaystack) ) {
+							if (bAllowRegionToBeLargerThanMatch ? (iAtHaystack>=iStopBeforeInHaystack) : (iRel>=Needle.Length) ) return false;
 							if (//Needle[iRel]
 								( (Needle[iRel]>=ui16UpperA&&Needle[iRel]<=ui16UpperZ)
 									?(Needle[iRel]+ui16ToLower)
@@ -636,6 +781,9 @@ namespace ExpertMultimedia {
 			}
 			return false;
 		}//end CompareAtI
+		public static bool CompareAt(string Haystack, char Needle, int iAtHaystack) {
+			return Haystack!=null&&iAtHaystack>=0&&iAtHaystack<Haystack.Length&&Haystack[iAtHaystack]==Needle;
+		}
 		//public static bool CompareAt(char[] carrHaystack, char[] carrNeedle, int iAtHaystack) {
 		//	bool bReturn=false;
 		//	int iAbs=iAtHaystack;
@@ -660,12 +808,12 @@ namespace ExpertMultimedia {
 		//	}
 		//	return bReturn;
 		//}//end CompareAt(char array...);
-// 		public override bool Equals(RString fstrX) {
+// 		public override bool Equals(RString rstrX) {
 // 			try {
-// 				if (fstrX!=null&&fstrX.Length==Length) {
-// 					int iAbsThat=fstrX.iStart;
+// 				if (rstrX!=null&&rstrX.Length==Length) {
+// 					int iAbsThat=rstrX.iStart;
 // 					for (int iAbsMe=iStart; iAbsMe<iEnder; iAbsMe++) {
-// 						if (fstrX.carrData[iAbsThat]!=carrData[iAbsMe]) return false;
+// 						if (rstrX.carrData[iAbsThat]!=carrData[iAbsMe]) return false;
 // 						iAbsThat++;
 // 					}
 // 					return true;
@@ -676,17 +824,58 @@ namespace ExpertMultimedia {
 // 			}
 // 			return false;
 // 		}
-		public static bool CompareAt(string Haystack, char Needle, int iAtHaystack) {
-			return Haystack!=null&&iAtHaystack>=0&&iAtHaystack<Haystack.Length&&Haystack[iAtHaystack]==Needle;
+		public static bool CompareAt(string Haystack, string Needle, int iAtHaystack) {
+			return CompareAt(Haystack,Needle,iAtHaystack,RString.SafeLength(Haystack),true);
+			/*
+			bool bReturn=false;
+			int iAbs=iAtHaystack;
+			int iMatches=0;
+			try {
+				//if (Haystack!=null && Needle!=null) {
+				if (Needle!=null&&Needle!="") {
+					for (int iRel=0;  iRel<Needle.Length && iAbs<Haystack.Length;  iRel++) {
+						if (Needle[iRel]==Haystack[iAbs]) iMatches++;
+						else break;
+						iAbs++;
+					}
+					if (iMatches==Needle.Length) bReturn=true;
+				}
+				//}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"comparing text substring");
+				bReturn=false;
+			}
+			return bReturn;
+			*/
+		}//end CompareAt(string,string,iAt)
+		public static bool StartsWith(string Haystack, string Needle) {
+			return (Haystack!=null && CompareAt(Haystack,Needle,0,SafeLength(Haystack),true));
+		}
+		public static bool StartsWithI(string Haystack, string Needle) {
+			return (Haystack!=null && CompareAtI(Haystack,Needle,0,SafeLength(Haystack),true));
+		}
+		public static bool StartsWithI_AssumingNeedleIsLower(string Haystack, string Needle) {
+			return (Haystack!=null && CompareAtI_AssumingNeedleIsLower(Haystack,Needle,0,SafeLength(Haystack),true));
 		}
 
 		public override bool Equals(object o) {
 			try {
-				return (bool) (this == (RString) o);
+				RString target=((RString)o);
+				if (this.Length==target.Length) {
+					int iTarget=target.iStart;
+					for (int i=this.iStart; i<this.iEnder; i++) {
+						if (this.carrData[i]!=target.carrData[iTarget]) return false;
+						iTarget++;
+					}
+					return true;//DOES return true if both are zero
+				}
+				//return (bool) (this == (RString) o);
 			}
 			catch {
-				return false;
+				
 			}
+			return false;
 		}
 		public override int GetHashCode() {
 // 			int iHash=0;
@@ -710,26 +899,48 @@ namespace ExpertMultimedia {
 			char[] carrReturn=RMemory.SubArray(carrData,iStart,Length);
 			return new string(carrReturn);
 		}
-		public string ToString(int StartX, int LenX) {
+		public string ToString(int start, int len) {
 			char[] carrReturn=null;
-			if (StartX+LenX>Length) {
-				RReporting.Warning( String.Format("Warning: ToString is truncating dest from Start:{0}; Length:{1} to fit actual RString size {2}",StartX,LenX,Length) );
-				LenX=Length-StartX;
+			if (start+len>Length) {
+				RReporting.Warning( String.Format("Warning: ToString is truncating dest from Start:{0}; Length:{1} to fit actual RString size {2}",start,len,Length) );
+				len=Length-start;
 			}
-			if (LenX>0) carrReturn=RMemory.SubArray(carrData,iStart+StartX,LenX);
+			if (len>0) carrReturn=RMemory.SubArray(carrData,iStart+start,len);
 			return carrReturn!=null?new string(carrReturn):"";
 		}
-		public void Trim(int StartX, int LenX) {
-			if (StartX+LenX>Length) {
-				RReporting.Warning( String.Format("Warning: Trim is truncating dest from Start:{0}; Length:{1} to fit actual RString size {2}",StartX,LenX,Length) );
-				LenX=Length-StartX;
-			}
-			if (LenX>0) {
-				iStart+=StartX;
-				Length=LenX;
+		public void Trim(int start, int len) {
+			if (start<Length) {
+				if (start+len>Length) {
+					RReporting.Warning( String.Format("Warning: Trim is truncating dest from Start:{0}; Length:{1} to fit actual RString size {2}",start,len,Length) );
+					len=Length-start;
+				}
+				if (len>0) {
+					iStart+=start;
+					Length=len;
+				}
+				else Length=0;
 			}
 			else Length=0;
 		}//end Trim
+		public void Trim(int start) {
+			Trim(start,this.Length-start);
+		}
+		/// <summary>
+		/// Converts raw text to text able to exist as data inside HTML
+		/// textarea or HTML property value (in which case quotes would need
+		/// to be added manually later if result has spaces)
+		/// </summary>
+		/// <param name="sData">raw text</param>
+		/// <returns>html-safe plain text</returns>
+		public static string ToHtmlValue(string sData) {
+			string sReturn=RString.Replace(sData,"<","&lt;");
+			sReturn=RString.Replace(sReturn,">","&gt;");
+			sReturn=RString.Replace(sReturn,"\"","&quot;");
+			sReturn=RString.Replace(sReturn,Environment.NewLine,"<br>");
+			sReturn=RString.Replace(sReturn,"\n","<br>");
+			sReturn=RString.Replace(sReturn,"\r","<br>");
+			return sReturn;
+		}
 		public static string SafeSubstring(string sValue, int start, int iLen) {
 			if (sValue==null) return "";
 			if (start<0) return "";
@@ -738,7 +949,7 @@ namespace ExpertMultimedia {
 				if (start<sValue.Length) {
 					if ((start+iLen)<=sValue.Length) return sValue.Substring(start, iLen);
 					else {
-						RReporting.Debug("Tried to return SafeSubstring(\"" + sValue+"\"," + start.ToString() + "," + iLen.ToString() + ") (area ending past end of string).");
+						RReporting.Debug("Tried to return SafeSubstring(\"" + ToOneLine(sValue)+"\"," + start.ToString() + "," + iLen.ToString() + ") (area ending past end of string).");
 						return sValue.Substring(start);
 					}
 					   //it is okay that the "else" also handles (start+iLen)==sValue.Length
@@ -764,8 +975,8 @@ namespace ExpertMultimedia {
 					return sValue;
 				}
 				else {
+					if (RReporting.bDebug) RReporting.Debug("Tried to return SafeSubstring(\""+RString.ToOneLine(sValue)+"\","+start.ToString()+") (past end).");
 					return "";
-					RReporting.Debug("Tried to return SafeSubstring(\""+sValue+"\","+start.ToString()+") (past end).");
 				}
 			}
 			catch (Exception exn) {
@@ -773,134 +984,74 @@ namespace ExpertMultimedia {
 				return "";
 			}
 		}//end SafeSubstring(string,int,int)
-		public static int IndexOf(string[] Haystack, string Needle) {
-			return IndexOf(Haystack,Needle,RString.SafeLength(Haystack));
+		public static string ToOneLine(string val) {
+			return (val!=null)?(val.Replace(Environment.NewLine,"").Replace('\r',' ').Replace('\n',' ')):"";
+		}
+		public static int LastIndexOf_OnlyIfWholeWord(string Haystack, string Needle) {
+			return LastIndexOf_OnlyIfWholeWord(Haystack,Needle,0,RString.SafeLength(Haystack));
 		}
 		///<summary>
-		///Returns index of Haystack where Needle occurs, otherwise -1 if not found
-		/// or if Needle is blank.
+		///Returns index of Haystack where Needle occurs without other alphanumeric
+		/// characters directly before or after it, otherwise -1 if not found or if
+		/// Needle is blank.
 		///</summary>
-		public static int IndexOf(string[] Haystack, string Needle, int iHaystackStart, int iHaystackCount) {
+		public static int LastIndexOf_OnlyIfWholeWord(string Haystack, string Needle, int iHaystackStart, int iHaystackCount) {
 			int iReturn=-1;
 			if (Haystack!=null&&RString.IsNotBlank(Needle)) {
-				for (int iNow=iHaystackStart; iNow<iHaystackCount; iNow++) {
-					if (Haystack[iNow]==Needle) {
-						iReturn=iNow;
+				int iEndEx=iHaystackStart+iHaystackCount;
+				int iStartNow=iEndEx-Needle.Length;//start of the last position to check for needle
+				while (iStartNow>=iHaystackStart) {
+					if ( CompareAt(Haystack,Needle,iStartNow)
+						&& iStartNow+Needle.Length<=Haystack.Length
+						&& (iStartNow-1<=iHaystackStart||!IsAlphanumeric(Haystack,iStartNow-1))
+						&& (iStartNow+Needle.Length>=iEndEx||!IsAlphanumeric(Haystack,iStartNow+Needle.Length))
+						//ok if beyond range--can be whole word if no characters exist at either end of the word.
+						//--assumes that should be found as whole word even if range is counted as only area being checked
+						) {
+						iReturn=iStartNow;
 						break;
 					}
 				}
 			}
 			return iReturn;
-		}//end IndexOf(string[],string);
-		public static int IndexOfI(string[] Haystack, string Needle) {
-			return IndexOfI(Haystack,Needle,0,RString.SafeLength(Haystack));
-		}
-		public static int IndexOfI(string[] Haystack, string Needle, int iHaystackStart, int iHaystackCount) {
-			int iReturn=-1;
-			try {
-				if (Haystack!=null&&RString.IsNotBlank(Needle)) {
-					for (int iNow=iHaystackStart; iNow<iHaystackCount; iNow++) {
-						if (EqualsI(Haystack[iNow],Needle)) {
-							iReturn=iNow;
-							break;
-						}
-					}
-				}
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
-			}
-			return iReturn;
-		}//end IndexOf(string[],string);
-		public static int IndexOfStartsWithI(string[] Haystack, string Needle) {
-			int iReturn=-1;
-			if (Haystack!=null&&RString.IsNotBlank(Needle)) {
-				for (int iNow=0; iNow<Haystack.Length; iNow++) {
-					if (CompareAtI(Haystack[iNow],Needle,0)) {
-						iReturn=iNow;
-						break;
-					}
-				}
-			}
-			return iReturn;
-		}//end IndexOfStartsWithI(string[],string);
+		}//end LastIndexOf_OnlyIfWholeWord
 		///NOTE: SafeSubstring(RString,...) is NOT needed, because RString.ToString is already safe
 		public static bool Contains(string Haystack, string Needle) {
 			try {
-				return Haystack.IndexOf(Needle) >= 0;
+				return RString.IndexOf(Haystack,Needle) >= 0;//Haystack.IndexOf(Needle) >= 0;
 			}
 			catch (Exception exn) {
-				RReporting.Debug(exn,"","Contains(string,string)");
-				return false;
+				RReporting.Debug(exn,"","Contains("+RReporting.StringMessage(Haystack,false)+","+RReporting.StringMessage(Needle,true)+")");
 			}
+			return false;
 		}
 		public static bool Contains(string Haystack, char Needle) {
 			try {
-				return IndexOf(Haystack,0,Needle) >= 0;
+				return IndexOf(Haystack,Needle,0) >= 0;
 			}
 			catch (Exception exn) {
 				RReporting.Debug(exn,"","Contains(string,char)");
 				return false;
 			}
 		}
-		public static bool Contains(string Haystack, string Needle, int CharIndexInNeedleToFind) {
+		public static bool ContainsChar(string Haystack, string Needle, int CharIndexInNeedleToFind) {
 			try {
-				return IndexOf(Haystack,0,Needle,CharIndexInNeedleToFind) >= 0;
+				return CharIndexInNeedleToFind>=0 && CharIndexInNeedleToFind<Needle.Length && RString.SafeLength(Needle)>0 && IndexOf(Haystack,Needle[CharIndexInNeedleToFind]) >= 0;
 			}
 			catch (Exception exn) {
 				RReporting.Debug(exn,"","Contains(string,string,IndexOfCharacterInNeedleToFind)");
 				return false;
 			}
 		}
-		public static bool Contains(string[] Haystack, string Needle) {
-			if (Haystack!=null) {
-				for (int iNow=0; iNow<Haystack.Length; iNow++) {
-					if (Haystack[iNow]==Needle) return true;
-				}
-			}
-			return false;
-		}
-		public static bool ContainsI(string[] Haystack, string Needle) {
-			if (Haystack!=null&&Needle!=null) {
-				for (int iNow=0; iNow<Haystack.Length; iNow++) {
-					if (Haystack[iNow]!=null && CompareAtI(Haystack[iNow],Needle,0,Haystack[iNow].Length)) return true;
-				}
-			}
-			return false;
-		}
-		public static bool ContainsI_AssumingNeedleIsLower(string[] Haystack, string Needle) {
-			if (Haystack!=null&&Needle!=null) {
-				for (int iNow=0; iNow<Haystack.Length; iNow++) {
-					if (Haystack[iNow]!=null && CompareAtI_AssumingNeedleIsLower(Haystack[iNow],Needle,0,Haystack[iNow].Length)) return true;
-				}
-			}
-			return false;
-		}
-		public static bool AnyStartsWithI(string[] Haystack, string Needle) {
-			if (Haystack!=null&&Needle!=null) {
-				for (int iNow=0; iNow<Haystack.Length; iNow++) {
-					if (StartsWithI(Haystack[iNow],Needle,0)) return true;
-				}
-			}
-			return false;
-		}
-		public static bool AnyStartsWithI_AssumingNeedleIsLower(string[] Haystack, string Needle) {
-			if (Haystack!=null&&Needle!=null) {
-				for (int iNow=0; iNow<Haystack.Length; iNow++) {
-					if (StartsWithI_AssumingNeedleIsLower(Haystack[iNow],Needle,0)) return true;
-				}
-			}
-			return false;
-		}
-		public static bool AnyStartsWith(string[] Haystack, string Needle) {
-			if (Haystack!=null&&Needle!=null) {
-				for (int iNow=0; iNow<Haystack.Length; iNow++) {
-					if (StartsWith(Haystack[iNow],Needle)) return true;
-				}
-			}
-			return false;
-		}
-		public static bool Contains(char[] sNow, char cNow) {
+				
+		
+		/// <summary>
+		/// Checks whether sNow contains cNow
+		/// </summary>
+		/// <param name="sNow"></param>
+		/// <param name="cNow"></param>
+		/// <returns></returns>
+		public static bool ContainsChar(char[] sNow, char cNow) {
 			if (sNow!=null) {
 				for (int iNow=0; iNow<sNow.Length; iNow++) {
 					if (sNow[iNow]==cNow) return true;
@@ -908,42 +1059,52 @@ namespace ExpertMultimedia {
 			}
 			return false;
 		}
+		/// <summary>
+		/// Checks whether sNow contains the character StringContainingOneNeedleToUse[iNeedleInStringToUse]
+		/// </summary>
+		/// <param name="sNow"></param>
+		/// <param name="StringContainingOneNeedleToUse"></param>
+		/// <param name="iNeedleInStringToUse"></param>
+		/// <returns></returns>
+		public static bool ContainsChar(char[] sNow, string StringContainingOneNeedleToUse, int iNeedleInStringToUse) {
+			if (sNow!=null) {
+				for (int iNow=0; iNow<sNow.Length; iNow++) {
+					if (sNow[iNow]==StringContainingOneNeedleToUse[iNeedleInStringToUse]) return true;
+				}
+			}
+			return false;
+		}
 #region moved from Base
 		//public static bool IsSpacingExceptNewLine(char val) {
 		//{}
-		public static bool IsSpacingExceptNewLine(char val) {
-			bool bYes=false;
-			try {
-				if (val==' ') bYes=true;
-				else if (val=='\t') bYes=true;
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"checking for spacing","IsSpacingExceptNewLine");
-			}
-			return bYes;
-		}
-		//public static readonly char[] carrNewLine=new char[] {'\n', '\r', Environment.NewLine[0], Environment.NewLine[Environment.NewLine.Length-1]};
-		public static int IsNewLineAndGetLength(string sText, int iChar) {	
-			if (sText!=null&&iChar>=0&&iChar<sText.Length) {
-				if (CompareAt(sText,Environment.NewLine,iChar)) return Environment.NewLine.Length;
-				else if (sText[iChar]=='\n') return 1;
-				else if (sText[iChar]=='\r') return 1;
-			}
-			return 0;
-		}
-		public static bool IsNewLine(char val) {
-			bool bYes=false;
-			try {
-				if (val=='\r') bYes=true;
-				else if (val=='\n') bYes=true;
-				else if (Contains(Environment.NewLine,val)) bYes=true;
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"checking for newline","IsNewLine");
-			}
-			return bYes;
-		}
-		public static bool LikeWildCard(string input, string pattern, bool bCaseSensitive) { //IsLike
+		
+		//public static bool IsSpacingExceptNewLine(char val) {//replaced by IsHorizonalSpacingChar
+		//	bool bYes=false;
+		//	try {
+		//		if (val==' ') bYes=true;
+		//		else if (val=='\t') bYes=true;
+		//	}
+		//	catch (Exception exn) {
+		//		RReporting.ShowExn(exn,"checking for spacing","IsSpacingExceptNewLine");
+		//	}
+		//	return bYes;
+		//}
+		
+		//public static bool IsNewLine(char val) {//replaced by IsNewLineChar
+		//	bool bYes=false;
+		//	try {
+		//		if (val=='\r') bYes=true;
+		//		else if (val=='\n') bYes=true;
+		//		else if (Contains(Environment.NewLine,val)) bYes=true;
+		//	}
+		//	catch (Exception exn) {
+		//		RReporting.ShowExn(exn,"checking for newline","IsNewLine");
+		//	}
+		//	return bYes;
+		//}
+
+		
+		public static bool LikeWildCard(string input, string pattern, bool bCaseSensitive) { //aka IsLike
 			return LikeWildCard(input, pattern, bCaseSensitive?RegexOptions.None:RegexOptions.IgnoreCase);
 		}
 		public static bool LikeWildCard(string input, string pattern, RegexOptions regexoptions) {//aka IsLike
@@ -960,21 +1121,21 @@ namespace ExpertMultimedia {
 				return false;
 			}
 		}
-		public static bool SafeCompare(string sValue, string Haystack, int iAtHaystackIndex) {
-			bool bFound=false;
-			try {
-				if ( sValue==Haystack.Substring(iAtHaystackIndex, sValue.Length) ) {
-					bFound=true;
-				}
-			}
-			catch (Exception exn) {
-				RReporting.Debug(exn);
-				bFound=false;
-			}
-			return bFound;
-		}
+		//public static bool SafeCompare(string sValue, string Haystack, int iAtHaystackIndex) { //replaced by CompareAt
+		//	bool bFound=false;
+		//	try {
+		//		if ( sValue==Haystack.Substring(iAtHaystackIndex, sValue.Length) ) {
+		//			bFound=true;
+		//		}
+		//	}
+		//	catch (Exception exn) {
+		//		RReporting.Debug(exn);
+		//		bFound=false;
+		//	}
+		//	return bFound;
+		//}
 		public static string SafeRemove(string sValue, int iExcludeAt, int iExcludeLen) {
-			return SafeSubstring(sValue,0,iExcludeAt)+RString.SafeSubstring(sValue,iExcludeAt+iExcludeLen);
+			return RString.SafeSubstring(sValue,0,iExcludeAt)+RString.SafeSubstring(sValue,iExcludeAt+iExcludeLen);
 		}
 		public static string SafeRemoveExcludingEnder(string sVal, int iExcludeAt, int iExcludeEnder) {
 			return SafeRemove(sVal,iExcludeAt,iExcludeEnder-iExcludeAt);
@@ -987,63 +1148,86 @@ namespace ExpertMultimedia {
 		}
 		public static void ReplaceNewLinesWithSpaces(ref string sDataNow) {
 			RString sCumulative=new RString(sDataNow.Length);
-			sCumulative=(RString)"";
+			//sCumulative=(RString)""; //don't do this--this would set Capacity to zero!
+			int iLinesFound=0;
+			int CharsReadCount=0;
 			if (sDataNow!=""&&sDataNow!=null) {
 				int iCursor=0;
-				int iCount=0;
 				string sLine;
-				while (ReadLine(out sLine, sDataNow, ref iCursor)) {
-					if (iCount==0) sCumulative.Append(sLine);
+				while (StringReadLine(out sLine, sDataNow, ref iCursor)) {
+					if (iLinesFound==0) {
+						CharsReadCount+=RString.SafeLength(sLine);
+						sCumulative.Append(sLine);
+					}
 					else {
 						sCumulative.Append(" ");
 						sCumulative.Append(sLine);
+						CharsReadCount+=RString.SafeLength(sLine)+1;
 					}
+					iLinesFound++;
 				}
 				if (sLine==""&&sCumulative.EndsWith(" ")) sCumulative.Trim(0,sCumulative.Length-1); //remove any trailing space that was ADDED ABOVE to a blank line.
 			}
-			if (!RReporting.IsNotBlank(sCumulative)&&RReporting.IsNotBlank(sDataNow)) RReporting.Debug("ReplaceNewLinesWithSpaces got empty string \""+sCumulative+"\" from used string \""+sDataNow+"\".");
+			if (!RReporting.IsNotBlank(sCumulative)&&RReporting.IsNotBlank(sDataNow)) RReporting.Debug("ReplaceNewLinesWithSpaces got empty string \""+sCumulative+"\" from used string \""+sDataNow+"\" {iLinesFound:"+iLinesFound+"; sCumulative.Length:"+sCumulative.Length+"; sCumulative.MaxCapacity:"+sCumulative.MaxCapacity+"; CharsReadCount:"+CharsReadCount+" }.");
 			sDataNow=(string)sCumulative;
-		}
+		} //end ReplaceNewLinesWithSpaces
 		/// <summary>
 		/// Gets the non-null equivalent of a null, empty, or nonempty string.
 		/// </summary>
 		/// <param name="val"></param>
-		/// <returns>If Null Then return is "NULLSTRING"; if "" then return is "", otherwise
-		/// val is returned.</returns>
-// 		public static string SafeString(string val, bool bReturnWhyIfNotSafe) {
-// 			try {
-// 				return (val!=null)
-// 					?val
-// 					:(bReturnWhyIfNotSafe?"null-string":"");
-// 			}
-// 			catch {//do not report this
-// 				return bReturnWhyIfNotSafe?"incorrectly-initialized-string":"";
-// 			}
-// 		}
+		/// <returns>If Null Then return is "null-string"; if "" then return is "", otherwise
+		/// value of val is returned.</returns>
+ 		public static string SafeString(string val, bool bReturnWhyIfNotSafe) {
+ 			try {
+ 				return (val!=null)
+ 					?val
+ 					:(bReturnWhyIfNotSafe?"null-string":"");
+ 			}
+ 			catch { //do not report this
+ 				return bReturnWhyIfNotSafe?"incorrectly-initialized-string":"";
+ 			}
+		}
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="sData"></param>
+		/// <param name="sFrom"></param>
+		/// <param name="sTo"></param>
+		/// <returns>Negative if failed, int.MinValue if none done, 0 or positive if good (count done)</returns>
 		public static int ReplaceAll(ref string sData, string sFrom, string sTo) {
 			int iReturn=0;
 			try {
 				if (sData.Length==0) {
-					RReporting.ShowErr("There is no text in which to search for replacement.");
+					RReporting.Debug("There is no text in which to search for replacement.","replacing text chunk","RString ReplaceAll");
 					//still returns true (0) though
 				}
 				else {
 					int iPlace=sData.IndexOf(sFrom);
-					int iReplaced=0;
+					//int iReplaced=0;
 					while (iPlace>-1) {
 						sData=sData.Remove(iPlace,sFrom.Length);
 						sData=sData.Insert(iPlace,sTo);
-						if (iPlace>=0) iReplaced++;
+						//if (iPlace>=0) iReplaced++;
 						iReturn++;
 						iPlace=sData.IndexOf(sFrom);
 					}
 				}
 			}
 			catch (Exception exn) {
+				if (iReturn>0) iReturn*=-1;
+				else iReturn=int.MinValue;
 				RReporting.ShowExn(exn,"replacing & counting all string instances");
+				//still return # of replacements that worked
 			}
 			return iReturn;
 		}//end ReplaceAll
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="sFrom"></param>
+		/// <param name="sTo"></param>
+		/// <param name="sarrHaystack"></param>
+		/// <returns>Negative if failed, int.MinValue if none done, 0 or positive if good (count done)</returns>
 		public static int ReplaceAll(string sFrom, string sTo, string[] sarrHaystack) {
 			int iReturn=0;
 			try {
@@ -1054,49 +1238,86 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
+				if (iReturn>0) iReturn*=-1;
+				else iReturn=int.MinValue;
 				RReporting.ShowExn(exn,"replacing & counting all string instances in all strings in string array");
 			}
 			return iReturn;
 		}
-		public static void RemoveSpacingBeforeNewLines(ref string sData) {
-			int iFound=1;
+		/// <summary>
+		/// Removes spacing before newlines.
+		/// </summary>
+		/// <param name="sData"></param>
+		/// <returns></returns>
+		public static int RemoveSpacingBeforeNewLines(ref string sData) {
+			int iFoundThisRound=1;//MUST start >0
+			int iFoundTotal=0;
 			try {
-				while (iFound>0) {
-					iFound=0;
-					iFound+=ReplaceAll(ref sData, sRemoveSpacingBeforeNewLines1, Environment.NewLine);
-					iFound+=ReplaceAll(ref sData, sRemoveSpacingBeforeNewLines2, Environment.NewLine);
-					RReporting.Debug("Removing "+iFound.ToString()+", "+iFound.ToString()+" total...");
+				while (iFoundThisRound>0) {
+					iFoundThisRound=0;
+					iFoundThisRound+=ReplaceAll(ref sData, " "+Environment.NewLine, Environment.NewLine);
+					iFoundThisRound+=ReplaceAll(ref sData, "\t"+Environment.NewLine, Environment.NewLine);
+					iFoundThisRound+=ReplaceAll(ref sData, " \n","\n");
+					iFoundThisRound+=ReplaceAll(ref sData, "\t\n", "\n");
+					iFoundThisRound+=ReplaceAll(ref sData, " \r","\r");
+					iFoundThisRound+=ReplaceAll(ref sData, "\t\r", "\r");
+					iFoundTotal+=iFoundThisRound;
+					RReporting.Debug("Removing "+iFoundThisRound.ToString()+", "+iFoundTotal.ToString()+" total...");
 				}
-				RReporting.Debug("Done with "+iFound.ToString()+" total spacing before newlines removed.");
+				RReporting.Debug("Done with "+iFoundTotal.ToString()+" total spacing before newlines removed.");
 			}
 			catch (Exception exn) {
+				if (iFoundTotal>0) iFoundTotal*=-1;
+				else iFoundTotal=int.MinValue;
 				RReporting.ShowExn(exn);
 			}
+			return iFoundTotal;
+		}//end RemoveSpacingBeforeNewLines
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="sData"></param>
+		/// <returns>Negative if failed, int.MinValue if none done, 0 or positive if good (count done)</returns>
+		public static int RemoveBlankLines(ref string sData) {
+			return RemoveBlankLines(ref sData, false);
 		}
-		public static void RemoveBlankLines(ref string sData) {
-			RemoveBlankLines(ref sData, false);
-		}
-		public static void RemoveBlankLines(ref string sData, bool bAllowTrailingNewLines) {
-			try {
+		/// <summary>
+		/// Returns total
+		/// </summary>
+		/// <param name="sData"></param>
+		/// <param name="bAllowTrailingNewLines"></param>
+		/// <returns>Negative if failed, int.MinValue if none done, 0 or positive if good (count done)</returns>
+		public static int RemoveBlankLines(ref string sData, bool bAllowTrailingNewLines) {
+			int iTotal=0;
+			try {//debug performance: use RString instead of string object
 				int iFoundNow=1;
-				string sRemove=Environment.NewLine+Environment.NewLine;
+				string sRemoveNL=Environment.NewLine+Environment.NewLine;
+				string sRemoveN="\n\n";
+				string sRemoveR="\r\r";
 				while (iFoundNow>0) {
 					iFoundNow=0;
-					iFoundNow+=ReplaceAll(ref sData, sRemove, Environment.NewLine);
-					RReporting.Debug("Removing "+iFoundNow.ToString()+", "+iFoundNow.ToString()+" total...");
+					iFoundNow+=ReplaceAll(ref sData, sRemoveNL, Environment.NewLine);
+					iFoundNow+=ReplaceAll(ref sData, sRemoveN, "\n");
+					iFoundNow+=ReplaceAll(ref sData, sRemoveR, "\r");
+					iTotal+=iFoundNow;
+					RReporting.Debug("Removing "+iFoundNow.ToString()+", "+iTotal.ToString()+" total blank...");
 				}
 				if (!bAllowTrailingNewLines) {
 					while (sData.EndsWith(Environment.NewLine)) {
 						sData=sData.Substring(0,sData.Length-Environment.NewLine.Length);
 						iFoundNow++;
-						RReporting.Debug("Removing "+iFoundNow.ToString()+", "+iFoundNow.ToString()+" total...removed trailing blank line...");
+						iTotal++;
+						RReporting.Debug("Removing "+iFoundNow.ToString()+", "+iTotal.ToString()+" total...removed trailing blank line...");
 					}
 				}
-				RReporting.Debug("Done with "+iFoundNow.ToString()+" total blank lines removed.");
+				RReporting.Debug("Done with "+iTotal.ToString()+" total blank lines removed.");
 			}
 			catch (Exception exn) {
+				if (iTotal>0) iTotal*=-1;
+				else iTotal=int.MinValue;
 				RReporting.ShowExn(exn);
 			}
+			return iTotal;
 		}//end RemoveBlankLines
 		public static string AlphabeticalByNumber(int iStartingWithZeroAsA) {
 			return AlphabeticalByNumber(iStartingWithZeroAsA, false);
@@ -1113,8 +1334,8 @@ namespace ExpertMultimedia {
 			string sReturn=" ";
 			if (iStartingWithZeroAsA>-1 && iStartingWithZeroAsA<carrAlphabetUpper.Length) 
 				sReturn=char.ToString( (bUpperCase)?
-				                      carrAlphabetUpper[iStartingWithZeroAsA]
-				                      :carrAlphabetLower[iStartingWithZeroAsA] );
+									  carrAlphabetUpper[iStartingWithZeroAsA]
+									  :carrAlphabetLower[iStartingWithZeroAsA] );
 			return sReturn;
 		}
 		public static int IndexOf(string Haystack, char Needle) {
@@ -1133,7 +1354,25 @@ namespace ExpertMultimedia {
 			}
 			return iReturn;
 		}
-		public static int IndexOf(string Haystack, string Needle, int start, int IndexOfCharInNeedleToFind) {
+		public static int LastIndexOf(string Haystack, char Needle) {
+			if (RString.SafeLength(Haystack)>0) return LastIndexOf(Haystack,Needle,RString.SafeLength(Haystack)-1);
+			else return -1;
+		}
+		public static int LastIndexOf(string Haystack, char Needle, int start) {//formerly IndexInSubstring
+			int iReturn=-1;
+			
+			if (Haystack!=null&&Haystack!=""&&start>=0) {
+				if (start>=Haystack.Length) start=Haystack.Length-1;
+				for (int iChar=start; iChar>=0; iChar--) {
+					if (Haystack[iChar]==Needle) {
+						iReturn=iChar;
+						break;
+					}
+				}
+			}
+			return iReturn;
+		}//end LastIndexOf
+		public static int IndexOfChar(string Haystack, string Needle, int start, int IndexOfCharInNeedleToFind) {
 			int iReturn=-1;
 			if (Haystack!=null&&Haystack!=""&&start<Haystack.Length) {
 				if (start<0) start=0;
@@ -1218,7 +1457,7 @@ namespace ExpertMultimedia {
 		/// <param name="sField">Values Separated by mark</param>
 		/// <param name="sMark">Mark that Separates Values</param>
 		/// <returns></returns>
-		public static string[] StringsFromMarkedList(string sField, string sMark) {
+		public static string[] StringsFromMarkedList(string sField, string sMark) {//formerly DelimitedList
 			string[] sarrNew=null;
 			int index=0;
 			try {
@@ -1274,7 +1513,7 @@ namespace ExpertMultimedia {
 				sarrNew[0]=sField;
 			}
 			return sarrNew;
-		}
+		}//end StringsFromMarkedList
 		public static bool SelectTo(out int iSelLen, string sAllText, int iFirstChar, int iLastCharInclusive) {
 			iSelLen=0;
 			bool bGood=false;
@@ -1314,15 +1553,15 @@ namespace ExpertMultimedia {
 				);
 			}
 			return bGood;
-		}
+		}//end SelectTo
 		public static bool MoveToOrStayAtSpacingOrString(ref int iMoveMe, string sData, string sFindIfBeforeSpacing) {
 			bool bGood=true;
 			try {
 				int iEOF=sData.Length;
 				while (iMoveMe<iEOF) {
-					if (RString.IsSpacing(sData[iMoveMe]))
+					if (RString.IsWhiteSpace(sData[iMoveMe]))
 						break;
-					else if (sData.Substring(iMoveMe,sFindIfBeforeSpacing.Length)==sFindIfBeforeSpacing)
+					else if (CompareAt(sData,sFindIfBeforeSpacing,iMoveMe))
 						break;
 					else iMoveMe++;
 				}
@@ -1333,13 +1572,32 @@ namespace ExpertMultimedia {
 				RReporting.ShowExn(exn);
 			}
 			return bGood;
-		}
+		} //MoveToOrStayAtSpacingOrString(ref int iMoveMe, string sData, string sFindIfBeforeSpacing) {
+		/// <summary>
+		/// Moves past whitespace (spaces, newlines, etc) OR SkipMe
+		/// </summary>
+		/// <param name="iMoveMe">Lands past the whitespace and SkipMe characters (maximum result is equal to sData.Length).</param>
+		/// <param name="sData"></param>
+		/// <param name="SkipMe">WhiteSpace and this are skipped</param>
+		/// <returns>returns true if iMoveMe is in range (0 to less than 
+		/// or equal to sData.Length) and sData is non-null</returns>
+		public static bool MovePastWhiteSpaceOrChar(ref int iMoveMe, string sData, char SkipMe) { //formerly MovePastSpacingOrChar, formerly MoveToOrStayAtSkipSpacingOrChar
+			bool bGood=false;
+			if (sData!=null&&iMoveMe>=0) {
+				if (iMoveMe<=sData.Length) bGood=true;
+				while (iMoveMe<sData.Length) {
+					if (RString.IsWhiteSpace(sData[iMoveMe])||sData[iMoveMe]==SkipMe) iMoveMe++;
+					else break;
+				}
+			}
+			return bGood;
+		}//end MovePastSpacingOrChar
 		public static bool MoveBackToOrStayAt(ref int iMoveMe, string sData, string sFind) {
 			bool bGood=false;
 			try {
 				int iEOF=-1;
 				while (iMoveMe>iEOF) {
-					if (sData.Substring(iMoveMe,sFind.Length)==sFind) {
+					if (CompareAt(sData,sFind,iMoveMe)) {
 						bGood=true;
 						break;
 					}
@@ -1354,13 +1612,13 @@ namespace ExpertMultimedia {
 				bGood=false;
 			}
 			return bGood;
-		}
+		} //MoveBackToOrStayAt
 		public static bool MoveToOrStayAt(ref int iMoveMe, string sData, string sFind) {
 			bool bGood=false;
 			try {
 				int iEOF=sData.Length;
 				while (iMoveMe<iEOF) {
-					if (sData.Substring(iMoveMe,sFind.Length)==sFind) {
+					if (CompareAt(sData,sFind,iMoveMe)) {
 						bGood=true;
 						break;
 					}
@@ -1375,13 +1633,13 @@ namespace ExpertMultimedia {
 				bGood=false;
 			}
 			return bGood;
-		}
+		} //MoveToOrStayAt
 		public static bool MoveToOrStayAtSpacing(ref int iMoveMe, string sData) {
 			bool bGood=false;
 			try {
 				int iEOF=sData.Length;
 				while (iMoveMe<iEOF) {
-					if (RString.IsSpacing(sData,iMoveMe)) {
+					if (RString.IsWhiteSpace(sData,iMoveMe)) {
 						bGood=true;
 						break;
 					}
@@ -1394,19 +1652,19 @@ namespace ExpertMultimedia {
 			}
 			return bGood;
 		}
-		public static bool PreviousLineBreakerExceptNewLine(string sText, ref int iReturnBreaker_ElseNeg1, out bool bVisibleBreaker) {
+		public static bool PreviousWordBreakerExceptNewLine(string sText, ref int iReturnBreaker_ElseNeg1, out bool bVisibleBreaker) {
 			bool bGood=true;
 			bVisibleBreaker=false;
 			try {
 				while (iReturnBreaker_ElseNeg1>-1) {
-					if (IsInvisibleLineBreaker_NoSafeChecks(sText[iReturnBreaker_ElseNeg1])) {
+					if (IsInvisibleWordBreaker_NoSafeChecks(sText[iReturnBreaker_ElseNeg1])) {
 						bVisibleBreaker=false;
 						return true;//bGood=true;
 					}
 					iReturnBreaker_ElseNeg1--;
 				}
 				while (iReturnBreaker_ElseNeg1>-1) {
-					if (IsVisibleLineBreaker_Unsafe(sText[iReturnBreaker_ElseNeg1])) {
+					if (IsVisibleWordBreaker_Unsafe(sText[iReturnBreaker_ElseNeg1])) {
 						bVisibleBreaker=true;
 						return true;//bGood=true;
 					}
@@ -1416,109 +1674,132 @@ namespace ExpertMultimedia {
 			catch (Exception exn) {	
 				bGood=false;
 				RReporting.ShowExn(exn,"looking for previous non-newline break",
-					String.Format("PreviousLineBreakerExceptNewLine(sText:{0},iReturnBreaker_ElseNeg1:{1})",
+					String.Format("PreviousWordBreakerExceptNewLine(sText:{0},iReturnBreaker_ElseNeg1:{1})",
 					RReporting.StringMessage(sText,false),iReturnBreaker_ElseNeg1)
 				);
 			}
 			return bGood;
 		}
-		private static bool IsVisibleLineBreaker_Unsafe(char val) {
+		private static bool IsVisibleWordBreaker_Unsafe(char val) {
 			int iNow;
-			for (iNow=0; iNow<carrLineBreakerVisible.Length; iNow++) {
-				if (carrLineBreakerVisible[iNow]==val) {
+			for (iNow=0; iNow<carrWordBreakerVisible.Length; iNow++) {
+				if (carrWordBreakerVisible[iNow]==val) {
 					return true;
 				}
 			}
 			return false;
 		}
-		private static bool IsInvisibleLineBreaker_NoSafeChecks(char val) {
+		private static bool IsInvisibleWordBreaker_NoSafeChecks(char val) {
 			int iNow;
-			for (iNow=0; iNow<carrLineBreakerInvisible.Length; iNow++) {
-				if (carrLineBreakerInvisible[iNow]==val) {
+			for (iNow=0; iNow<carrWordBreakerInvisible.Length; iNow++) {
+				if (carrWordBreakerInvisible[iNow]==val) {
 					return true;
 				}
 			}
 			return false;
 		}
-		public static bool IsLineBreakerExceptNewLine(char val) {
+		public static bool IsWordBreakerExceptNewLine(char val) {
 			int iNow;
-			for (iNow=0; iNow<carrLineBreakerInvisible.Length; iNow++) {
-				if (carrLineBreakerInvisible[iNow]==val) {
+			for (iNow=0; iNow<carrWordBreakerInvisible.Length; iNow++) {
+				if (carrWordBreakerInvisible[iNow]==val) {
 					return true;
 				}
 			}
-			for (iNow=0; iNow<carrLineBreakerVisible.Length; iNow++) {
-				if (carrLineBreakerVisible[iNow]==val) {
+			for (iNow=0; iNow<carrWordBreakerVisible.Length; iNow++) {
+				if (carrWordBreakerVisible[iNow]==val) {
 					return true;
 				}
 			}
 			return false;
 		}
-		public static bool IsLineBreaker(char val) {
-			return IsLineBreakerExceptNewLine(val)||IsNewLine(val);
+		public static bool IsWordBreaker(char val) {
+			return IsWordBreakerExceptNewLine(val)||RString.IsNewLineChar(val);
 		}
-		public static bool IsLineBreaker(string val, int iChar) {
-			return iChar>=0&&val!=null&&iChar<val.Length&&IsLineBreaker(val[iChar]);
+		public static bool IsWordBreaker(string val, int iChar) {
+			return iChar>=0&&val!=null&&iChar<val.Length&&IsWordBreaker(val[iChar]);
 		}
-		public static bool IsLineBreakerExceptNewLine(string val, int iChar) {
-			return iChar>=0&&val!=null&&iChar<val.Length&&IsLineBreakerExceptNewLine(val[iChar]);
+		public static bool IsWordBreakerExceptNewLine(string val, int iChar) {
+			return iChar>=0&&val!=null&&iChar<val.Length&&IsWordBreakerExceptNewLine(val[iChar]);
 		}
-		public static bool IsSpacing(string val, int iChar) {
-			return (IsSpacingExceptNewLine(val[iChar])||IsNewLine(val[iChar]));
+		//public static string[] Explode(string val, char delimiter, bool bRemoveEndsWhiteSpace) {
+		//	int iCount=RString.CountInstances(val,delimiter)+1;
+		//	string[] sarrReturn=new string[iCount];
+		//	int iChunk=0;
+		//	int iStartNow=0;
+		//	if (iCount>1) {
+		//		for (int iChar=0; iChar<=val.Length; iChar++) {
+		//			if (iChar==val.Length||val[iChar]==delimiter) {
+		//				sarrReturn[iChunk]=RString.SafeSubstring(val,iStartNow,iChar-iStartNow);
+		//				if (bRemoveEndsWhiteSpace) RString.RemoveEndsWhiteSpace(ref sarrReturn[iChunk]);
+		//				iStartNow=iChar+1;
+		//				iChunk++;
+		//			}
+		//		}
+		//	}
+		//	else sarrReturn[0]=val;
+		//	return sarrReturn;
+		//}
+		public static string[] Explode(string val, char delimiter, bool bRemoveEndsWhiteSpace, string DoNotBreakAtDelimiterIfEnclosedInThis_SetThisToNullToIgnore) {
+			//debug performance: conversion to string and using CompareAt in called method
+			return Explode(val,char.ToString(delimiter),bRemoveEndsWhiteSpace,DoNotBreakAtDelimiterIfEnclosedInThis_SetThisToNullToIgnore);
 		}
-		public static bool IsSpacing(char val) {
-			return (IsSpacingExceptNewLine(val)||IsNewLine(val));
-		}
-		public static bool RemoveEndsSpacingExceptNewLine(ref string val) {
-			try {
-				if (val==null) val="";
-				int iStart=0;
-				int iEnder=val.Length-1;
-				int iLength=val.Length;
-				while (iLength>0&&(val[iStart]=='\t'||val[iStart]==' ')) {iStart++;iLength--;}
-				while (iLength>0&&(val[iEnder]=='\t'||val[iEnder]==' ')) {iEnder--;iLength--;}
-				if (iLength!=val.Length) val=SafeSubstring(val,iStart,iLength);
+		//Version that was created from scratch in 2010 since a computer had old version of RString.cs:
+		//public static string[] Explode(string val, string delimiter, bool bRemoveEndsWhiteSpace) {
+		//	string[] sarrReturn=null;
+		//	try {
+		//		int iCount=RString.CountInstances(val,delimiter)+1;
+		//		string[] sarrReturn=new string[iCount];
+		//		int iChunk=0;
+		//		int iStartNow=0;
+		//		if (iCount>1) {
+		//			for (int iChar=0; iChar<=val.Length; iChar++) {
+		//				if (iChar==val.Length||RString.CompareAt(val,delimiter,iChar,val.Length,false) {
+		//					sarrReturn[iChunk]=RString.SafeSubstring(val,iStartNow,iChar-iStartNow);
+		//					if (bRemoveEndsWhiteSpace) RString.RemoveEndsWhiteSpace(ref sarrReturn[iChunk]);
+		//					iStartNow=iChar+delimiter.Length;
+		//					iChunk++;
+		//				}
+		//			}
+		//		}
+		//		else sarrReturn[0]=val;
+		//	}
+		//	catch (Exception exn) {
+		//		RReporting.ShowExn(exn,"dividing string into array","Explode");
+		//	}
+		//	return sarrReturn;
+		//}//end Explode
+		public static string[] Explode(string val, string delimiter, bool bRemoveEndsWhiteSpace, string DoNotBreakAtDelimiterIfEnclosedInThis_SetThisToNullToIgnore) {
+			int iCount = RString.CountInstances(val, delimiter) + 1;
+			string[] sarrReturn = new string[iCount];
+			int iChunk = 0;
+			int iStartNow = 0;
+			bool bInQuotes=false;
+			if (iCount > 1) {
+				for (int iChar = 0; iChar <= val.Length; iChar++) {
+					if (DoNotBreakAtDelimiterIfEnclosedInThis_SetThisToNullToIgnore!=null
+							&& iChar != val.Length
+							&& RString.CompareAt(val, DoNotBreakAtDelimiterIfEnclosedInThis_SetThisToNullToIgnore, iChar) ) {
+						bInQuotes=!bInQuotes;
+						iChar+=DoNotBreakAtDelimiterIfEnclosedInThis_SetThisToNullToIgnore.Length-1; //-1 since incremented by 1 at end of loop anyway
+					}
+					else if ( iChar==val.Length
+					         || ( RString.CompareAt(val, delimiter, iChar) && !bInQuotes ) ) {
+						sarrReturn[iChunk] = RString.SafeSubstring(val, iStartNow, iChar - iStartNow);
+						if (bRemoveEndsWhiteSpace) RString.RemoveEndsWhiteSpace(ref sarrReturn[iChunk]);
+						iStartNow = iChar + delimiter.Length;
+						iChunk++;
+					}
+				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
-				return false;
-			}
-			return true;
-// 			try {
-// 				if (val==null) val="";
-// 				while (val.Length>0&&val.StartsWith(" ")) val=val.Substring(0,val.Length-1);
-// 				while (val.Length>0&&val.EndsWith(" ")) val=val.Substring(0,val.Length-1);
-// 				while (val.Length>0&&val.StartsWith("\t")) val=val.Substring(0,val.Length-1);
-// 				while (val.Length>0&&val.EndsWith("\t")) val=val.Substring(0,val.Length-1);
-// 			}
-// 			catch (Exception exn) {
-// 				RReporting.ShowExn(exn);
-// 				return false;
-// 			}
-// 			return true;
-		}
-		public static bool RemoveEndsNewLines(ref string val) {
-			try {
-				if (val==null) val="";
-				int iStart=0;
-				int iEnder=val.Length-1;
-				int iLength=val.Length;
-				int iNewLine=Environment.NewLine.Length;
-				while (iLength>0&&CompareAt(val, Environment.NewLine, iStart)) {iStart+=iNewLine; iLength-=iNewLine;}
-				while (iLength>0&&CompareAt(val, Environment.NewLine, iEnder-(iNewLine-1))) {iEnder-=iNewLine; iLength-=iNewLine;}
-				while (iLength>0&&(val[iStart]=='\n'||val[iStart]=='\r')) {iStart++;iLength--;}
-				while (iLength>0&&(val[iEnder]=='\n'||val[iEnder]=='\r')) {iEnder--;iLength--;}
-				if (iLength!=val.Length) val=SafeSubstring(val,iStart,iLength);
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
-				return false;
-			}
-			return true;
-		}
-		public static bool RemoveEndsSpacing(ref string val) {
-			return RemoveEndsNewLines(ref val) && RemoveEndsSpacingExceptNewLine(ref val);
-		}
+			else sarrReturn[0] = val;
+			return sarrReturn;
+		}//end Explode
+		//public static bool IsSpacing(string val, int iChar) { //replaced by IsHorizontalSpacingChar
+		//	return (IsSpacingExceptNewLine(val[iChar])||IsNewLine(val[iChar]));
+		//}
+		//public static bool IsSpacing(char val) { //replaced by IsHorizontalSpacingChar
+		//	return (IsSpacingExceptNewLine(val)||IsNewLine(val));
+		//}
 		/// <summary>
 		/// Counts lines assuming Environment.NewLine is used; includes
 		/// blank lines at end (i.e. even if last line ends with newline)
@@ -1532,18 +1813,40 @@ namespace ExpertMultimedia {
 			return SafeIndexOf(Haystack, Needle, 0);
 		}
 		public static int SafeIndexOf(string Haystack, string Needle, int start) {
-			int iReturn= (Haystack==null || Haystack.Length<1 || Needle==null || Needle.Length<1) ?
-				-1
-				:((start>0)?SafeSubstring(Haystack,start):Haystack).IndexOf(Needle);
-			if (iReturn>-1) iReturn+=start;
+			int iReturn=-1;
+			if (Haystack!=null&&Haystack!=""&&Needle!=null&&Needle!="") {
+				while (start+Needle.Length<=Haystack.Length) {
+					if (CompareAt(Haystack,Needle,start)) {
+						iReturn=start;
+						break;
+					}
+					start++;
+				}
+			}
 			return iReturn;
 		}
-		public static bool SafeCompare(string[] sarrMatchAny, string Haystack, int iHaystack) {
+		public static int SafeIndexOf(string Haystack, char Needle) {
+			return SafeIndexOf(Haystack,Needle,0);
+		}
+		public static int SafeIndexOf(string Haystack, char Needle, int start) {
+			int iReturn=-1;
+			if (Haystack!=null) {
+				while (start<Haystack.Length) {
+					if (Haystack[start]==Needle) {
+						iReturn=start;
+						break;
+					}
+					start++;
+				}
+			}
+			return iReturn;
+		}
+		public static bool SafeCompare(string Haystack, string[] sarrMatchAny, int iHaystack) {
 			bool bFound=false;
 			try {
 				int iNow=0;
 				while (iNow<sarrMatchAny.Length) {
-					if (SafeCompare(sarrMatchAny[iNow], Haystack, iHaystack)) {
+					if (CompareAt(Haystack, sarrMatchAny[iNow], iHaystack)) {//if (SafeCompare(Haystack, sarrMatchAny[iNow], iHaystack)) {
 						bFound=true;
 						break;
 					}
@@ -1555,6 +1858,9 @@ namespace ExpertMultimedia {
 			}
 			return bFound;
 		}
+		//public static bool SafeCompare(string Haystack, string Needle, int AtHaystackIndex) {
+		//	return AtHaystackIndex>=0 && Haystack!=null && Haystack.Length>0 && Needle.Length>0 && AtHaystackIndex+Needle.Length<=Haystack.Length && CompareAt(Haystack, Needle, AtHaystackIndex);
+		//}
 		public static bool MoveToOrStayAtAttrib(ref int indexToGet, uint[] dwarrAttribToSearch, uint bitsToFindAnyOfThem) {
 			bool bFound=false;
 			try {
@@ -1736,18 +2042,33 @@ namespace ExpertMultimedia {
 			return sReturn;
 		}
 		///<summary>
-		///Modifies start and endbefore so that there are no quotes (if sData[start] and
-		/// sData[endbefore-1] are both '"' characters
+		///Modifies start and endbefore so that there are no quotes, IF sData[start] and
+		/// sData[endbefore-1] are both '"' characters; else DOES NOT MODIFY start nor endbefore
 		///start: the first character in sData
 		///endbefore: the exclusive ender in sData (the character before this is the last one)
 		///</summary>		
 		public static bool ShrinkToInsideQuotes(string sData, ref int start, ref int endbefore) {
 			bool bGood=false;
 			try {//if (start<0) start=0; if (endbefore>sData.Length) endbefore=sData.Length;
-				if ( ((endbefore-start)>=2) && sOpener[start]=='"' && sOpener[endbefore-1]=='"' ) {
-					start++;
+				while (endbefore>=0) {
+					if (RString.CompareAt(sData,'"',endbefore-1)) {
+						endbefore--;
+						break;
+					}
 					endbefore--;
 				}
+				while (start<=endbefore) {
+					if (RString.CompareAt(sData,'"',start)) {
+						start++;
+						break;
+					}
+					start++;
+				}
+				if (endbefore<start) endbefore=start;
+				//if ( ((endbefore-start)>=2) && sData[start]=='"' && sData[endbefore-1]=='"' ) {
+				//	start++;
+				//	endbefore--;
+				//}
 				bGood=true;
 			}
 			catch (Exception exn) {
@@ -1764,21 +2085,26 @@ namespace ExpertMultimedia {
 		public static string[] SplitScopes(string sField, char cBottomLevelScopeSeparator) {
 			string sSyntaxErr=null;
 			string[] sarrReturn=SplitScopes(sField, cBottomLevelScopeSeparator, false, out sSyntaxErr);
-			if (sSyntaxErr!=null) RReporting.SourceErr(sSyntaxErr);
+			if (sSyntaxErr!=null) RReporting.SourceErr(sSyntaxErr,"",sField);//debug figure out filename
 			return sarrReturn;
 		}
 		public static string[] SplitScopes(string sField, char cBottomLevelScopeSeparator, bool bIncludeTrailingCommaOrSemicolon, out string sSyntaxErr) {
-			return SplitScopes(sField,cBottomLevelScopeSeparator,bIncludeTrailingCommaOrSemicolon,out sSyntaxErr, 0, RString.SafeLength(sField));
+			string[] sarrReturn=null;
+			sSyntaxErr=null;
+			SplitScopes(ref sarrReturn, sField, cBottomLevelScopeSeparator, bIncludeTrailingCommaOrSemicolon, out sSyntaxErr, 0, RString.SafeLength(sField));
+			//return SplitScopes(sField,cBottomLevelScopeSeparator,bIncludeTrailingCommaOrSemicolon,out sSyntaxErr, 0, RString.SafeLength(sField));
+			return sarrReturn;
 		}
 		public static string[] SplitScopes(string sField, char cBottomLevelScopeSeparator, int start, int endbefore) {
 			string sSyntaxErr=null;
-			string[] sarrReturn=SplitScopes(sField, cBottomLevelScopeSeparator, false, out sSyntaxErr, start, endbefore);
-			if (sSyntaxErr!=null) RReporting.SourceErr(sSyntaxErr);
+			string[] sarrReturn=null;//SplitScopes(sField, cBottomLevelScopeSeparator, false, out sSyntaxErr, start, endbefore);
+			SplitScopes(ref sarrReturn, sField, cBottomLevelScopeSeparator, false, out sSyntaxErr, 0, RString.SafeLength(sField));//boolean is for bIncludeTrailingCommaOrSemicolon
+			if (sSyntaxErr!=null) RReporting.SourceErr(sSyntaxErr,"",sField);//debug figure out filename
 			return sarrReturn;
 		}
 
-		public static int SplitParams(ref string[] sarrName, ref string[] sarrValue, string sField, char cAssignmentOperator, char cAssignmentDelimiter) {
-			if (sField!=null) return SplitParams(ref sarrName, ref sarrValue, sField, cAssignmentOperator, cAssignmentDelimiter, 0, sField.Length);
+		public static int SplitParams(ref string[] sarrName, ref string[] sarrValue, string sField, char cAssignmentOperator, char cStatementDelimiter) {
+			if (sField!=null) return SplitParams(ref sarrName, ref sarrValue, sField, cAssignmentOperator, cStatementDelimiter, 0, sField.Length);
 			else return 0;
 		}
 		private static string[] sarrStatementsTemp=new string[80];
@@ -1786,14 +2112,16 @@ namespace ExpertMultimedia {
 		///Calls SplitScopes for splitting a delimited list of assignments and only 
 		/// creates/enlarges arrays if necessary
 		///</summary>
-		public static int SplitParams(ref string[] sarrName, ref string[] sarrValue, string sField, char cAssignmentOperator, char cAssignmentDelimiter, int start, int endbefore) {
+		public static int SplitParams(ref string[] sarrName, ref string[] sarrValue, string sField, char cAssignmentOperator, char cStatementDelimiter, int start, int endbefore) {
 			string sSyntaxErr=null;
-			int iTest=SplitScopes(ref sarrStatementsTemp,sField,cAssignmentDelimiter,false, out sSyntaxErr,start,endbefore);
-			if (sarrStatements!=null&&sarrStatements.Length>0) {
-				if (sarrName==null||sarrName.Length<sarrStatements.Length) sarrName=new string[sarrStatements.Length];
-				if (sarrValue==null||sarrValue.Length<sarrStatements.Length) sarrValue=new string[sarrStatements.Length];
+			int iTest=SplitScopes(ref sarrStatementsTemp,sField,cStatementDelimiter,false, out sSyntaxErr,start,endbefore);
+			if (sarrStatementsTemp!=null&&sarrStatementsTemp.Length>0) {
+				if (sarrName==null||sarrName.Length<sarrStatementsTemp.Length) sarrName=new string[sarrStatementsTemp.Length];
+				if (sarrValue==null||sarrValue.Length<sarrStatementsTemp.Length) sarrValue=new string[sarrStatementsTemp.Length];
+				//TODO: check this -- is it done??
 				
 			}
+			return iTest;
 		}//end SplitParams
 		///<summary>
 		///cBottomLevelScopeSeparator should be ';' if resolving scopes, and ',' if resolving functions,
@@ -1813,14 +2141,15 @@ namespace ExpertMultimedia {
 			bool bInQuotes=false;
 			int iStartNow=0;
 			bool bInSingleQuotes=false;
+			try {
 			if (sField!=null&&sField!="") {
-				if (sarrStatementsOut==null) Redim(ref sarrStatementsOut, 25, "SplitScopes");
+				if (sarrStatementsOut==null) RMemory.Redim(ref sarrStatementsOut, 25);
 				csScope=new CharStack();
 				for (int iNow=start; iNow<=endbefore; iNow++) {
 					if (iNow==endbefore || (iNow<endbefore&&(sField[iNow]==cBottomLevelScopeSeparator)&&csScope.Count==0&&!bInQuotes&&!bInSingleQuotes)) {
 						sarrStatementsOut[iCount]=sField.Substring(iStartNow,iNow-iStartNow+(bIncludeTrailingCommaOrSemicolon?1:0));
 						iCount++;
-						if (iCount>=sarrStatementsOut.Length) Redim(ref sarrStatementsOut, sarrStatementsOut.Length+sarrStatementsOut.Length/2+1, "SplitScopes");
+						if (iCount>=sarrStatementsOut.Length) RMemory.Redim(ref sarrStatementsOut, sarrStatementsOut.Length+sarrStatementsOut.Length/2+1);
 						iStartNow=iNow+1;
 					}
 					else if (!bInSingleQuotes&&sField[iNow]=='"'&&(iNow==0||sField[iNow-1]!='\\')) {
@@ -1843,8 +2172,15 @@ namespace ExpertMultimedia {
 				}//end for character iNow
 				if (sSyntaxErr!=null) RReporting.ShowErr(sSyntaxErr,"parsing code","SplitScopes");
 			}//end if not blank
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"splitting scopes in internal or external script statement","SplitScopes");
+			}
 			return iCount;
 		}//end SplitScopes
+		public static string TextSubArray(string sField, int index) {
+			return TextSubArray(sField, index, RString.SafeLength(sField));
+		}
 		/// <summary>
 		/// this is actually just a SplitCSV function that also accounts for sStarter and sEnder,
 		/// and gets the location of the content of column at index
@@ -1853,7 +2189,7 @@ namespace ExpertMultimedia {
 		/// --index 4 would return "c"
 		/// </summary>
 		/// <returns>whether subsection index was found</returns>
-		public static string TextSubArray(string sField, int index) {
+		public static string TextSubArray(string sField, int index, int endbefore) {
 			int iStart;
 			int iLen;
 			bool bTest=SubSection(out iStart, out iLen, sField, 0, endbefore, "{", "}", index);
@@ -1981,11 +2317,35 @@ namespace ExpertMultimedia {
 			}
 			return iFound;
 		}//end Base SubSections
+		/// <summary>
+		/// Gets YYYY-MM-DD format where '-' is sDateDelimiter.
+		/// Gets YYYYMMDD if sDateDelimiter is null or ""
+		/// </summary>
+		/// <param name="sDateDelimiter"></param>
+		/// <returns></returns>
+		public static string DateSixDigitOrDelimited(string sDateDelimiter) {
+			if (sDateDelimiter==null) sDateDelimiter="";
+			string sReturn="";
+			try {
+				System.DateTime dtX;
+				dtX=DateTime.Now;
+				sReturn=dtX.Year+sDateDelimiter;
+				if (dtX.Month<10) sReturn+="0";
+				sReturn+=dtX.Month.ToString()+sDateDelimiter;
+				if (dtX.Day<10) sReturn+="0";
+				sReturn+=dtX.Day.ToString();
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"getting current");
+				sReturn="UnknownDate";
+			}
+			return sReturn;
+		}//end DateSixDigit
 		public static string DateTimePathString(bool bIncludeMilliseconds) {
 			return DateTimeString(bIncludeMilliseconds,"_","_at_",".");
 		}
 		public static string DateTimeString(bool bIncludeMilliseconds, string sDateDelimiter, string sDateTimeSep, string sTimeDelimiter) {
-			string sReturn;
+			string sReturn=null;
 			try {
 				System.DateTime dtX;
 				dtX=DateTime.Now;
@@ -2053,6 +2413,9 @@ namespace ExpertMultimedia {
 		public static string SequenceDigits(long lFrame) {
 			return SequenceDigits(lFrame, 4);
 		}
+		public static string SequenceDigits(int lFrame) {
+			return SequenceDigits(lFrame, 4);
+		}
 		public static string SequenceDigits(long lFrame, int iMinDigits) {
 			string sDigits;
 			long lFrameDestructible=lFrame;
@@ -2071,10 +2434,28 @@ namespace ExpertMultimedia {
 			while (sDigits.Length<iMinDigits) sDigits="0"+sDigits;
 			return sDigits;
 		}
+		public static string SequenceDigits(int lFrame, int iMinDigits) {
+			string sDigits;
+			int lFrameDestructible=lFrame;
+			int lDigit;
+			int lMod=10;
+			int lDivisor=1;
+			sDigits="";
+			while (lFrameDestructible>0) {
+				lDigit=lFrameDestructible%lMod;
+				lFrameDestructible-=lDigit;
+				lDigit/=lDivisor;
+				sDigits=lDigit.ToString()+sDigits;
+				lMod*=10;
+				lDivisor*=10;
+			}
+			while (sDigits.Length<iMinDigits) sDigits="0"+sDigits;
+			return sDigits;
+		}
 		
 // WebClient  Client = new WebClient();
 // Client.UploadFile("http://www.csharpfriends.com/Members/index.aspx", 
-//      "c:\wesiteFiles\newfile.aspx");
+//	  "c:\wesiteFiles\newfile.aspx");
 // 
 // byte [] image;
 // 
@@ -2087,12 +2468,12 @@ namespace ExpertMultimedia {
 // 		//Create a new WebClient instance.
 // 		WebClient myWebClient = new WebClient();
 // 		//Download home page data. 
-// 		Console.WriteLine("Accessing {0} ...",  uriString);                        
+// 		Console.Error.WriteLine("Accessing {0} ...",  uriString);
 // 		//Open a stream to point to the data stream coming from the Web resource.
 // 		Stream myStream = myWebClient.OpenRead(uriString);
-// 		Console.WriteLine("\nDisplaying Data :\n");
+// 		Console.Error.WriteLine("\nDisplaying Data :\n");
 // 		StreamReader sr = new StreamReader(myStream);
-// 		Console.WriteLine(sr.ReadToEnd());
+// 		Console.Error.WriteLine(sr.ReadToEnd());
 // 		//Close the stream. 
 // 		myStream.Close();
 // 		
@@ -2132,13 +2513,28 @@ namespace ExpertMultimedia {
 			return sReturn;
 		}
 		public static string FileToString(string sFile) {
+	/*
+			FileStream fsIn=null;
+			BinaryReader brIn=null;
+			byte[] byarrData=null;
+			try {
+				brIn=new BinaryReader(fsIn);
+				StreamReader sr;
+				
+				byarrData=brIn.R
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"converting file to string");
+			}
+			return FileToString(sFile, Environment.NewLine);
+			*/
 			return FileToString(sFile, Environment.NewLine);
 		}
 		public static string FileToString(string sFile, string sInsertMeAtNewLine) {
 			return FileToString(sFile, sInsertMeAtNewLine, false);
 		}
 		
-		public static string FileToString(string sFile, string sInsertMeAtNewLine, bool bAllowLoadingEndingNewLines) {//formerly StringFromFile
+		public static string FileToString(string sFile, string sInsertMeAtNewLine, bool bAllowLoadingNewLinesAtEndOfFile) {//formerly StringFromFile
 			RReporting.sLastFile=sFile;
 			StreamReader sr;
 			string sDataX="";
@@ -2146,16 +2542,18 @@ namespace ExpertMultimedia {
 			try {
 				sr=new StreamReader(sFile);
 				//bool bFirst=true;
+				if (sInsertMeAtNewLine==null) sInsertMeAtNewLine="";
 				while ( (sLine=sr.ReadLine()) != null ) {
 					//if (bFirst==true) {
 					//	sDataX=sLine;
 					//	bFirst=false;
 					//}
-					//else 
-					sDataX+=sLine+sInsertMeAtNewLine;
+					//else
+					if ( sLine.Length>0 && (sLine[sLine.Length-1]=='\r'||sLine[sLine.Length-1]=='\n') ) sDataX+=RString.SafeSubstring(sLine,0,sLine.Length-1)+sInsertMeAtNewLine;
+					else sDataX+=sLine+sInsertMeAtNewLine;
 				}
-				sDataX=sDataX.Substring(0,sDataX.Length-(Environment.NewLine.Length));
-				if (!bAllowLoadingEndingNewLines) {
+				sDataX=RString.SafeSubstring(sDataX,0,sDataX.Length-(Environment.NewLine.Length));
+				if (!bAllowLoadingNewLinesAtEndOfFile) {
 					while (sDataX.EndsWith(Environment.NewLine)) {
 						sDataX=sDataX.Substring(0,sDataX.Length-Environment.NewLine.Length);
 					}
@@ -2172,57 +2570,470 @@ namespace ExpertMultimedia {
 			}
 			return sDataX;
 		}
-		public static bool StringReadLine(out string sReturn, string sAllData, ref int iMoveMe) {//formerly ReadLine
-			bool HasALine=false;
-			bool bNewLine=false;
-			sReturn="";
+		public static string StringReadLine(string sAllData, ref int iMoveMe) {
+			//bool HasALine=false;
+			int iNewLineLenNow=0; //bool bNewLine=false;
+			string sReturn=null;
 			try {
-				
 				int iStart=iMoveMe;
-				if (iMoveMe<sAllData.Length) HasALine=true;
-				while (iMoveMe<sAllData.Length) {//i.e. could be starting at 0 when length is 1!
-					//string sTemp=SafeSubstring(sAllData,iMoveMe,Environment.NewLine.Length);
-					if (CompareAt(sAllData,Environment.NewLine,iMoveMe)) {
-						bNewLine=true;
-						break;
+				if (iMoveMe<sAllData.Length) {
+					while (iMoveMe<sAllData.Length) { //i.e. could be starting at 0 when length is 1!
+						//string sTemp=SafeSubstring(sAllData,iMoveMe,Environment.NewLine.Length);
+						iNewLineLenNow=IsNewLineAndGetLength(sAllData,iMoveMe);
+						if (iNewLineLenNow>0) {//(CompareAt(sAllData,Environment.NewLine,iMoveMe)) {
+							break;
+						}
+						else iMoveMe++;
 					}
-					else iMoveMe++;
+					if (iNewLineLenNow<1) iMoveMe=sAllData.Length;//run to end if started after last newline (or there is no newline)
+					sReturn=SafeSubstring(sAllData,iStart,iMoveMe-iStart);
 				}
-				if (!bNewLine) iMoveMe=sAllData.Length;//run to end if started after last newline (or there is no newline)
-				sReturn=SafeSubstring(sAllData,iStart,iMoveMe-iStart);
 				//RReporting.Debug("Base Read line ["+iStart.ToString()+"]toExcludingChar["+iMoveMe.ToString()+"]:"+sReturn);
-				if (bNewLine) iMoveMe+=Environment.NewLine.Length;
+				if (iNewLineLenNow>0) iMoveMe+=iNewLineLenNow;
 			}
 			catch (Exception exn) {
 				RReporting.ShowExn(exn);
+				sReturn=null;
 			}
-			return HasALine;
+			return sReturn;//HasALine;
+		}//end StringReadLine
+		public static bool StringReadLine(out string sReturn, string sAllData, ref int iMoveMe) {//formerly ReadLine
+			sReturn=StringReadLine(sAllData,ref iMoveMe);
+			return sReturn!=null;
 		}//end StringReadLine
 
 
 #endregion moved from Base
-#region utilities
+
+#region array searching moved from Base
+		public static int IndexOf(string[] Haystack, string Needle) {
+			return IndexOf(Haystack,Needle,0,RReporting.SafeLength(Haystack));
+		}
+		public static int IndexOf(string[] Haystack, string Needle, int iHaystackStart) {
+			return IndexOf(Haystack,Needle,iHaystackStart,RReporting.SafeLength(Haystack));
+		}
+		///<summary>
+		///Returns index of Haystack where Needle occurs, otherwise -1 if not found
+		/// or if Needle is blank.
+		///</summary>
+		public static int IndexOf(string[] Haystack, string Needle, int iHaystackStart, int iHaystackCount) {
+			int iReturn=-1;
+			if (Haystack!=null&&RString.IsNotBlank(Needle)) {
+				for (int iNow=iHaystackStart; iNow<iHaystackCount; iNow++) {
+					if (Haystack[iNow]==Needle) {
+						iReturn=iNow;
+						break;
+					}
+				}
+			}
+			return iReturn;
+		}//end IndexOf(string[],string);
+		public static int IndexOfI(string[] Haystack, string Needle) {
+			return IndexOfI(Haystack,Needle,0,RReporting.SafeLength(Haystack));
+		}
+		public static int IndexOfI(string[] Haystack, string Needle, int iHaystackStart) {
+			return IndexOfI(Haystack,Needle,iHaystackStart,RReporting.SafeLength(Haystack));
+		}
+		public static int IndexOfI(string[] Haystack, string Needle, int iHaystackStart, int iHaystackCount) {
+			int iReturn=-1;
+			try {
+				if (Haystack!=null&&RString.IsNotBlank(Needle)) {
+					for (int iNow=iHaystackStart; iNow<iHaystackCount; iNow++) {
+						if (EqualsI(Haystack[iNow],Needle)) {
+							iReturn=iNow;
+							break;
+						}
+					}
+				}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn);
+			}
+			return iReturn;
+		}//end IndexOf(string[],string);
+		public static int IndexOfStartsWithI(string[] Haystack, string Needle) {
+			int iReturn=-1;
+			if (Haystack!=null&&RString.IsNotBlank(Needle)) {
+				Needle=Needle.ToLower();
+				for (int iNow=0; iNow<Haystack.Length; iNow++) {
+					//OK TO ASSUME NEEDLE IS LOWER SINCE IT WAS JUST MADE LOWER ABOVE
+					if ( RString.SafeLength(Haystack[iNow])>=Needle.Length && CompareAtI_AssumingNeedleIsLower(Haystack[iNow],Needle,0,RString.SafeLength(Haystack[iNow]),true) ) {
+						iReturn=iNow;
+						break;
+					}
+				}
+			}
+			return iReturn;
+		}//end IndexOfStartsWithI(string[],string);
+		public static int IndexOfStartsWithI_AssumingNeedleIsLower(string[] Haystack, string Needle) {
+			int iReturn=-1;
+			if (Haystack!=null&&RString.IsNotBlank(Needle)) {
+				for (int iNow=0; iNow<Haystack.Length; iNow++) {
+					if (RString.SafeLength(Haystack[iNow])>=Needle.Length && RString.CompareAtI_AssumingNeedleIsLower(Haystack[iNow],Needle,0,RString.SafeLength(Haystack[iNow]),true)) {
+						iReturn=iNow;
+						break;
+					}
+				}
+			}
+			return iReturn;
+		}//end IndexOfStartsWithI_AssumingNeedleIsLower((string[],string);
+
+		public static bool Contains(ArrayList Haystack, string Needle) {
+			if (Haystack!=null) {
+				foreach (string val in Haystack) {
+					if (val==Needle) return true;
+				}
+			}
+			return false;
+		}
+		public static bool Contains(string[] Haystack, string Needle) {
+			if (Haystack!=null) {
+				for (int iNow=0; iNow<Haystack.Length; iNow++) {
+					if (Haystack[iNow]==Needle) return true;
+				}
+			}
+			return false;
+		}
+		public static bool ContainsI(string[] Haystack, string Needle) {
+			if (Haystack!=null&&Needle!=null) {
+				for (int iNow=0; iNow<Haystack.Length; iNow++) {
+					if (Haystack[iNow]!=null && CompareAtI(Haystack[iNow],Needle,0,RString.SafeLength(Haystack[iNow]),false)) return true;
+				}
+			}
+			return false;
+		}
+		public static bool ContainsI_AssumingNeedleIsLower(string[] Haystack, string Needle) {
+			if (Haystack!=null&&Needle!=null) {
+				for (int iNow=0; iNow<Haystack.Length; iNow++) {
+					if (Haystack[iNow]!=null && CompareAtI_AssumingNeedleIsLower(Haystack[iNow],Needle,0,RString.SafeLength(Haystack[iNow]),false)) return true;
+				}
+			}
+			return false;
+		}
+		public static bool AnyStartsWithI(string[] Haystack, string Needle) {
+			if (Haystack!=null&&Needle!=null) {
+				for (int iNow=0; iNow<Haystack.Length; iNow++) {
+					if (StartsWithI(Haystack[iNow],Needle)) return true;
+				}
+			}
+			return false;
+		}
+		public static bool AnyStartsWithI_AssumingNeedleIsLower(string[] Haystack, string Needle) {
+			if (Haystack!=null&&Needle!=null) {
+				for (int iNow=0; iNow<Haystack.Length; iNow++) {
+					if (StartsWithI_AssumingNeedleIsLower(Haystack[iNow],Needle)) return true;
+				}
+			}
+			return false;
+		}
+		public static bool AnyStartsWith(string[] Haystack, string Needle) {
+			if (Haystack!=null&&Needle!=null) {
+				for (int iNow=0; iNow<Haystack.Length; iNow++) {
+					if (StartsWith(Haystack[iNow],Needle)) return true;
+				}
+			}
+			return false;
+		}
+#endregion array searching moved from Base
+
+
+		#region utilities
+		public static string Capitalized(string val) {
+			string sReturn="";
+			if (val!=null) {
+				if (val.Length>0) {
+					sReturn=RString.SafeSubstring(val,0,1).ToUpper();
+					if (val.Length>1) {
+						sReturn+=RString.SafeSubstring(val,1);
+					}
+				}
+			}
+			return sReturn;
+		}
+		public static string FileToHash(string FileName) {
+			byte[] byarrReturn=null;
+			string sReturn=null;
+			try {
+				RReporting.sParticiple="opening file";
+				FileStream streamIn = new FileStream(FileName, FileMode.Open);
+				RReporting.sParticiple="computing hash";
+				MD5 md5 = new MD5CryptoServiceProvider();
+				byarrReturn = md5.ComputeHash(streamIn);
+				RReporting.sParticiple="closing file";
+				streamIn.Close();
+				RReporting.sParticiple="converting hash to string";
+				ASCIIEncoding asciiencoding = new ASCIIEncoding();
+				sReturn=asciiencoding.GetString(byarrReturn);
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,RReporting.sParticiple,"FileToHash");
+			}
+			return sReturn;
+		}//end FileToHash
+
+		public static string SeqFrameToBaseName(out int iGetFrameNumberOfCurrent, out string sFileExtension, string sSequenceImage) {
+			//int iLast=0;
+			int iDot=RString.LastIndexOf(sSequenceImage,'.');
+			int iLastChar=iDot-1;//sOpenedFile.Length;
+			sFileExtension="";
+			while (iLastChar>=0&&RString.IsDigit(sSequenceImage[iLastChar])) {
+				iLastChar--;
+			}
+			string sReturn=sSequenceImage;
+			iGetFrameNumberOfCurrent=-1;
+			if (iLastChar<-1) iLastChar=-1;
+			if (iDot>-1) {
+				sFileExtension=RString.SafeSubstring(sSequenceImage,iDot+1);
+				iGetFrameNumberOfCurrent=RConvert.ToInt(RString.SafeSubstring(sSequenceImage,iLastChar+1,iDot-(iLastChar+1)));
+				sReturn=RString.SafeSubstring(sSequenceImage,0,iLastChar+1);
+			}
+			else {
+				int iDigits=0;
+				int iChar=sSequenceImage.Length-1;
+				while (iChar>=0) {
+					if (!RString.IsDigit(sSequenceImage[iChar])) break;
+					iDigits++;
+					iChar--;
+				}
+				if (iDigits>0) {
+					iGetFrameNumberOfCurrent=RConvert.ToInt(RString.SafeSubstring(sSequenceImage,RString.SafeLength(sSequenceImage)-iDigits,iDigits));
+				}
+				else iGetFrameNumberOfCurrent=0;
+			}
+			return sReturn;
+		}//end SeqFrameToBaseName
+
+		public static string FolderThenSlash(string sPath, string DirectoryDelimiter) {
+			return (sPath!=null&&sPath!="")?(sPath.EndsWith(DirectoryDelimiter)?sPath:sPath+DirectoryDelimiter):DirectoryDelimiter;
+		}
+		public static string SlashThenFolder(string sPath, string DirectoryDelimiter) {
+			return (sPath!=null&&sPath!="")?(sPath.StartsWith(DirectoryDelimiter)?sPath:DirectoryDelimiter+sPath):DirectoryDelimiter;
+		}
+		public static string FolderThenNoSlash(string sPath, string DirectoryDelimiter) {
+			return (sPath!=null&&sPath!="")?(sPath.EndsWith(DirectoryDelimiter)?sPath.Substring(0,sPath.Length-1):sPath):"";
+		}
+		public static string NoSlashThenFolder(string sPath, string DirectoryDelimiter) {
+			return (sPath!=null&&sPath!="")?(sPath.StartsWith(DirectoryDelimiter)?sPath.Substring(1):sPath):"";
+		}
+		public static string RemoteFolderThenSlash(string sPath) {
+			return FolderThenSlash(sPath,"/");
+		}
+		public static string RemoteFolderThenNoSlash(string sPath) {
+			return FolderThenNoSlash(sPath,"/");
+		}
+		public static string LocalFolderThenSlash(string sPath) {
+			return FolderThenSlash(sPath,sDirSep);
+		}
+		public static string LocalFolderThenNoSlash(string sPath) {
+			return FolderThenNoSlash(sPath,sDirSep);
+		}
+
+		public static int[] GetNumbers(string data, bool bAllowNegativeSign, bool bAllowDot, bool bAllowComma) {
+			int[] arrReturn=null;
+			int iCount=0;
+			int iChar=0;
+			if (RString.SafeLength(data)>0) {
+				arrReturn=new int[(RString.SafeLength(data)/2>0)?(RString.SafeLength(data)/2):(1)];
+				int iStartNow=0;
+				while (iChar<=data.Length) {
+					if (   (iChar==data.Length)
+						||  (!  ( RString.IsDigit(data[iChar])
+									||(bAllowNegativeSign&&(data[iChar]=='-'))
+									||(bAllowDot&&(data[iChar]=='.')) 
+									||(bAllowComma&&(data[iChar]==',')) )  )
+					   )
+						 { //if end of data or is non-digit
+						if (iChar-iStartNow>0) {
+							if (bAllowDot) arrReturn[iCount]=RConvert.ToInt(RConvert.ToDecimal(RString.SafeSubstring(data,iStartNow,iChar-iStartNow)));
+							else arrReturn[iCount]=RConvert.ToInt(RString.SafeSubstring(data,iStartNow,iChar-iStartNow));
+							iCount++;
+						}
+						iStartNow=iChar+1;
+					}
+					iChar++;
+				}
+			}
+			if (arrReturn!=null) {
+				RMemory.Redim(ref arrReturn,iCount,"RString GetNumbers");
+			}
+			return arrReturn;
+		}//end GetNumbers int[] version
+		public static int IndexOf(string Haystack, string Needle) {
+			return RString.IndexOf(Haystack,Needle,0,RString.SafeLength(Haystack));
+		}
+		public static int IndexOf(string Haystack, string Needle, int startInHaystack) {
+			return RString.IndexOf(Haystack,Needle,startInHaystack,RString.SafeLength(Haystack));
+		}
+		public static int IndexOf(string Haystack, string Needle, int startInHaystack, int endbeforeInHaystack) {
+			int iReturn=-1;
+			try {
+				if (endbeforeInHaystack>RString.SafeLength(Haystack)) endbeforeInHaystack=RString.SafeLength(Haystack);
+				//IGNORE THIS PROBLEM AND RETURN -1: if (startInHaystack>=RString.SafeLength(Haystack)) startInHaystack=RString.SafeLength(Haystack);
+				//if (startInHaystack<0) startInHaystack=RString.SafeLength(Haystack); //THIS PROBLEM IS IGNORED AND RETURNS -1 (SEE NEXT "IF" CLAUSE)
+				if (RString.SafeLength(Haystack)>0 && RString.SafeLength(Needle)>0 && startInHaystack>=0) {
+					for (int iStartNow=startInHaystack; iStartNow+Needle.Length<=Haystack.Length; iStartNow++) {
+						iReturn=0;
+						int iHaystack=iStartNow;
+						for (int iNeedle=0; iNeedle<Needle.Length; iNeedle++) {
+							if (Haystack[iHaystack]!=Needle[iNeedle]) iReturn=-1;
+							iHaystack++;
+						}
+						if (iReturn>-1) {
+							iReturn=iStartNow;
+							break;
+						}
+					}
+				}
+			}
+			catch {
+				iReturn=-1;
+			}
+			return iReturn;
+		}//end IndexOf(string,string)
+		public static int RemoveBetweenAll(ref string data, string startEncloser, string endbeforeEncloser, bool bRemoveEnclosers) {
+			int iReturn=0;
+			int iLT=RString.IndexOf(data,startEncloser);
+			int iGT=RString.IndexOf(data,endbeforeEncloser);
+			int iStartNow=0;
+			while (iLT>-1&&iGT>iLT) {
+				if (bRemoveEnclosers) {
+					data=RString.SafeSubstring(data,0,iLT) + RString.SafeSubstring(data,iGT+endbeforeEncloser.Length);
+					iStartNow=iLT;
+				}
+				else {
+					data=RString.SafeSubstring(data,0,iLT+startEncloser.Length) + RString.SafeSubstring(data,iGT);
+					iStartNow=iLT+startEncloser.Length+endbeforeEncloser.Length;
+				}
+				iReturn++;
+				iLT=RString.IndexOf(data,startEncloser,iStartNow);
+				iGT=RString.IndexOf(data,endbeforeEncloser,iStartNow);
+			}
+			return iReturn;
+		}//end RemoveBetweenAll(ref string, string, string, bRemoveEnclosers)
+		/// <summary>
+		/// Treats the array as a stack and resizes it by one, then appends element at the new location.
+		/// </summary>
+		/// <param name="ArrayToRedim">Array where element should be placed (will be created as array[1] if null).</param>
+		/// <param name="NewElement"></param>
+		/// <returns></returns>
+		public static bool Push(ref string[] ArrayToRedim, string NewElement) { //aka Push(string[] array
+			bool bGood=false;
+			try {
+				if (ArrayToRedim==null||ArrayToRedim.Length<1) ArrayToRedim=new string[1];
+				else RMemory.Redim(ref ArrayToRedim,ArrayToRedim.Length+1);
+				ArrayToRedim[ArrayToRedim.Length-1]=NewElement;
+				bGood=true;
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"pushing string to array","RString Push");
+			}
+			return bGood;
+		}
+		/// <summary>
+		/// version of replace that doesn't throw an exception if the string is empty or null.
+		/// </summary>
+		/// <param name="Haystack"></param>
+		/// <param name="OldNeedle"></param>
+		/// <param name="NewNeedle"></param>
+		/// <returns></returns>
+		public static string Replace(string Haystack, string OldNeedle, string NewNeedle) {
+			if (Haystack!=null&&Haystack!=""&&OldNeedle!=""&&OldNeedle!=null) {
+				if (NewNeedle==null) NewNeedle="";
+				return Haystack.Replace(OldNeedle,NewNeedle);
+			}
+			return Haystack;
+		}
+		public static bool StartsWith(string s, char c) {
+			return s!=null&&s.Length>0&&s[0]==c;
+		}
+		public static bool EndsWith(string s, char c) {
+			return s!=null&&s.Length>0&&s[s.Length-1]==c;
+		}
 		public static bool IsNewLineChar(char cNow) {
-			return RString.Contains(sPossibleNewLineChars, cNow);
+			return RString.ContainsChar(carrPossibleNewLineChars, cNow);
 		}
 		public static bool IsNewLineChar(string sNow, int iAt) {
-			return RString.Contains(sPossibleNewLineChars, sNow, iAt);
+			return RString.ContainsChar(carrPossibleNewLineChars, sNow, iAt);
 		}
-		public static bool IsSpacingChar(char cNow) {
-			return RString.Contains(sPossibleSpacingChars, cNow);
+		public static string[] ToArray(ArrayList alData) {
+			string[] arrReturn=null;
+			if (alData!=null&&alData.Count>0) {
+				arrReturn=new string[alData.Count];
+				int i=0;
+				foreach (string val in alData) {
+					arrReturn[i]=val;
+					i++;
+				}
+				if (i!=arrReturn.Length) {
+					RMemory.Redim(ref arrReturn,i);
+				}
+			}
+			return arrReturn;
 		}
-		public static bool IsSpacingChar(string sNow, int iAt) {
-			return RString.Contains(sPossibleSpacingChars, sNow, iAt);
+		public static string ToString(ArrayList alData, string sFieldDelimiter, string sTextDelimiter_IfNullOrBlankThenRemoveFieldDelimitersInValues) {
+			return ToString(ToArray(alData),sFieldDelimiter,sTextDelimiter_IfNullOrBlankThenRemoveFieldDelimitersInValues);
+		}
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="arrData"></param>
+		/// <param name="sFieldDelimiter"></param>
+		/// <param name="sTextDelimiter_IfNullOrBlankThenRemoveFieldDelimitersInValues">If null Or "", then the method removes field delimiters from field values</param>
+		/// <returns></returns>
+		public static string ToString(string[] arrData, string sFieldDelimiter, string sTextDelimiter_IfNullOrBlankThenRemoveFieldDelimitersInValues) {
+			string sReturn="";
+			if (arrData!=null) {
+				for (int iNow=0; iNow<arrData.Length; iNow++) {
+					if (iNow!=0) sReturn+=sFieldDelimiter;
+					if (sTextDelimiter_IfNullOrBlankThenRemoveFieldDelimitersInValues!=null&&sTextDelimiter_IfNullOrBlankThenRemoveFieldDelimitersInValues!="") {
+						if (arrData[iNow]!=null) {
+							//replace "\"" with "\"\"":
+							if (arrData[iNow].Contains(sFieldDelimiter)) sReturn+=sTextDelimiter_IfNullOrBlankThenRemoveFieldDelimitersInValues+RString.Replace(arrData[iNow],sTextDelimiter_IfNullOrBlankThenRemoveFieldDelimitersInValues,sTextDelimiter_IfNullOrBlankThenRemoveFieldDelimitersInValues+sTextDelimiter_IfNullOrBlankThenRemoveFieldDelimitersInValues)+sTextDelimiter_IfNullOrBlankThenRemoveFieldDelimitersInValues;
+							else sReturn+=RString.Replace(arrData[iNow],sTextDelimiter_IfNullOrBlankThenRemoveFieldDelimitersInValues,sTextDelimiter_IfNullOrBlankThenRemoveFieldDelimitersInValues+sTextDelimiter_IfNullOrBlankThenRemoveFieldDelimitersInValues);
+						}
+						else sReturn+="NULL";//debug: it may be better to do nothing since already added field delimiter
+					}
+					else {//else no text delimiter, so erase field delimiters for each field to prevent extra fields
+						if (arrData[iNow]!=null) {
+							sReturn+=RString.Replace(arrData[iNow],sFieldDelimiter,"");
+						}
+						else sReturn+="null";//debug: it may be better to do nothing since already added field delimiter
+					}
+				}
+			}
+			return sReturn;
+		}//end ToString(string[],...)
+		//public static readonly char[] carrNewLine=new char[] {'\n', '\r', Environment.NewLine[0], Environment.NewLine[Environment.NewLine.Length-1]};
+		public static int IsNewLineAndGetLength(string sText, int iChar) {//moved from base
+			if (sText!=null&&iChar>=0&&iChar<sText.Length) {
+				if (CompareAt(sText,Environment.NewLine,iChar)) return Environment.NewLine.Length;
+				else if (sText[iChar]=='\n') return 1;
+				else if (sText[iChar]=='\r') return 1;
+			}
+			return 0;
+		}
+		public static bool IsHorizontalSpacingChar(char cNow) {
+			return RString.ContainsChar(carrPossibleHorizontalSpacingChars, cNow);
+		}
+		public static bool IsHorizontalSpacingChar(string sNow, int iAt) {
+			return RString.ContainsChar(carrPossibleHorizontalSpacingChars, sNow, iAt);
 		}
 		public static bool IsWhiteSpace(string sNow, int iAt) {
-			return IsNewLineChar(sNow,iAt)||IsSpacingChar(sNow,iAt);
+			return IsNewLineChar(sNow,iAt)||IsHorizontalSpacingChar(sNow,iAt);
 		}
 		public static bool IsWhiteSpaceOrChar(string sNow, int iAt, char cOrThis) {
-			return IsNewLineChar(sNow,iAt)||IsSpacingChar(sNow,iAt)||CompareAt(sNow,cOrThis,iAt);
+			return IsNewLineChar(sNow,iAt)||IsHorizontalSpacingChar(sNow,iAt)||CompareAt(sNow,cOrThis,iAt);
 		}
 		public static bool IsWhiteSpace(char cNow) {
-			return IsNewLineChar(cNow)||IsSpacingChar(cNow);
+			return IsNewLineChar(cNow)||IsHorizontalSpacingChar(cNow);
 		}
+		/// <summary>
+		/// Moves to or stays at whitespace starting at "start".
+		/// </summary>
+		/// <param name="sNow"></param>
+		/// <param name="start"></param>
+		/// <returns>Index equal or greater than start where whitespace occurs.
+		/// Returns -1 if none found in that range.</returns>
 		public static int IndexOfWhiteSpace(string sNow, int start) {
 			int iReturn=-1;
 			if (sNow!=null) {
@@ -2236,7 +3047,7 @@ namespace ExpertMultimedia {
 			}
 			return iReturn;
 		}
-		public static int IndexOfWhiteSpaceOrChar(string sNow, int start, char cOrThis) {
+		public static int IndexOfWhiteSpaceOrChar(string sNow, char cOrThis, int start) {
 			int iReturn=-1;
 			if (sNow!=null) {
 				if (start<0) start=0;
@@ -2248,7 +3059,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			return iReturn;
-		}
+		} //end IndexOfWhiteSpaceOrChar
 		public static int IndexOfWhiteSpace(string sNow) {
 			return IndexOfWhiteSpace(sNow,0);
 		}
@@ -2256,7 +3067,7 @@ namespace ExpertMultimedia {
 			int iReturn=-1;
 			if (sNow!=null) {
 				if (start<0) start=0;
-				for (int iNow=0; iNow<sNow.Length; iNow++) {
+				for (int iNow=start; iNow<sNow.Length; iNow++) {
 					if (!IsWhiteSpace(sNow[iNow])) {
 						iReturn=iNow;
 						break;
@@ -2278,7 +3089,7 @@ namespace ExpertMultimedia {
 			int iReturn=-1;
 			if (sNow!=null) {
 				if (start<0) start=0;
-				for (int iNow=0; iNow<sNow.Length; iNow++) {
+				for (int iNow=start; iNow<sNow.Length; iNow++) {
 					if (!IsWhiteSpace(sNow[iNow])&&sNow[iNow]!=cNorThis) {
 						iReturn=iNow;
 						break;
@@ -2287,17 +3098,25 @@ namespace ExpertMultimedia {
 			}
 			return iReturn;
 		}
-		public static string RemoveEndsWhiteSpace(string sDataX) {
-			if (sDataX!=null) {
-				while (sDataX.Length>0&&IsWhiteSpace(sDataX[0])) sDataX=sDataX.Substring(1);
-				while (sDataX.Length>0&&IsWhiteSpace(sDataX[sDataX.Length-1])) sDataX=sDataX.Substring(0,sDataX.Length-1);
+		public static string RemoveEndsWhiteSpace(string data) {
+			int start=0;
+			int endbefore=0;
+			if (data!=null) {
+				endbefore=data.Length;
+				while (endbefore-start>0&&IsWhiteSpace(data[start])) start++;
+				while (endbefore-start>0&&IsWhiteSpace(data[endbefore-1])) endbefore--;
+				data=SafeSubstringByExclusiveEnder(data,start,endbefore);
 			}
-			return sDataX;
+			return data;
 		}
-		public static void RemoveEndsWhiteSpace(ref string sDataX) {
-			if (sDataX!=null) {
-				while (sDataX.Length>0&&IsWhiteSpace(sDataX[0])) sDataX=sDataX.Substring(1);
-				while (sDataX.Length>0&&IsWhiteSpace(sDataX[sDataX.Length-1])) sDataX=sDataX.Substring(0,sDataX.Length-1);
+		public static void RemoveEndsWhiteSpace(ref string data) {//formerly RemoveEndsSpacing
+			int start=0;
+			int endbefore=0;
+			if (data!=null) {
+				endbefore=data.Length;
+				while (endbefore-start>0&&IsWhiteSpace(data[start])) start++;
+				while (endbefore-start>0&&IsWhiteSpace(data[endbefore-1])) endbefore--;
+				data=SafeSubstringByExclusiveEnder(data,start,endbefore);
 			}
 		}
 		public static void RemoveEndsWhiteSpace(ref RString sVal) {
@@ -2305,6 +3124,53 @@ namespace ExpertMultimedia {
 				while (sVal.Length>0&&IsWhiteSpace(sVal[0])) sVal=sVal.Substring(1);
 				while (sVal.Length>0&&IsWhiteSpace(sVal[sVal.Length-1])) sVal=sVal.Substring(0,sVal.Length-1);
 			}
+		}
+		public static bool RemoveEndsHorzSpacing(ref string val) {//formerly RemoveEndsSpacingExceptNewLine
+			try {
+				if (val==null) val="";
+				int iStart=0;
+				int iEnder=val.Length-1;
+				int iLength=val.Length;
+				while (iLength>0&&(val[iStart]=='\t'||val[iStart]==' ')) {iStart++;iLength--;}
+				while (iLength>0&&(val[iEnder]=='\t'||val[iEnder]==' ')) {iEnder--;iLength--;}
+				if (iLength!=val.Length) val=SafeSubstring(val,iStart,iLength);
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn);
+				return false;
+			}
+			return true;
+// 			try {
+// 				if (val==null) val="";
+// 				while (val.Length>0&&val.StartsWith(" ")) val=val.Substring(0,val.Length-1);
+// 				while (val.Length>0&&val.EndsWith(" ")) val=val.Substring(0,val.Length-1);
+// 				while (val.Length>0&&val.StartsWith("\t")) val=val.Substring(0,val.Length-1);
+// 				while (val.Length>0&&val.EndsWith("\t")) val=val.Substring(0,val.Length-1);
+// 			}
+// 			catch (Exception exn) {
+// 				RReporting.ShowExn(exn);
+// 				return false;
+// 			}
+// 			return true;
+		}
+		public static bool RemoveEndsNewLines(ref string val) {
+			try {
+				if (val==null) val="";
+				int iStart=0;
+				int iEnder=val.Length-1;
+				int iLength=val.Length;
+				int iNewLine=Environment.NewLine.Length;
+				while (iLength>0&&CompareAt(val, Environment.NewLine, iStart)) {iStart+=iNewLine; iLength-=iNewLine;}
+				while (iLength>0&&CompareAt(val, Environment.NewLine, iEnder-(iNewLine-1))) {iEnder-=iNewLine; iLength-=iNewLine;}
+				while (iLength>0&&(val[iStart]=='\n'||val[iStart]=='\r')) {iStart++;iLength--;}
+				while (iLength>0&&(val[iEnder]=='\n'||val[iEnder]=='\r')) {iEnder--;iLength--;}
+				if (iLength!=val.Length) val=SafeSubstring(val,iStart,iLength);
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn);
+				return false;
+			}
+			return true;
 		}
 		
 		public static void ReplaceAny(ref char[] sSrc, char[] sOld, char cNew) {
@@ -2336,7 +3202,7 @@ namespace ExpertMultimedia {
 			catch (Exception exn) {
 				RReporting.ShowExn(exn,"replacing characters");
 			}
-			return ToString(carrOrig);
+			return carrOrig!=null?new string(carrOrig):null;
 		}//end ReplaceAny(string, char[], char)
 		public static string ReplaceAny_Slow(string sSrc, char[] sOld, char cNew) {
 			try {
@@ -2378,13 +3244,26 @@ namespace ExpertMultimedia {
 			}
 			return sSrc;
 		}//end ReplaceAny(string,string,string)
-		public static string sDirSep {
-			get {return char.ToString(Path.DirectorySeparatorChar);}
+		public static string FindBetweenI(string sDataX, string sOpener, string sCloser, int iStartFrom) {//case-insensitive //aka GetBetween
+			int iFoundStartDummy;
+			int iFoundLengthDummy;
+			return FindBetweenI(out iFoundStartDummy, out iFoundLengthDummy, sDataX, sOpener, sCloser, iStartFrom);
 		}
-		public static string FindBetweenI(string sDataX, string sOpener, string sCloser, int iStartFrom) {//case-insensitive
+		/// <summary>
+		/// Uses RString.cultureinfo to get the text between two case insensitive strings
+		/// </summary>
+		/// <param name="sDataX"></param>
+		/// <param name="sOpener"></param>
+		/// <param name="sCloser"></param>
+		/// <param name="iStartFrom"></param>
+		/// <returns></returns>
+		public static string FindBetweenI(out int iFoundStart, out int iFoundLength, string sDataX, string sOpener, string sCloser, int iStartFrom) {//case-insensitive //aka GetBetween
 			string sReturn="";
 			string sVerb="starting";
+			iFoundStart=-1;
+			iFoundLength=0;
 			try { //string.Compare(sDataX,sOpener,true/*ignore case*/)
+				if (cultureinfo==null) cultureinfo = new CultureInfo( "es-ES", false );
 				sVerb="checking whether any data";
 				if (sDataX!=null&&sDataX.Length>0) {
 					sVerb="checking whether beyond range";
@@ -2398,16 +3277,18 @@ namespace ExpertMultimedia {
 							sVerb="getting opener length";
 							iOpener+=sOpener.Length;
 							sVerb="getting substring between closer and opener";
+							iFoundStart=iOpener;
+							iFoundLength=iCloser-iOpener;
 							sReturn=sDataX.Substring(iOpener,iCloser-iOpener);
 							sVerb="finishing";
 						}
 					}
 					else {
-						Console.WriteLine("Warning: result of search would start beyond data (looking for data after \""+sOpener+"\" at index "+iStartFrom.ToString()+" where data length is "+sDataX.Length.ToString()+")");
+						Console.Error.WriteLine("Warning: result of search would start beyond data (looking for data after \""+sOpener+"\" at index "+iStartFrom.ToString()+" where data length is "+sDataX.Length.ToString()+")");
 					}
 				}//end if any data
 				else {
-					Console.WriteLine("Warning: no data to search (looking for data after \""+sOpener+"\")");
+					Console.Error.WriteLine("Warning: no data to search (looking for data after \""+sOpener+"\")");
 				}
 			}
 			catch (Exception exn) {
@@ -2418,21 +3299,21 @@ namespace ExpertMultimedia {
 		public static string DetectNewLine(string sDataX) {
 			string sReturn="";
 			int iNow;
-			int iLoc;
+			//int iLoc;
 			int iUsedMethods=0;
-			if (sDataX!=null&&sDataX.Length>0&&sPossibleNewLineChars!=null&&sPossibleNewLineChars.Length>0) {
-				bool[] barrUsed=new bool[sPossibleNewLineChars.Length];
+			if (sDataX!=null&&sDataX.Length>0&&carrPossibleNewLineChars!=null&&carrPossibleNewLineChars.Length>0) {
+				bool[] barrUsed=new bool[carrPossibleNewLineChars.Length];
 				for (iNow=0; iNow<barrUsed.Length; iNow++) barrUsed[iNow]=false;
 				for (iNow=0; iNow<sDataX.Length; iNow++) {
-					for (int iMethod=0; iMethod<sPossibleNewLineChars.Length; iMethod++) {
-						if ( sDataX[iNow]==sPossibleNewLineChars[iMethod] && !barrUsed[iMethod] ) {
+					for (int iMethod=0; iMethod<carrPossibleNewLineChars.Length; iMethod++) {
+						if ( sDataX[iNow]==carrPossibleNewLineChars[iMethod] && !barrUsed[iMethod] ) {
 							sReturn+=sDataX[iNow];
 							barrUsed[iMethod]=true;
 							iUsedMethods++;
 							break;
 						}
 					}
-					if (iUsedMethods>=sPossibleNewLineChars.Length) break;
+					if (iUsedMethods>=carrPossibleNewLineChars.Length) break;
 				}
 			}
 			return sReturn;
@@ -2449,10 +3330,11 @@ namespace ExpertMultimedia {
 		public static bool IsNotBlank(string sNow) {
 			return sNow!=null&&sNow.Length>0;
 		}
-		public static bool SplitStyle(out string[] sarrName, out string[] sarrValue, string sStyleWithoutCurlyBraces) {//formerly StyleSplit
+		public static int SplitStyle(out string[] sarrName, out string[] sarrValue, string sStyleWithoutCurlyBraces) {//formerly StyleSplit
 			sarrName=null;
 			sarrValue=null;
-			return RString.SplitAssignments(out sarrName, out sarrValue, sStyleWithoutCurlyBraces, ':', ';');
+			
+			return RString.SplitAssignments(ref sarrName, ref sarrValue, sStyleWithoutCurlyBraces, ':', ';', false);
 		}
 		public static int CountWhiteSpaceAreas(string sData, bool bCountEvenIfInQuotes, int iStart, int iEndBefore) {
 			int iCount=0;
@@ -2475,9 +3357,6 @@ namespace ExpertMultimedia {
 			}
 			return iCount;
 		}//end CountWhiteSpaceAreas
-		public static bool EndsWith(string val, char ch) {
-			return val!=null&&val.Length>0&&val[val.Length-1]==ch;
-		}
 		///<summary>
 		///Returns true if ends with char or char then whitespace
 		/// i.e. if cChar=';' then sVal ending with ";" or or that character followed by any
@@ -2487,7 +3366,12 @@ namespace ExpertMultimedia {
 			bool bReturn=false;
 			if (sVal!=null) {
 				for (int iNow=endbefore-1; iNow>=start; iNow--) {
-					if (!IsWhiteSpace(sVal[iNow])) {
+					if (iNow<0||iNow>=RString.SafeLength(sVal)) {//debug only
+						RReporting.ShowErr("Range is beyond string size","detecting end of value",
+												String.Format("EndsWithCharOrCharThenWhiteSpace({0},{1},{2},{3}) {{CharacterIndex:{4}; called-by:{5}}}",RReporting.StringMessage(sVal,false),char.ToString(cChar),start,endbefore,iNow,(new System.Diagnostics.StackTrace()).GetFrame(1).GetMethod().Name) );
+						break;
+					}
+					else if (!IsWhiteSpace(sVal[iNow])) { //iNow<RString.SafeLength(sVal)&&
 						if (sVal[iNow]==cChar) bReturn=true;
 						else bReturn=false;
 						break;
@@ -2497,6 +3381,138 @@ namespace ExpertMultimedia {
 			return bReturn;
 		}//end EndsWithCharOrCharThenWhiteSpace
 
+		/// <summary>
+		/// Gets value locations from a delimited list of assignments
+		/// -if sName is null, then all assignment values will be returned, otherwise returns
+		/// all values where the variable is named by sName. If the referenced arrays are big
+		/// enough they will not be redimensioned.
+		/// </summary>
+		/// <param name="NamesReturn">becomes a location array ({start, endbefore, ...} where endbefore
+		/// is the character after the last character in the value).  It will mark all the 
+		/// instances of sName in sDelimitedAssignments, which may not be the same case if
+		/// bCaseSensitive is false.</param>
+		/// <param name="ValuesReturn">becomes a location array ({start, endbefore, ...} where endbefore
+		/// is the character after the last character in the value) of the values matching NamesReturn.  Where a
+		/// variable is declared but not assigned, start==endbefore</param>
+		/// <param name="sDelimitedAssignments"></param>
+		/// <param name="sName">Only find assignments where the variable name matches this (null to find ALL assignments).</param>
+		/// <param name="cAssignmentOperator">i.e. an equal sign, or i.e. ':' for style attribute assignment list</param>
+		/// <param name="cStatementDelimiter">Separates assignment or declaration statements. If this is
+		/// whitespace, valueless variables (i.e. valueless html properties) will be detected if there is
+		/// whitespace between the name and the assignment operator.  Otherwise valueless variable declarations
+		/// are only detected if cStatementDelimiter occurs before an assignment operator</param>
+		/// <param name="iStart"></param>
+		/// <param name="iEndBefore"></param>
+		/// <param name="bCaseSensitive"></param>
+		/// <returns>the count of used incedes in ValuesReturn</returns>
+		public static int GetMultipleAssignmentLocations(ref int[] NamesReturn, ref int[] ValuesReturn, string sDelimitedAssignments, string sName, char cAssignmentOperator, char cStatementDelimiter, int iStart, int iEndBefore, bool bCaseSensitive) {
+			RReporting.sParticiple="starting to parse assignments";
+			string sName_Processed=bCaseSensitive?sName:sName.ToLower();
+			int iParsingAt=iStart;
+			int iNameStartNow=-1;
+			int iNameEnderNow=-1;
+			int iValStartNow=-1;
+			//int iValEnderNow=-1;
+			int TextRegionIndex=REGION_BETWEEN;
+			int iCount=0;
+			bool bInQuotes=false;
+			bool bWhiteSpaceStatementDelimiter=IsWhiteSpace(cStatementDelimiter);
+			int iMax =  
+					(sName!=null)
+					?(bCaseSensitive?CountInstances(sDelimitedAssignments,sName,iStart,iEndBefore):CountInstancesI(sDelimitedAssignments,sName,iStart,iEndBefore))
+					:(bWhiteSpaceStatementDelimiter?(CountWhiteSpaceAreas(sDelimitedAssignments,false,iStart,iEndBefore)+1):(CountInstances(sDelimitedAssignments,cStatementDelimiter,false,iStart,iEndBefore)+1));
+			try {
+				RReporting.sParticiple="parsing assignments";
+				//RReporting.Debug("GetMultipleAssignmentLocations...");
+				if (iMax>0) {
+					//RReporting.Debug("GetMultipleAssignmentLocations...Max>0...");
+					if (ValuesReturn==null||ValuesReturn.Length<iMax*2) ValuesReturn=new int[iMax*2];
+					if (NamesReturn==null||NamesReturn.Length<iMax*2) NamesReturn=new int[iMax*2];
+					//RReporting.Debug("GetMultipleAssignmentLocations...Max>0...ParsingAt "+iParsingAt+" to "+iEndBefore+"...");
+					while (iParsingAt<=iEndBefore) {
+						switch (TextRegionIndex) {
+						case REGION_BETWEEN:
+							if (iParsingAt>=iEndBefore ||IsNeitherWhiteSpaceNorChar(sDelimitedAssignments[iParsingAt], cStatementDelimiter)) {
+								iNameStartNow=iParsingAt;
+								TextRegionIndex=REGION_NAME;
+							}
+							break;
+						case REGION_NAME:
+							if ( (iParsingAt>=iEndBefore) || (bWhiteSpaceStatementDelimiter&&IsWhiteSpace(sDelimitedAssignments[iParsingAt])) ||(!bWhiteSpaceStatementDelimiter&&(sDelimitedAssignments[iParsingAt]==cStatementDelimiter)) ) {
+								//if valueless tag
+								iNameEnderNow=iParsingAt;
+								if (sName==null ||(bCaseSensitive?CompareAt(sDelimitedAssignments,sName,iNameStartNow,iNameEnderNow,false):CompareAtI_AssumingNeedleIsLower(sDelimitedAssignments,sName_Processed,iNameStartNow,iNameEnderNow,false)) ) {
+									NamesReturn[iCount*2]=iNameStartNow;
+									NamesReturn[iCount*2+1]=iNameEnderNow;
+									ValuesReturn[iCount*2]=iParsingAt;
+									ValuesReturn[iCount*2+1]=iParsingAt;
+									iCount++;
+								}
+								iNameStartNow=-1;
+								iNameEnderNow=-1;
+								TextRegionIndex=REGION_BETWEEN;
+							}
+							else if (IsWhiteSpace(sDelimitedAssignments[iParsingAt])||(sDelimitedAssignments[iParsingAt]==cAssignmentOperator)) {
+								iNameEnderNow=iParsingAt;
+								TextRegionIndex=REGION_OP;//allows whitespace after sign, but REGION_OP case does not allow whitespace inside value
+							}
+							break;
+						case REGION_OP:
+							if (iParsingAt>=iEndBefore ||IsNeitherWhiteSpaceNorChar(sDelimitedAssignments[iParsingAt], cAssignmentOperator)) {
+								iValStartNow=iParsingAt;//ok since not a whitespace
+								TextRegionIndex=REGION_VALUE;//ok since only comes here if name ended with an assignment operator
+							}
+							break;
+						case REGION_VALUE:
+							if (iParsingAt<iEndBefore&&sDelimitedAssignments[iParsingAt]=='"') bInQuotes=!bInQuotes;
+							else if ( iParsingAt>=iEndBefore || (bWhiteSpaceStatementDelimiter&&!bInQuotes&&IsWhiteSpace(sDelimitedAssignments[iParsingAt]))
+									|| (!bWhiteSpaceStatementDelimiter&&!bInQuotes&&(IsWhiteSpace(sDelimitedAssignments[iParsingAt])||(sDelimitedAssignments[iParsingAt]==cStatementDelimiter))) ) {
+								//iValEnderNow=iParsingAt;
+								if (sName==null ||(bCaseSensitive?CompareAt(sDelimitedAssignments,sName,iNameStartNow,iNameEnderNow,false):CompareAtI(sDelimitedAssignments,sName,iNameStartNow,iNameEnderNow,false)) ) {
+									NamesReturn[iCount*2]=iNameStartNow;
+									NamesReturn[iCount*2+1]=iNameEnderNow;
+									ValuesReturn[iCount*2]=iValStartNow;
+									ValuesReturn[iCount*2+1]=iParsingAt;//iValEnderNow
+									iCount++;
+									TextRegionIndex=REGION_BETWEEN;
+								}
+								iNameStartNow=-1;
+								iNameEnderNow=-1;
+								iValStartNow=-1;
+								bInQuotes=false;
+							}
+							break;
+						default:break;
+						}//end switch TextRegionIndex
+						//RReporting.Debug("GetMultipleAssignmentLocations: "+((iParsingAt>=0&&iParsingAt<RString.SafeLength(sDelimitedAssignments))?char.ToString(sDelimitedAssignments[iParsingAt]):"bad location")+" at ["+iParsingAt+"]"+RegionToString(TextRegionIndex));
+						iParsingAt++;
+					}//end while iParsingAt<=iEndBefore
+					if (iCount*2<ValuesReturn.Length) ValuesReturn[iCount*2]=-1; //add terminator if not full
+				}//end if any instances
+				else if (ValuesReturn!=null) {
+					string sCountNames=bCaseSensitive
+						?("CountInstances(sDelimitedAssignments,sName,iStart,iEndBefore):"+CountInstances(sDelimitedAssignments,sName,iStart,iEndBefore).ToString())
+						:("CountInstancesI(sDelimitedAssignments,sName,iStart,iEndBefore):"+CountInstancesI(sDelimitedAssignments,sName,iStart,iEndBefore).ToString());
+					//RReporting.Debug("GetMultipleAssignmentLocations...no statements! {sName:"+RReporting.StringMessage(sName,true)+"; iMax:"+iMax+"; "+sCountNames+"; CountWhiteSpaceAreas(sDelimitedAssignments,false,iStart,iEndBefore):"+CountWhiteSpaceAreas(sDelimitedAssignments,false,iStart,iEndBefore)
+					//				+"; CountInstances(sDelimitedAssignments,cStatementDelimiter,false,iStart,iEndBefore):"+CountInstances(sDelimitedAssignments,cStatementDelimiter,false,iStart,iEndBefore)
+					//				+"; sDelimitedAssignments substring("+iStart+","+iEndBefore+"):"+RString.SafeSubstringByExclusiveEnder(sDelimitedAssignments,iStart,iEndBefore)+"}");
+					ValuesReturn[0]=-1;
+				}
+				else {
+					RReporting.Debug("GetMultipleAssignmentLocations...no statements and null return!");
+				}
+			}
+			catch (Exception exn) {
+				if (ValuesReturn!=null&&iCount*2<ValuesReturn.Length) ValuesReturn[iCount*2]=-1;
+				RReporting.ShowExn(exn);
+			}
+			if (RReporting.bUltraDebug) RReporting.sParticiple="finished parsing assignments";
+			//if (iCount<=0) RReporting.Debug("There were no statements in the assignment list (GetMultipleAssignmentValueLocations)");
+			return iCount;//qReturn.GetInternalArray();
+		}//end GetMultipleAssignmentLocations
+		public static int GetMultipleAssignmentLocationsI(ref int[] NamesReturn, ref int[] ValuesReturn, string sDelimitedAssignments, string sName, char cAssignmentOperator, char cStatementDelimiter, int iStart, int iEndBefore) {
+			return GetMultipleAssignmentLocations(ref NamesReturn, ref ValuesReturn, sDelimitedAssignments, sName, cAssignmentOperator, cStatementDelimiter, iStart, iEndBefore, false);
+		}
 		///<summary>
 		///Gets value locations from a delimited list of assignments
 		/// -if sName is null, then all assignment values will be returned, otherwise returns
@@ -2510,37 +3526,38 @@ namespace ExpertMultimedia {
 		/// variable is declared but not assigned, start==endbefore
 		///Returns the count of used incedes in ValuesReturn.
 		///</summary>
-		public static int GetMultipleAssignmentLocations(ref int[] NamesReturn, ref int[] ValuesReturn, string sDelimitedAssignments, string sName, char cAssignmentOperator, char cStatementDelimiter, int iStart, int iEndBefore, bool bCaseSensitive) {
-			string sName_Processed=bCaseSensitive?sName:sName.ToLower();
+		public static int GetMultipleAssignmentLocationsI_AssumingNameIsLower(ref int[] NamesReturn, ref int[] ValuesReturn, string sDelimitedAssignments, string sName, char cAssignmentOperator, char cStatementDelimiter, int iStart, int iEndBefore) {
+			string sName_Processed=sName;
 			int iParsingAt=iStart;
 			int iNameStartNow=-1;
 			int iNameEnderNow=-1;
 			int iValStartNow=-1;
 			int iValEnderNow=-1;
-			int iSection=AssignmentBetween;
+			int TextRegionIndex=REGION_BETWEEN;
 			int iCount=0;
 			bool bInQuotes=false;
 			bool bWhiteSpaceStatementDelimiter=IsWhiteSpace(cStatementDelimiter);
+			bool bCaseSensitive=false;
 			int iMax  =  
 					(sName!=null)
-					?(bCaseSensitive?CountInstances(sDelimitedAssignments,sName,iStart,iEndBefore):CountInstancesI(sDelimitedAssignments,sName,iStart,iEndBefore))
-					:(bWhiteSpaceStatementDelimiter?(CountWhiteSpaceAreas(sDelimitedAssignments,false)+1):(CountInstances(sDelimitedAssignments,cStatementDelimiter)+1));
+					?(RString.CountInstancesI_AssumingNeedleIsLower(sDelimitedAssignments,sName,iStart,iEndBefore))
+					:(bWhiteSpaceStatementDelimiter?(CountWhiteSpaceAreas(sDelimitedAssignments,false,iStart,iEndBefore)+1):(CountInstances(sDelimitedAssignments,cStatementDelimiter,false,iStart,iEndBefore)+1));
 			try {
 				if (iMax>0) {
 					if (ValuesReturn==null||ValuesReturn.Length<iMax*2) ValuesReturn=new int[iMax*2];
 					if (NamesReturn==null||NamesReturn.Length<iMax*2) NamesReturn=new int[iMax*2];
 					while (iParsingAt<=iEndBefore) {
-						switch (iSection) {
-						case AssignmentBetween:
+						switch (TextRegionIndex) {
+						case REGION_BETWEEN:
 							if (iParsingAt>=iEndBefore ||IsNeitherWhiteSpaceNorChar(sDelimitedAssignments[iParsingAt], cStatementDelimiter)) {
 								iNameStartNow=iParsingAt;
-								iSection=AssignmentName;
+								TextRegionIndex=REGION_NAME;
 							}
 							break;
-						case AssignmentName:
+						case REGION_NAME:
 							if ( (iParsingAt>=iEndBefore) ||IsWhiteSpace(sDelimitedAssignments[iParsingAt]) ||(sDelimitedAssignments[iParsingAt]==cStatementDelimiter) ) {
 								iNameEnderNow=iParsingAt;
-								if (sName==null ||(bCaseSensitive?CompareAt(sDelimitedAssignments,sName,iNameStartNow,iNameEnderNow):CompareAtI(sDelimitedAssignments,sName,iNameStartNow,iNameEnderNow)) ) {
+								if (sName==null ||(CompareAtI_AssumingNeedleIsLower(sDelimitedAssignments,sName,iNameStartNow,iNameEnderNow,false)) ) {
 									///return blank for valueless tag:
 									NamesReturn[iCount*2]=iNameStartNow;
 									NamesReturn[iCount*2+1]=iNameEnderNow;
@@ -2550,30 +3567,31 @@ namespace ExpertMultimedia {
 								}
 								iNameStartNow=-1;
 								iNameEnderNow=-1;
-								iSection=AssignmentBetween;
+								TextRegionIndex=REGION_BETWEEN;
 							}
 							else if (sDelimitedAssignments[iParsingAt]==cAssignmentOperator) {
 								iNameEnderNow=iParsingAt;
-								iSection=AssignmentOperator;//allows whitespace after sign, but AssignmentOperator case does not allow whitespace inside value
+								TextRegionIndex=REGION_OP;//allows whitespace after sign, but REGION_OP case does not allow whitespace inside value
 							}
 							break;
-						case AssignmentOperator:
+						case REGION_OP:
 							if (iParsingAt>=iEndBefore ||IsNeitherWhiteSpaceNorChar(sDelimitedAssignments[iParsingAt], cStatementDelimiter)) {
 								iValStartNow=iParsingAt;//ok since not a whitespace
-								iSection=AssignmentValue;//ok since only comes here if name ended with an assignment operator
+								TextRegionIndex=REGION_VALUE;//ok since only comes here if name ended with an assignment operator
 							}
 							break;
-						case AssignmentValue:
+						case REGION_VALUE:
 							if (iParsingAt<iEndBefore&&sDelimitedAssignments[iParsingAt]=='"') bInQuotes=!bInQuotes;
 							else if ( iParsingAt>=iEndBefore ||(bWhiteSpaceStatementDelimiter&&!bInQuotes&&IsWhiteSpaceOrChar(sDelimitedAssignments[iParsingAt], cStatementDelimiter)) 
 							||(!bWhiteSpaceStatementDelimiter&&!bInQuotes&&(sDelimitedAssignments[iParsingAt]==cStatementDelimiter)) ) {
 								iValEnderNow=iParsingAt;
-								if (sName==null ||(bCaseSensitive?CompareAt(sDelimitedAssignments,sName,iNameStartNow,iNameEnderNow):CompareAtI(sDelimitedAssignments,sName,iNameStartNow,iNameEnderNow)) ) {
+								if (sName==null ||(bCaseSensitive?CompareAt(sDelimitedAssignments,sName,iNameStartNow,iNameEnderNow,false):CompareAtI(sDelimitedAssignments,sName,iNameStartNow,iNameEnderNow,false)) ) {
 									NamesReturn[iCount*2]=iNameStartNow;
 									NamesReturn[iCount*2+1]=iNameEnderNow;
 									ValuesReturn[iCount*2]=iParsingAt;
-									ValuesReturn[iCount*2+1]=iParsingAt;
+									ValuesReturn[iCount*2+1]=iParsingAt;//TODO: finish this--is this right??
 									iCount++;
+									TextRegionIndex=REGION_BETWEEN;//TODO: finish this--is this right??
 								}
 								iNameStartNow=-1;
 								iNameEnderNow=-1;
@@ -2581,7 +3599,7 @@ namespace ExpertMultimedia {
 							}
 							break;
 						default:break;
-						}//end switch iSection
+						}//end switch TextRegionIndex
 						iParsingAt++;
 					}//end while iParsingAt<=iEndBefore
 					if (iCount*2<ValuesReturn.Length) ValuesReturn[iCount*2]=-1; //add terminator if not full
@@ -2594,12 +3612,33 @@ namespace ExpertMultimedia {
 			}
 			//if (iCount<=0) RReporting.Debug("There were no statements in the assignment list (GetMultipleAssignmentValueLocations)");
 			return iCount;//qReturn.GetInternalArray();
-		}//end GetMultipleAssignmentLocations
-		public static int GetMultipleAssignmentLocationsI(ref int[] NamesReturn, ref int[] ValuesReturn, string sDelimitedAssignments, string sName, char cAssignmentOperator, char cStatementDelimiter, int iStart, int iEndBefore) {
-			return GetMultipleAssignmentLocations(ref NamesReturn, ref ValuesReturn, sDelimitedAssignments, sName, cAssignmentOperator, cStatementDelimiter, iStart, iEndBefore, false);
+		}//end GetMultipleAssignmentLocationsI_AssumingNameIsLower
+		public static string LiteralToEscapedCString(string LiteralText, bool bAddQuotes) {
+			LiteralText=RString.Replace(LiteralText,"\"","\\\"");
+			if (bAddQuotes) LiteralText="\""+LiteralText+"\"";
+			return LiteralText;
 		}
-
-
+		public static string EscapedCStringToLiteral(string CStringAssignmentValue) {
+			CStringAssignmentValue=RString.Replace(CStringAssignmentValue,"\\\"","\"");
+			return CStringAssignmentValue;
+		}
+		//public static int SplitCParamAssignments(ref string[] sarrName, ref string[] sarrValue, string sStatements) {
+			
+		//}
+		/// <summary>
+		/// Shows a singular or plural depending on whether iCount is 1.
+		/// </summary>
+		/// <param name="sSingular">Example: platypus</param>
+		/// <param name="sPlural">Example: platypi</param>
+		/// <param name="iCount">If 1 then causes return to be singular string, else plural</param>
+		/// <param name="bShowCount">If true then show count.  Example: if true then "1 platypus" if false then "platypus"</param>
+		/// <returns>(if bShowCount shows iCount then space then) sSingular or sPlural depending on iCount</returns>
+		public static string SingularPlural(string sSingular, string sPlural, int iCount, bool bShowCount) {
+			return (bShowCount?(iCount.ToString()+" "):"") + ((iCount==1)?sSingular:sPlural);
+		}
+		public static int SplitAssignments(ref string[] sarrName, ref string[] sarrValue, string sStatements, char cAssignmentOperator, char cStatementDelimiter, bool bTreatEscapedQuotesAsLiterals) {//formerly StyleSplit
+			return SplitAssignments(ref sarrName, ref sarrValue, sStatements, cAssignmentOperator, cStatementDelimiter, bTreatEscapedQuotesAsLiterals, 0, RString.SafeLength(sStatements));
+		}
 		///<summary>
 		///Split assignments, accounting for whitespace (only allows whitespace inside non-quoted values--i.e. rgb(64, 64, 0); --if cStatementDelimiter is not a whitespace character i.e. ';' in this example)
 		///sarrName and sarrValue will only be created/recreated if necessary, so the return
@@ -2607,95 +3646,74 @@ namespace ExpertMultimedia {
 		///Returns the count of how many variables were found (name and value stored in sarrName
 		/// and sarrValue)
 		///</summary>
-		public static int SplitAssignments(ref string[] sarrName, ref string[] sarrValue, string sStatements, char cAssignmentOperator, char cStatementDelimiter) {//formerly StyleSplit
+		public static int SplitAssignments(ref string[] sarrName, ref string[] sarrValue, string sStatements, char cAssignmentOperator, char cStatementDelimiter, bool bTreatEscapedQuotesAsLiterals, int start, int endbefore) {//formerly StyleSplit
 			int iFound=0;
+			bool bGood=true;//debug-- this is not reported
 			try {
-				int iStartNow;
-				int iStartNext=RString.IndexOfNonWhiteSpaceNorChar(sStatements,iValEnder,cStatementDelimiter);
-				int iOperator;
-				int iValEnder;
-				int iValStart;
-				string sNameNow="";
-				string sValNow="";
 				ArrayList alNames=new ArrayList();
 				ArrayList alValues=new ArrayList();
-				while (iStartNext<sStatements.Length) {
-					iStartNow=iStartNext;
-					iOperator=sStatements.IndexOf(cAssignmentOperator,iStartNow);
-					if (iOperator>-1) {
-						iValStart=RString.IndexOfNonWhiteSpace(sStatements, iOperator+1);
-						if (iValStart>-1) {
-							int iFindValEnd=iValStart+1;
-							bool bInQuotes=false;
-							iValEnder=-1;
-							int iValEndByStatementDelimiter=-1;
-							if (!IsWhiteSpace(cStatementDelimiter)) {
-								iValEndByStatementDelimiter=IndexOf(sStatements,cStatementDelimiter,iValStart);
-								while (iValEnd>=0&&IsWhiteSpaceOrChar(sStatements,iValEndByStatementDelimiter,cStatementDelimiter)) {
-									iValEndByStatementDelimiter--; //accounts for space before statement delimiter i.e. "rgb(0,0,0) ;"
-								}
-								if (iValEndByStatementDelimiter>-1) iValEndByStatementDelimiter++;//after the character found, not on it
-							}
-							while (iFindValEnd<=sStatements.Length) {
-								if (iFindValEnd<sStatements.Length&&sStatements[iFindValEnd]=='"') bInQuotes=!bInQuotes;
-								else if ( iFindValEnd==sStatements.Length
-									||(!bInQuotes&&sStatements[iFindValEnd]==cStatementDelimiter)
-									||(!bInQuotes&&IsWhiteSpace(sStatements[iFindValEnd])) ) {
-									iValEnder=iFindValEnd;
-									break;
-								}
-								iFindValEnd++;
-							}
-							if (iValEndByStatementDelimiter>iValEnder) iValEnder=iValEndByStatementDelimiter;
-							if (iValEnder>-1) {
-								iStartNext=RString.IndexOfNonWhiteSpaceNorChar(sStatements,iValEnder,cStatementDelimiter);
-								if (iStartNext<0) iStartNext=sStatements.Length;
-							}//end if found iValEnder
-							else {
-								iValEnder=iValStart;
-								iStartNext=sStatements.Length;
-							}
-						}//end if found iValStart
-						else {
-							iValStart=iOperator+1;
-							iValEnder=iValStart+1;
-							iStartNext=RString.IndexOfNonWhiteSpaceNorChar(sStatements,iValEnder,cStatementDelimiter);
-							if (iStartNext<0) iStartNext=sStatements.Length;
-						}
-					}//end if found operator
-					else {
-						iOperator=RString.IndexOfWhiteSpaceOrChar(sStatements,iStartNow,cStatementDelimiter);
-						if (iOperator<0) {
-							iOperator=sStatements.Length; //ok since no whitespace remains
-							iStartNext=iOperator;
-						}
-						else {
-							iStartNext=RString.IndexOfNonWhiteSpaceNorChar(sStatements,iStartNow,cStatementDelimiter);
-							if (iStartNext<0) iStartNext=sStatements.Length;
-						}
-						iValStart=iOperator;
-						iValEnder=iValStart;
-					}
-					if (iOperator-iStartNow>0) {
-						alNames.Add( SafeSubstring(sStatements,iStartNow,iOperator-iValStart) );
-						alValues.Add( SafeSubstring(sStatements,iValStart,iValEnder-iValStart) );
-						iFound++;
-					}
-					else {
-						if (iStartNext!=-1) {
-							iStartNext=-1;
-							RReporting.ShowErr("Variable name expected in: \""+sStatements.Substring(iStartNow)+"\".","SplitAssignements");
+				int iChar=0;
+				int iRegion=REGION_BETWEEN;
+				int Name_start=-1;
+				int Name_endbefore=-1;
+				int Value_start=-1;
+				int Value_endbefore=-1;
+				bool bInQuotes=false;
+				bool bEndQuote=false;
+				while (iChar<=endbefore) {
+					bEndQuote=false;
+					if (iChar!=endbefore) {
+						if ( (sStatements[iChar]=='"') 
+								&& (iChar-1<start||!bTreatEscapedQuotesAsLiterals||(sStatements[iChar-1]!='\\')) ) {
+							bInQuotes=!bInQuotes;								
+							if (!bInQuotes) bEndQuote=true;
 						}
 					}
+					switch (iRegion) {
+						case REGION_BETWEEN:
+							if (iChar==endbefore||RString.IsNeitherWhiteSpaceNorChar(sStatements[iChar],cStatementDelimiter)) {
+								Name_start=iChar;
+								iRegion=REGION_NAME;
+							}
+							break;
+						case REGION_NAME:
+							if (iChar==endbefore||RString.IsWhiteSpaceOrChar(sStatements,iChar,cAssignmentOperator)) {
+								Name_endbefore=iChar;
+								alNames.Add(RString.SafeSubstringByExclusiveEnder(sStatements,Name_start,Name_endbefore));
+								iRegion=REGION_OP;
+								if (iChar==endbefore) alValues.Add("");
+							}
+							break;
+						case REGION_OP:
+							if (iChar==endbefore) {
+								alValues.Add("");
+							}
+							else if (RString.IsNeitherWhiteSpaceNorChar(sStatements[iChar],cAssignmentOperator)) {
+								Value_start=iChar;
+								if (sStatements[iChar]=='"') Value_start=iChar+1;
+								iRegion=REGION_VALUE;
+							}
+							break;
+						case REGION_VALUE:
+							if ( iChar==endbefore || (bEndQuote) || (!bInQuotes&&RString.IsWhiteSpaceOrChar(sStatements,iChar,cStatementDelimiter)) ) {
+								Value_endbefore=iChar;
+								alValues.Add(RString.SafeSubstringByExclusiveEnder(sStatements,Value_start,Value_endbefore));
+								iRegion=REGION_BETWEEN;
+							}
+							break;
+						default:break;
+					}//end iRegion
+					iChar++;
 				}//end while iStartNext<sStatements.Length
-				if (iFound>0) {
-					if (alValues.Count==alNames.Count&&alValues.Count==iFound) {
-						if (sarrName==null||iFound>sarrName.Length) sarrName=new string[iFound];
-						if (sarrValue==null||iFound>sarrValue.Length) sarrValue=new string[iFound];
-						for (int iPop=0; iPop<iFound; iPop++) {
+				if (alNames.Count>0||alValues.Count>0) {
+					if (alNames.Count==alValues.Count) {
+						if (sarrName==null||alNames.Count>sarrName.Length) sarrName=new string[alNames.Count];
+						if (sarrValue==null||alValues.Count>sarrValue.Length) sarrValue=new string[alValues.Count];
+						for (int iPop=0; iPop<alNames.Count; iPop++) {
 							sarrName[iPop]=alNames[iPop].ToString();
 							sarrValue[iPop]=alValues[iPop].ToString();
 						}
+						iFound=alNames.Count;
 					}
 					else {
 						bGood=false;
@@ -2705,7 +3723,7 @@ namespace ExpertMultimedia {
 				else {
 					sarrName=null;
 					sarrValue=null;
-					RReporting.ShowErr("No style variables in \""+sStatements+"\"!","SplitAssignements");
+					RReporting.ShowErr("No style variables in \""+RString.SafeSubstring(sStatements,start,endbefore-start)+"\"!","SplitAssignements");
 					bGood=false;
 				}
 			}
@@ -2713,12 +3731,13 @@ namespace ExpertMultimedia {
 				RReporting.ShowExn(exn,"","SplitAssignements");
 				bGood=false;
 			}
-			return bGood;
+			//if (!bGood) iFound=-1;
+			return iFound;
 		}//end SplitAssignments
-		public static bool SplitAssignmentsSgml(out string[] sarrName, out string[] sarrValue, string sTagPropertiesWithNoTagNorGTSign) {//, char cAssignmentOperator, char cStatementDelimiter) {//formerly StyleSplit
+		public static int SplitAssignmentsSgml(out string[] sarrName, out string[] sarrValue, string sTagPropertiesWithNoTagNorGTSign) {//, char cAssignmentOperator, char cStatementDelimiter) {//formerly StyleSplit
 			sarrName=null;
 			sarrValue=null;
-			return SplitAssignments(out sarrName, out sarrValue, sTagPropertiesWithNoTagNorGTSign, '=', ' ');//DOES account for other whitespace
+			return SplitAssignments(ref sarrName, ref sarrValue, sTagPropertiesWithNoTagNorGTSign, '=', ' ',false);//DOES account for other whitespace
 		}//end SplitAssignmentsSgml
 		public static string SafeString(string val) {
 			return val!=null?val:"";
@@ -2747,72 +3766,65 @@ namespace ExpertMultimedia {
 			}
 			return carrReturn;
 		}
- 		private static readonly string[] sarrCSType={"bool","byte","sbyte","char","decimal","double","float","int","uint","long","ulong","object","short","ushort","string"};
-		private static readonly string[] sarrCSTypeMapsTo={"Boolean","Byte","SByte","Char","Decimal","Double","Single","Int32","UInt32","Int64","UInt64","Object","Int16","UInt16","String"};//usually use assumed System.*
-		private static string[] sarrCSTypeMapsToFull=null;
 		public static bool IsCSTypeAt(string sData, int start, int endbefore) {
-			return CSTypeAtToInternalTypeIndex(sData,start,endbefore)>-1;
+			return CSTypeToInternalTypeIndex(sData,start,endbefore)>-1;
 		}
 		public static bool IsCSTypeAt(string sData, ref int iCursorToMove) {
-			return CSTypeAtToInternalTypeIndex(sData, ref iCursorToMove)>-1;
+			return CSTypeToInternalTypeIndex(sData, ref iCursorToMove)>-1;
 		}
-		///<summary>
-		///Checks whether the given substring is a CSharp type (i.e. int, Int32, System.Int32)
-		///Returns true if the string with length=endbefore-start is a type
-		///</summary>
-		public static int CSTypeAtToInternalTypeIndex(string sData, int start, int endbefore) {
+		/// <summary>
+		/// Checks whether the given substring is a CSharp type (i.e. int, Int32, System.Int32)
+		/// </summary>
+		/// <param name="sData">C code</param>
+		/// <param name="start">character in sData whereat to start parsing</param>
+		/// <param name="endbefore">character in sData to end before</param>
+		/// <returns>type index if the string with length=endbefore-start is a type</returns>
+		public static int CSTypeToInternalTypeIndex(string sData, int start, int endbefore) { //formerly CSTypeAtToInternalTypeIndex
 			int iReturn=-1;
-			if (sarrCSTypeMapsToFull==null) {
-				sarrCSTypeMapsToFull=new string[sarrCSTypeMapsTo.Length];
-				for (int iNow=0; iNow<sarrCSTypeMapsTo.Length; iNow++) sarrCSTypeMapsToFull[iNow]="System."+sarrCSTypeMapsTo[iNow];
+			for (int iNow=0; iNow<sarrCSType.Length&&iReturn<0; iNow++) {
+				if (RString.CompareAt(sData,sarrCSType[iNow],start,endbefore,false)) iReturn=iNow;
 			}
-			for (int iNow=0; iNow<sarrCSType.Length&&iFound<0; iNow++) {
-				if (RString.CompareAt(sData,sarrCSType[iNow],start,endbefore)) iFound=iNow;
-			}
-			for (int iNow=0; iNow<sarrCSTypeMapsTo.Length&&iFound<0; iNow++) {
-				if (RString.CompareAt(sData,sarrCSTypeMapsTo[iNow],start,endbefore)) iFound=iNow;
+			for (int iNow=0; iNow<sarrCSTypeMapsTo.Length&&iReturn<0; iNow++) {
+				if (RString.CompareAt(sData,sarrCSTypeMapsTo[iNow],start,endbefore,false)) iReturn=iNow;
 			}
 			if (sData.StartsWith("System.")) {
-				for (int iNow=0; iNow<sarrCSTypeMapsToFull.Length&&iFound<0; iNow++) {
-					if (RString.CompareAt(sData,sarrCSTypeMapsToFull[iNow],start,endbefore)) iFound=iNow;
+				for (int iNow=0; iNow<sarrCSTypeMapsToFull.Length&&iReturn<0; iNow++) {
+					if (RString.CompareAt(sData,sarrCSTypeMapsToFull[iNow],start,endbefore,false)) iReturn=iNow;
 				}
 			}
-			return bFound;
-		}//end IsCSTypeAt
+			return iReturn;
+		}//end CSTypeToInternalTypeIndex
 		///<summary>
-		///Returns true if there is a CSharp Type (i.e. int, Int32, System.Int32) at iCursorToMove
+		///Returns type index if there is a CSharp Type (i.e. int, Int32, System.Int32) at iCursorToMove
 		///iCursorToMove: The location to compare to a CSharp type--the variable will be
-		/// changed to the location after the typename.  The location may be a '[' symbol
-		/// or any other character.
+		/// changed to the location after the typename ONLY IF there is a typename at iCursorToMove.  
+		/// The new location may be a '[' symbol if it is a CS array, or it may be any other character location or the end (==Length).
 		///</summary>
-		public static int CSTypeAtToInternalTypeIndex(string sData, ref int iCursorToMove) {
+		public static int CSTypeToInternalTypeIndex(string sData, ref int iCursorToMove) {
 			int iReturn=-1;
-			if (sarrCSTypeMapsToFull==null) {
-				sarrCSTypeMapsToFull=new string[sarrCSTypeMapsTo.Length];
-				for (int iNow=0; iNow<sarrCSTypeMapsTo.Length; iNow++) sarrCSTypeMapsToFull[iNow]="System."+sarrCSTypeMapsTo[iNow];
-			}
-			for (int iNow=0; iNow<sarrCSType.Length&&iFound<0; iNow++) {
+			int iNow;
+			for (iNow=0; iNow<sarrCSType.Length&&iReturn<0; iNow++) {
 				if (RString.CompareAt(sData,sarrCSType[iNow],iCursorToMove)) {
-					iFound=iNow;
-					iCursorToMove+=sarrCSType.Length;
+					iReturn=iNow;
+					iCursorToMove+=sarrCSType[iReturn].Length;
 				}
 			}
-			for (int iNow=0; iNow<sarrCSTypeMapsTo.Length&&iFound<0; iNow++) {
+			for (iNow=0; iNow<sarrCSTypeMapsTo.Length&&iReturn<0; iNow++) {
 				if (RString.CompareAt(sData,sarrCSTypeMapsTo[iNow],iCursorToMove)) {
-					iFound=iNow;
-					iCursorToMove+=sarrCSType.Length;
+					iReturn=iNow;
+					iCursorToMove+=sarrCSType[iReturn].Length;
 				}
 			}
 			if (sData.StartsWith("System.")) {
-				for (int iNow=0; iNow<sarrCSTypeMapsToFull.Length&&iFound<0; iNow++) {
+				for (iNow=0; iNow<sarrCSTypeMapsToFull.Length&&iReturn<0; iNow++) {
 					if (RString.CompareAt(sData,sarrCSTypeMapsToFull[iNow],iCursorToMove)) {
-						iFound=iNow;
-						iCursorToMove+=sarrCSType.Length;
+						iReturn=iNow;
+						iCursorToMove+=sarrCSType[iReturn].Length;
 					}
 				}
 			}
-			return bFound;
-		}//end IsCSTypeAt
+			return iReturn;
+		}//end CSTypeToInternalTypeIndex
 // 		public static readonly string[] sarrCSTypeHtmlTagword={};
 // 		public static readonly string[] sarrCSTypeHtmlInputType={};
 // 		public static readonly string[] sarrCSTypeHtmlAdditionalTag={};
@@ -2843,222 +3855,277 @@ namespace ExpertMultimedia {
 			if (iNow>-1) {
 				iCountNames++;
 				while (iNow<endbefore) {
-					if (bInSpace&&IsAlphaNumeric(sData[iNow])) {
+					if (bInSpace&&IsAlphanumeric(sData[iNow])) {
 						bInSpace=false;
 						iCountNames++;
 					}
-					else if (!bInSpace&&!IsAlphaNumeric(sData[iNow])) {
+					else if (!bInSpace&&!IsAlphanumeric(sData[iNow])) {
 						bInSpace=true;
 					}
 				}
 			}
 			return iCountNames==1&&!IsDigit(sData[iStart]);
 		}//end ContainsOneCSymbolAndNothingElse
-		private const int CDeclType=0;//must be 1--used as index!
-		private const int CDeclName=1;//must be 2--used as index!
-		private const int CDeclValue=2;//must be 3--used as index!
-		private const int CDeclBetween=4;
-		///<summary>
+		private const int CDeclPart_Type=0;//must be 0--this*2 and this*2+1 used as indeces!
+		private const int CDeclPart_Name=1;//must be 1--this*2 and this*2+1 used as indeces!
+		private const int CDeclPart_Value=2;//must be 2--this*2 and this*2+1 used as indeces!
+		private const int CDeclPart_BetweenParts=3;
+	
+		/// <summary>
 		///sData must be a c or c# declaration in the form "type name_withnospaces=value",
 		/// "name_withnospaces=value", or "type name"
 		///iarrParts returns a list of locations in the form {startType, endbeforeType,
 		/// startName, endbeforeName, startValue, endbeforeValue}.  If any of the parts
 		/// of the assignment don't exist, start will equal endbefore.
 		///Returns count (count*2 is the element count of iarrParts that is used)
-		///</summary>
-		public static void CDeclSplit(ref int[] iarrParts, string sData, int start, int endbefore) {//aka SplitCDecl
-			int iState=CDeclType;
+		/// NOTE: does NOT handle indexer with space in it
+		/// </summary>
+		/// <param name="iarrParts">this is set to the halfindeces of the parts of the declaration (use RString.SafeSubstringByExclusiveEnder(s,RString.PartA(CDeclPart_Name),RString.PartB(CDeclPart_Name)) to get name and same for _Name and _Value) </param>
+		/// <param name="sData"></param>
+		/// <param name="start"></param>
+		/// <param name="endbefore"></param>
+		public static void CSDeclSplit(ref int[] iarrParts, string sData, int start, int endbefore) {//aka SplitCDecl
+			int iState=CDeclPart_Type;
 			int iNow=start;
-			int endbeforeNow=0;
+			int endbeforeNow=start;
 			bool bInQuotes=false;
 			int iBraceDepth=0;
+			int iParenDepth=0;
 			bool bInSingleQuotes=false;
+			bool bFoundBeginningOfTypeArea=false;
+			//bool bFinalizedSomethingAtTypeArea=false;
+			//bool bFoundType=false;
+			if (iarrParts==null||iarrParts.Length<6) iarrParts=new int[6];
+			for (int iSetNow=0; iSetNow<6; iSetNow++) { //debug optimization: use memfill if porting to C++
+				iarrParts[iSetNow]=-1;
+			}
 			try {
 				if (sData!=null) {
-					if (iarrParts==null||iarrParts.Length<6) iarrParts=new int[6];
-					iarrParts[0]=start;
-					for (iNow=1; iNow<6; iNow++) {
-						iarrParts[iNow]=-1;
-					}
 					while (iNow<=endbefore) {
 						switch (iState) {
-						case CDeclType:
-							if (iNow>=endbefore) {
-								if (iarrParts[0]<0) iarrParts[0]=endbefore;
-								iarrParts[1]=endbefore;
-								iarrParts[2]=endbefore;
-								iarrParts[3]=endbefore;
-								iarrParts[4]=endbefore;
-								iarrParts[5]=endbefore;
-							}
-							else if (!RString.IsWhiteSpace(sData[iNow])) {
-								//ok to put all of this in a whitespace area since specific string (typename) is detected
-								if (iarrParts[0]<0) iarrParts[0]=iNow;
-								if (IsCSTypeAt(sData,ref endbeforeNow)) {
-									if (endbeforeNow>=endbefore) {
+							case CDeclPart_Type:
+								if (iNow>=endbefore) {
+									bFoundBeginningOfTypeArea=true;
+									if (iarrParts[0]<0) {
+										iarrParts[0]=endbefore;
 										iarrParts[1]=endbefore;
-										iarrParts[2]=endbefore;
-										iarrParts[3]=endbefore;
-										iarrParts[4]=endbefore;
-										iarrParts[5]=endbefore;
 									}
-									else if (sData[endbeforeNow]=='[') {
-										if (endbeforeNow+1>=endbefore) {
-											iarrParts[1]=endbefore;
-											RReporting.SourceErr("Expected ']' after '[' in variable declaration but reached end of statement first");
-											iNow=endbefore;
-										}
-										else if (sData[endbeforeNow+1]==']') {
-											iarrParts[1]=endbeforeNow+2;
-											iNow=endbeforeNow+1;//incremented again below to go past ']'
-										}
-										else {
-											iarrParts[1]=iNow;
-											RReporting.SourceErr("Expected ']' after '[' in variable declaration");
-											iNow=endbeforeNow;
-										}
-										iState=CDeclName;
-									}//end if '[' (not end of file)
-									else if (RString.IsWhiteSpace(sData[endbeforeNow])) {
-										iarrParts[1]=endbeforeNow;
-										iState=CDeclName;
-										iNow=endbeforeNow;
-									}
-								}//end if Is CS Type
-							}//end if not whitespace
-							else if (iarrParts[CDeclType*2]>-1) {//if beginning found, is whitespace, but type not found, so variable name must have been first
-								iarrParts[CDeclType*2+1]=iarrParts[CDeclType*2];
-								iarrParts[CDeclName*2]=iarrParts[CDeclType*2];
-								iarrParts[CDeclName*2+1]=iNow;
-								RReporting.SourceErr("Expected type specifier before variable","parsing declaration",String.Format("CDeclSplit(){{name:{0}}}",RString.SafeSubstringByExclusiveEnder(sData,iarrParts[2],iarrParts[3])));
-								iState=CDeclValue;
-							}
-							break;
-						case CDeclName:
-							if (iNow>=endbefore) {
-								if (iarrParts[CDeclName*2]<0) iarrParts[CDeclName*2]=iNow;
-								iarrParts[CDeclName*2+1]=iNow;
-								iarrParts[CDeclValue*2]=iNow;
-								iarrParts[CDeclValue*2+1]=iNow;
-							}//end if ended
-							else {
-								if (iarrParts[CDeclName*2]>-1) { //if found beginning
-									if (RString.IsWhiteSpaceOrChar(sData[iNow],'=')) {
-										iarrParts[CDeclName*2+1]=iNow;
-										iState=CDeclValue;
-									}//end if end
-								}//end if found beginning
-								else if (!RString.IsWhiteSpace(sData[iNow])) {//else have not found beginning
-									iarrParts[CDeclName*2]=iNow;
-									if (RString.IsDigit(sData[iNow])) {
-										RReporting.SourceErr("Variable name shouldn't have started with digit","parsing declaration", String.Format("CDeclSplit(){{type:{0};digit:{1}}}",RString.SafeSubstringByExclusiveEnder(sData,iarrParts[0],iarrParts[1]),char.ToString(sData[iNow])) );
-									}
-									else if (sData[iNow]=='=') {
-										RReporting.SourceErr(iNow,"Expected variable name but found equal sign","parsing declaration", String.Format("CDeclSplit(){{type:{0}}}",RString.SafeSubstringByExclusiveEnder(sData,iarrParts[0],iarrParts[1])) );
-										iarrParts[CDeclName*2+1]=iNow;
-										iState=CDeclValue;
-									}
-								}//end else detect as beginning
-							}//end else not ended
-							break;
-						case CDeclValue:
-							if (iNow>=endbefore) {
-								if (iarrParts[CDeclValue*2]<0) {
-									iarrParts[CDeclValue*2]=iNow;
-									RReporting.SourceErr(iNow,"Expected value but found end of data", "parsing declaration",   String.Format( "CDeclSplit(){{type:{0};name:{1}}}",RString.SafeSubstringByExclusiveEnder(sData,iarrParts[0],iarrParts[1]),RString.SafeSubstringByExclusiveEnder(sData,iarrParts[2],iarrParts[3]) )  );
+									else iarrParts[1]=iNow;
+									iarrParts[2]=endbefore;
+									iarrParts[3]=endbefore;
+									iarrParts[4]=endbefore;
+									iarrParts[5]=endbefore;
+									//bFinalizedSomethingAtTypeArea=true;
+									//setting to endbefore causes moving past declaration (especially if iarrParts[5] is being used to move the parsing position)
 								}
-								iarrParts[CDeclValue*2+1]=endbefore;
-							}//end if at end
-							else if (iarrParts[CDeclValue*2]>-1) {//if already found start
-								if (!bInQuotes&&(sData[iNow]=='\''&&(iNow==0||sData[iNow-1]!='\\'))) {
-									if (bInSingleQuotes) {
-										bInSingleQuotes=!bInSingleQuotes;
-										if (iBraceDepth<=0) {
-											iarrParts[CDeclValue*2+1]=iNow+1;
-											iNow=endbefore+1;//exits outer loop
-										}
-									}
-								}
-								else if (!bInQuotes&&!bInSingleQuotes&&sData[iNow]=='}') {
-									iBraceDepth--;
-									if (iBraceDepth<=0) {
-										iarrParts[CDeclValue*2+1]=iNow+1;
-										iNow=endbefore+1;//exits outer loop
-									}
-								}
-								else if (!bInQuotes&&!bInSingleQuotes&&sData[iNow]=='{') {
-									iBraceDepth++;
-								}
-								else if (!bInSingleQuotes&&sData[iNow]=='"'&&(iNow==0||sData[iNow-1]!='\\')) {
-									if (!bInQuotes) {
-										if (iBraceDepth<=0) RReporting.SourceErr(iNow,"Unexpected quotemark--should only see quotemark if variable began with quotemark, bracket, or single-quote OR if quote is a literal preceded by a backslash");
-									}
-									else if (iBraceDepth<=0) { //force end if depth=0 and endquote found
-										iarrParts[CDeclValue*2+1]=iNow+1;
-										iNow=endbefore+1;//exits outer loop
-									}
-									bInQuotes=!bInQuotes;
-								}
-								else if (!bInQuotes&&!bInSingleQuotes&&( (iBraceDepth<=0&&(IsWhiteSpace(sData[iNow])||sData[iNow]==','))||sData[iNow]==';')) {
-									iarrParts[CDeclValue*2+1]=iNow;
-									if (sData[iNow]==';'&&iBraceDepth>0) {
-										RReporting.SourceErr(iNow,"Found semicolon before end of '{' braces", "parsing declaration",  String.Format( "CDeclSplit(){{type:{0};name:{1}}}",RString.SafeSubstringByExclusiveEnder(sData,iarrParts[0],iarrParts[1]),RString.SafeSubstringByExclusiveEnder(sData,iarrParts[2],iarrParts[3]) )  );
-									}
-									else if (sData[iNow]==',') {
-										RString.SourceErr(iNow,"Should not have received trailing comma in declaration (parser corruption)");
-									}
-									iNow=endbefore+1;//exits outer loop
-								}
-								
-							}//end if already found beginning
-							else if (!RString.IsWhiteSpaceOrChar(sData[iNow],'=')) {
-								iarrParts[CDeclValue*2]=iNow;
-								if (sData[iNow]=='"') bInQuotes=true;
-								else if (sData[iNow]=='{') iBraceDepth=1;
-								else if (sData[iNow]=='\'') bInSingleQuotes=true;
-								else if (CompareAt(sData,"new ",iNow)) {
-									int iParen=RString.IndexOfWhiteSpaceOrChar(sData,'(',iNow);
-									int iBrace=RString.IndexOf(sData,'{',iNow);
-									int iStart=iNow;
-									if (iBrace>-1) {
-										iBraceDepth=1;
-										iNow=iBrace;//incremented at bottom of loop below
-									}
-									else if (iParen>-1&&ContainsOneCSymbolAndNothingElse(sData,iNow,iParen)) {
-										iParenDepth=1;
-										bool bInConstructorQuotes=false;
-										bool bInConstructorSingleQuotes=false;
-										while (iNow<endbefore) {
-											if (!bInConstructorSingleQuotes &&sData[iNow]=='"' &&(iNow==0||sData[iNow-1]!='\\')) bInConstructorQuotes=!bInConstructorQuotes;
-											if (!bInConstructorQuotes &&sData[iNow]=='\'' &&(iNow==0||sData[iNow-1]!='\\')) bInConstructorSingleQuotes=!bInConstructorSingleQuotes;
-											else if (!bInConstructorQuotes&&!bInConstructorSingleQuotes&&sData[iNow]=='(') iParenDepth++;
-											else if (!bInConstructorQuotes&&!bInConstructorSingleQuotes&&sData[iNow]==')') {
-												iParenDepth--;
-												if (iParenDepth<=0) {
-													iarrParts[CDeclValue*2+1]=iNow+1;
-													iNow=endbefore+1;//exits outer loop
-												}
+								else if (!RString.IsWhiteSpace(sData[iNow])&&sData[iNow]!='=') { //'=' shouldn't happen unless the type wasn't specified and this is really the name already (see "else" case)
+									//is part of a word
+									if (iarrParts[CDeclPart_Type*2]<0) {
+										bFoundBeginningOfTypeArea=true;
+										iarrParts[CDeclPart_Type*2]=iNow;
+										endbeforeNow=iarrParts[CDeclPart_Type*2];
+										int iDebug_endbeforeNow_1st=endbeforeNow;
+										int iTypeFound_Temp=CSTypeToInternalTypeIndex(sData, ref endbeforeNow);//DOES move iNow to after type ONLY IF type is there
+										//iNow=endbeforeNow;//NOTE: iNow is set below as needed (including going past "[]")
+										//int iDoNothing=(iTypeFound<0)?CTypeToInternalCTypeIndex(sData,ref iNow):-1;
+										if (iTypeFound_Temp>=0) {//IsCSTypeAt(sData,ref endbeforeNow)) {
+											//bFoundType=true;
+											if (endbeforeNow>=endbefore) {
+												iarrParts[1]=endbefore;//end the endbefore at it's maximum possible position
+												iarrParts[2]=endbefore;//there is no name
+												iarrParts[3]=endbefore;//there is no name
+												iarrParts[4]=endbefore;//there is no value
+												iarrParts[5]=endbefore;//there is no value
 											}
-										}//end while iNow<endbefore finding end of constructor
-										if (iNow==endbefore) {
-											RReporting.SourceErr(iNow,"Incomplete constructor after \"new\"", "parsing declaration",   String.Format( "CDeclSplit(){{type:{0};name:{1}; declaration:{2}}}",RString.SafeSubstringByExclusiveEnder(sData,iarrParts[0],iarrParts[1]), RString.SafeSubstringByExclusiveEnder(sData,iarrParts[2],iarrParts[3]), RString.SafeSubstringByExclusiveEnder(sData,iStart,iParen) )  );
-											iarrParts[CDeclValue*2+1]=endbefore;
+											else if (sData[endbeforeNow]=='[') {
+												if (endbeforeNow+1>=endbefore) {
+													iarrParts[1]=endbefore;
+													RReporting.SourceErr("Expected ']' after '[' in variable declaration, but reached end of statement first","",RString.SafeSubstring(sData,start,endbefore));
+													iNow=endbefore;
+												}
+												else if (sData[endbeforeNow+1]==']') {
+													iarrParts[1]=endbeforeNow+2;
+													iNow=endbeforeNow+1;//incremented again at end of loop to go past ']'
+												}
+												else {
+													iarrParts[1]=iNow;
+													RReporting.SourceErr("Expected ']' after '[' in variable declaration (array size specifier is not allowed by engine)","",RString.SafeSubstring(sData,start,endbefore));
+													iNow=endbeforeNow;
+												}
+												iState=CDeclPart_Name;
+											}//end if '[' (not end of file)
+											else if (RString.IsWhiteSpace(sData[endbeforeNow])) {
+												iarrParts[1]=endbeforeNow;
+												iState=CDeclPart_Name;
+												iNow=endbeforeNow;
+											}
+											//else it is not really a CS type so do NOT set iNow--instead, read the area as a name (allow "else whitespace" case below to end it)
+										}//end if Is CS Type
+										else {
+											RReporting.Warning("Declaration did not start with a CSharp type {start:"+start.ToString()+"; iNow:"+iNow.ToString()+"; endbeforeNow:"+endbeforeNow.ToString()+"; iDebug_endbeforeNow_1st:"+iDebug_endbeforeNow_1st.ToString()+"}:\""+RString.SafeSubstringByExclusiveEnder(sData,start,endbefore)+"\"","parsing CSharp declaration","CSDeclSplit");
+											//do nothing and allow "else whitespace" case below end the word (it will be read as a name instead of a type)
+										}
+									}//end if FIRST non-whitespace (if iarrParts[0]<0)
+									//else do nothing and keep looking for a whitespace (see "else whitespace" below) to end the word (it will be read as a name instead of a type)
+								}//end if not whitespace
+								else {//else whitespace or '=' (and not end) -- shouldn't really be '-' but could be if user didn't specify a type
+									if (bFoundBeginningOfTypeArea) {
+										bool bTypeAreaHadAlreadyBeenSet=false;
+										if (iarrParts[CDeclPart_Type*2+1]<0) //if was not set manually above (above should skip this case)
+											iarrParts[CDeclPart_Type*2+1]=iNow;
+										else bTypeAreaHadAlreadyBeenSet=true;
+										if (RString.IsCSTypeAt(sData,iarrParts[CDeclPart_Type*2],iarrParts[CDeclPart_Type*2+1])) {
+											iState=CDeclPart_Name;
+											RReporting.ShowErr("Had not found the type that is specified here so parsing continued (this should never happen)","parsing CDeclaration","CDeclSplit");
+										}
+										else if (bTypeAreaHadAlreadyBeenSet) {
+											iState=CDeclPart_Name;
+											RReporting.ShowErr("Already found type but parsing continued (this should never happen)","parsing CDeclaration","CDeclSplit");
+										}
+										else {//else set the type to "", and set the name to the substring being terminated by this whitespace or '='
+											iarrParts[CDeclPart_Type*2+1]=iarrParts[CDeclPart_Type*2];//set type to zero-length since no type was found
+											iarrParts[CDeclPart_Name*2]=iarrParts[CDeclPart_Type*2];//set name to the beginning of the substring where the type was supposed to start
+											iarrParts[CDeclPart_Name*2+1]=iNow;//terminate the name here at this whitespace
+											RReporting.SourceErr("Expected type specifier before variable","parsing declaration",String.Format("CDeclSplit(){{name:{0}}}",RString.SafeSubstringByExclusiveEnder(sData,iarrParts[2],iarrParts[3])));
+											iState=CDeclPart_Value;
+										}
+										//if (iarrParts[CDeclPart_Type*2]>-1) {//If is not end, is whitespace, if beginning found
+										//}
+									//	//if (bFoundType) {//whitespace but type not found, so variable name must have been first
+									//	//	iState=CDeclPart_Name;
+									//	//}
+									//	//else {
+									//	//it is ok to force this event (and NOT check bFoundType) since iNow is changed when type is changed
+									//	//}
+									}
+									//else do nothing since must be whitespace before a type
+								}//end else whitespace (neither end nor nonwhitespace)
+								break;
+							case CDeclPart_Name:
+								if (iNow>=endbefore) {
+									if (iarrParts[CDeclPart_Name*2]<0) iarrParts[CDeclPart_Name*2]=iNow;
+									iarrParts[CDeclPart_Name*2+1]=iNow;
+									iarrParts[CDeclPart_Value*2]=iNow;
+									iarrParts[CDeclPart_Value*2+1]=iNow;
+								}//end if ended
+								else {
+									if (iarrParts[CDeclPart_Name*2]>-1) { //if found beginning
+										if (RString.IsWhiteSpaceOrChar(sData[iNow],'=')) {
+											iarrParts[CDeclPart_Name*2+1]=iNow;
+											iState=CDeclPart_Value;
+										}//end if end
+									}//end if found beginning
+									else if (!RString.IsWhiteSpace(sData[iNow])) {//else have not found beginning
+										iarrParts[CDeclPart_Name*2]=iNow;
+										if (RString.IsDigit(sData[iNow])) {
+											RReporting.SourceErr("Variable name shouldn't have started with digit","parsing declaration", String.Format("CDeclSplit(){{type:{0};digit:{1}}}",RString.SafeSubstringByExclusiveEnder(sData,iarrParts[0],iarrParts[1]),char.ToString(sData[iNow])) );
+										}
+										else if (sData[iNow]=='=') {//formerly used SourceErr(iAbsoluteLocation,sMsg,sParticiple,sFunction,
+											RReporting.SourceErr("Expected variable name but found equal sign","",iNow,"parsing declaration", String.Format("CDeclSplit(){{type:{0}}}",RString.SafeSubstringByExclusiveEnder(sData,iarrParts[0],iarrParts[1])) );
+											iarrParts[CDeclPart_Name*2+1]=iNow;
+											iState=CDeclPart_Value;
+										}
+									}//end else detect as beginning
+								}//end else not ended
+								break;
+							case CDeclPart_Value:
+								if (iNow>=endbefore) {
+									if (iarrParts[CDeclPart_Value*2]<0) {
+										iarrParts[CDeclPart_Value*2]=iNow;
+										RReporting.SourceErr("Expected value but found end of data", "", iNow, "parsing declaration",   String.Format( "CDeclSplit(){{type:{0};name:{1}}}",RString.SafeSubstringByExclusiveEnder(sData,iarrParts[0],iarrParts[1]),RString.SafeSubstringByExclusiveEnder(sData,iarrParts[2],iarrParts[3]) )  );
+									}
+									iarrParts[CDeclPart_Value*2+1]=endbefore;
+								}//end if at end
+								else if (iarrParts[CDeclPart_Value*2]>-1) {//if already found start
+									if (!bInQuotes&&(sData[iNow]=='\''&&(iNow==0||sData[iNow-1]!='\\'))) {
+										if (bInSingleQuotes) {
+											bInSingleQuotes=!bInSingleQuotes;
+											if (iBraceDepth<=0) {
+												iarrParts[CDeclPart_Value*2+1]=iNow+1;
+												iNow=endbefore+1;//exits outer loop
+											}
+										}
+									}
+									else if (!bInQuotes&&!bInSingleQuotes&&sData[iNow]=='}') {
+										iBraceDepth--;
+										if (iBraceDepth<=0) {
+											iarrParts[CDeclPart_Value*2+1]=iNow+1;
 											iNow=endbefore+1;//exits outer loop
 										}
-									}//end if is a constructor call
-									else iNow=-1;
-									if (iNow<0) {
-										iNow=endbefore+1;//exits outer loop
-										RReporting.SourceErr(iNow,"Expected constructor parameters or array notation (i.e. string[] {\"1\",\"2\"}) after \"new\"", "parsing declaration",   String.Format( "CDeclSplit(){{type:{0};name:{1}}}",RString.SafeSubstringByExclusiveEnder(sData,iarrParts[0],iarrParts[1]),RString.SafeSubstringByExclusiveEnder(sData,iarrParts[2],iarrParts[3]) )  );
 									}
-								}//end if "new " operator
-							}//else detect as beginning (not whitespace && not '=')
-							break;
-						default:
-							break;
-						}
+									else if (!bInQuotes&&!bInSingleQuotes&&sData[iNow]=='{') {
+										iBraceDepth++;
+									}
+									else if (!bInSingleQuotes&&sData[iNow]=='"'&&(iNow==0||sData[iNow-1]!='\\')) {
+										if (!bInQuotes) {
+											if (iBraceDepth<=0) RReporting.SourceErr("Unexpected quotemark--should only see quotemark if variable began with quotemark, bracket, or single-quote OR if quote is a literal preceded by a backslash","",iNow);
+										}
+										else if (iBraceDepth<=0) { //force end if depth=0 and endquote found
+											iarrParts[CDeclPart_Value*2+1]=iNow+1;
+											iNow=endbefore+1;//exits outer loop
+										}
+										bInQuotes=!bInQuotes;
+									}
+									else if (!bInQuotes&&!bInSingleQuotes&&( (iBraceDepth<=0&&(IsWhiteSpace(sData[iNow])||sData[iNow]==','))||sData[iNow]==';')) {
+										iarrParts[CDeclPart_Value*2+1]=iNow;
+										if (sData[iNow]==';'&&iBraceDepth>0) {
+											RReporting.SourceErr("Found semicolon before end of '{' braces", "",  iNow, "parsing declaration",  String.Format( "CDeclSplit(){{type:{0};name:{1}}}",RString.SafeSubstringByExclusiveEnder(sData,iarrParts[0],iarrParts[1]),RString.SafeSubstringByExclusiveEnder(sData,iarrParts[2],iarrParts[3]) )  );
+										}
+										else if (sData[iNow]==',') {
+											RReporting.SourceErr("Should not have received trailing comma in declaration (parser corruption)","",iNow);
+										}
+										iNow=endbefore+1;//exits outer loop
+									}
+									
+								}//end if already found beginning
+								else if (!RString.IsWhiteSpaceOrChar(sData[iNow],'=')) {
+									iarrParts[CDeclPart_Value*2]=iNow;
+									if (sData[iNow]=='"') bInQuotes=true;
+									else if (sData[iNow]=='{') iBraceDepth=1;
+									else if (sData[iNow]=='\'') bInSingleQuotes=true;
+									else if (CompareAt(sData,"new ",iNow)) {
+										int iParen=RString.IndexOfWhiteSpaceOrChar(sData,'(',iNow);
+										int iBrace=RString.IndexOf(sData,'{',iNow);
+										int iStart=iNow;
+										if (iBrace>-1) {
+											iBraceDepth=1;
+											iNow=iBrace;//incremented at bottom of loop below
+										}
+										else if (iParen>-1&&ContainsOneCSymbolAndNothingElse(sData,iNow,iParen)) {
+											iParenDepth=1;
+											bool bInConstructorQuotes=false;
+											bool bInConstructorSingleQuotes=false;
+											while (iNow<endbefore) {
+												if (!bInConstructorSingleQuotes &&sData[iNow]=='"' &&(iNow==0||sData[iNow-1]!='\\')) bInConstructorQuotes=!bInConstructorQuotes;
+												if (!bInConstructorQuotes &&sData[iNow]=='\'' &&(iNow==0||sData[iNow-1]!='\\')) bInConstructorSingleQuotes=!bInConstructorSingleQuotes;
+												else if (!bInConstructorQuotes&&!bInConstructorSingleQuotes&&sData[iNow]=='(') iParenDepth++;
+												else if (!bInConstructorQuotes&&!bInConstructorSingleQuotes&&sData[iNow]==')') {
+													iParenDepth--;
+													if (iParenDepth<=0) {
+														iarrParts[CDeclPart_Value*2+1]=iNow+1;
+														iNow=endbefore+1;//exits outer loop
+													}
+												}
+											}//end while iNow<endbefore finding end of constructor
+											if (iNow==endbefore) {
+												RReporting.SourceErr("Incomplete constructor after \"new\"", "", iNow, "parsing declaration",   String.Format( "CDeclSplit(){{type:{0};name:{1}; declaration:{2}}}",RString.SafeSubstringByExclusiveEnder(sData,iarrParts[0],iarrParts[1]), RString.SafeSubstringByExclusiveEnder(sData,iarrParts[2],iarrParts[3]), RString.SafeSubstringByExclusiveEnder(sData,iStart,iParen) )  );
+												iarrParts[CDeclPart_Value*2+1]=endbefore;
+												iNow=endbefore+1;//exits outer loop
+											}
+										}//end if is a constructor call
+										else iNow=-1;
+										if (iNow<0) {
+											iNow=endbefore+1;//exits outer loop
+											RReporting.SourceErr("Expected constructor parameters or array notation (i.e. string[] {\"1\",\"2\"}) after \"new\"","",iNow, "parsing declaration",   String.Format( "CDeclSplit(){{type:{0};name:{1}}}",RString.SafeSubstringByExclusiveEnder(sData,iarrParts[0],iarrParts[1]),RString.SafeSubstringByExclusiveEnder(sData,iarrParts[2],iarrParts[3]) )  );
+										}
+									}//end if "new " operator
+								}//else detect as beginning (not whitespace && not '=')
+								break;
+							default:
+								break;
+						}//end switch current detected segment type
 						iNow++;
-					}
+					}//end while iNow<=endbefore
 				}//end if sData!=null
 				else RReporting.ShowErr("Tried to split CDecl but text data was null.","parsing declaration","CDeclSplit(...)");
 			}
@@ -3066,25 +4133,27 @@ namespace ExpertMultimedia {
 				RReporting.ShowExn(exn);
 			}
 		}//end CDeclSplit
-		private static int[] iarrDeclParts=new int[6];
-		public static string CDeclTypeSubstring(string sCDeclaration) {
-			if (sCDeclaration!=null) {
-				CDeclSplit(ref iarrDeclParts, sCDeclaration, 0, sCDeclaration);
-				return RString.SafeSubstringByExclusiveEnder(iarrDeclParts[0],iarrDeclParts[1]);
+		public static string CSDeclTypeSubstring(string sCSharp_Declaration) {
+			if (sCSharp_Declaration!=null) {
+				if (iarrDeclPartsTemp==null) iarrDeclPartsTemp=new int[6];
+				CSDeclSplit(ref iarrDeclPartsTemp, sCSharp_Declaration, 0, RString.SafeLength(sCSharp_Declaration));
+				return RString.SafeSubstringByExclusiveEnder(sCSharp_Declaration,iarrDeclPartsTemp[0],iarrDeclPartsTemp[1]);
 			}
 			return "";
 		}
-		public static string CDeclNameSubstring(string sCDeclaration) {
-			if (sCDeclaration!=null) {
-				CDeclSplit(ref iarrDeclParts, sCDeclaration, 0, sCDeclaration);
-				return RString.SafeSubstringByExclusiveEnder(iarrDeclParts[2],iarrDeclParts[3]);
+		public static string CSDeclNameSubstring(string sCSharp_Declaration) {
+			if (sCSharp_Declaration!=null) {
+				if (iarrDeclPartsTemp==null) iarrDeclPartsTemp=new int[6];
+				CSDeclSplit(ref iarrDeclPartsTemp, sCSharp_Declaration, 0, RString.SafeLength(sCSharp_Declaration));
+				return RString.SafeSubstringByExclusiveEnder(sCSharp_Declaration,iarrDeclPartsTemp[2],iarrDeclPartsTemp[3]);
 			}
 			return "";
 		}
-		public static string CDeclValueSubstring(string sCDeclaration) {
-			if (sCDeclaration!=null) {
-				CDeclSplit(ref iarrDeclParts, sCDeclaration, 0, sCDeclaration);
-				return RString.SafeSubstringByExclusiveEnder(iarrDeclParts[4],iarrDeclParts[5]);
+		public static string CSDeclValueSubstring(string sCSharp_Declaration) {
+			if (sCSharp_Declaration!=null) {
+				if (iarrDeclPartsTemp==null) iarrDeclPartsTemp=new int[6];
+				CSDeclSplit(ref iarrDeclPartsTemp, sCSharp_Declaration, 0, RString.SafeLength(sCSharp_Declaration));
+				return RString.SafeSubstringByExclusiveEnder(sCSharp_Declaration,iarrDeclPartsTemp[4],iarrDeclPartsTemp[5]);
 			}
 			return "";
 		}
@@ -3146,7 +4215,7 @@ namespace ExpertMultimedia {
 		public bool AutoExpand=true;
 		public int Capacity {
 			get { return carr!=null?carr.Length:0; }
-			set { RMemory.Redim(carr,value); }
+			set { RMemory.Redim(ref carr,value); }
 		}
 		public CharStack() {
 			Init(iDefaultMax);
@@ -3186,7 +4255,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn( exn,"getting character from stack",String.Format("Pop({0}){{iUsed:{1}; Capacity:{2}}}",valAdd,iUsed,Capacity) );
+				RReporting.ShowExn( exn,"getting character from stack",String.Format("Pop(){{iUsed:{0}; Capacity:{1}}}",iUsed,Capacity) );
 			}
 			return Nothing;
 		}
@@ -3198,7 +4267,7 @@ namespace ExpertMultimedia {
 				return carr[iAt];
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn( exn,"viewing character in stack",String.Format("Peek({0}){{iUsed:{1}; Capacity:{2}; iAt:{3}}}",valAdd,iUsed,Capacity,iAt) );
+				RReporting.ShowExn( exn,"viewing character in stack",String.Format("Peek({0}){{iUsed:{1}; Capacity:{2}; iAt:{3}}}",iAt,iUsed,Capacity,iAt) );
 			}
 			return Nothing;
 		}

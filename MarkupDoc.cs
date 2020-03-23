@@ -997,8 +997,8 @@ namespace ExpertMultimedia {
 		//public bool IsNoClosing(string sTagWordX) {
 		//
 		//}
-		public static bool RemoveEndsSpacing(ref string sDataX) {
-			bool bGood=Base.RemoveEndsSpacing(ref sDataX);
+		public static bool RemoveEndsWhiteSpace(ref string sDataX) {
+			bool bGood=Base.RemoveEndsWhiteSpace(ref sDataX);
 			//if(Base.RemoveEndsNewLines(ref sDataX)==false) bGood=false;
 			return bGood;
 		}

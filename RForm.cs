@@ -8,6 +8,7 @@
 
 using System;
 using System.Drawing;
+using System.Collections;
 
 namespace ExpertMultimedia {
 	
@@ -16,8 +17,9 @@ namespace ExpertMultimedia {
 	/// OnClick and other html events are extracted from these objects and processed by RForms
 	/// </summary>
 	public class RForm {
-		public RForms ParentPage=null;
+		public RForms ContainerPage=null;
 		public bool bScrollable=false;//TODO: finish this - create scrollbars if exceeds parent.
+		public bool bTabStop=true;//whether the node can become active
 		#region constants
 		public const int DisplayUninitialized=-1;
 		public const int DisplayNone=0;//display:none -- not displayed
@@ -40,6 +42,9 @@ namespace ExpertMultimedia {
 		public int RenderItemBackground=0;
 		public bool bDropDown=false;
 		public bool bOpen=false;///TODO: implement this for File Browse, bDropDown
+		/// <summary>
+		/// The RenderItem constants are only used by the RenderItem method
+		/// </summary>
 		public const int RenderItemNone=0;//nothing is rendered except non-implicit aspects (such as text, image, etc)
 		public const int RenderItemButton=1;
 		public const int RenderItemTextBox=2;
@@ -48,12 +53,15 @@ namespace ExpertMultimedia {
 		//public const int RenderItemTextBox=4;
 		public bool bDown=false;//button, input type=button, or select size=1 [drop down] down state //TODO: implement this -- show as pushed down
 		public static void RenderItem(RImage riOutput, IRect RectItem, int RenderItemX) {
-			RenderItem(riOutput,RectItem,RenderItemX,0,0,0);
+			RenderItem(riOutput,RectItem,RenderItemX,false);//,0,0,0);//TODO:? Add bDown as the MouseIsDown parameter?
 		}
 		private const string RenderItem_SenderString="RenderItem";
-		public static int iScrollBarThickness=16;
-		public static int iControlCornerRadius=3;
 		private static IRect rectScrollTemp=new IRect();
+		/// <summary>
+		/// MouseDownPart constants are used internally for telling the RForm
+		/// RenderItem method which elements of the RenderItem should be
+		/// drawn as to indicate that they are currently being pressed.
+		/// </summary>
 		public const int MouseDownPartNone=0;
 		public const int MouseDownPartUp=1;
 		public const int MouseDownPartDown=2;
@@ -66,7 +74,12 @@ namespace ExpertMultimedia {
 		public const int MouseDownPartRightFast=9;
 		public const int MouseDownPartBottomMid=10;
 		public const int MouseDownPartDropDown=11;
-		public int LineHeight {	get { return rfont!=null?rfont.iLineSpacing+(iControlCornerRadius*2):(RFont.rfontDefault.iLineSpacing); } } //aka FontHeight
+		public int LineHeight {	get { return rfont!=null?rfont.iLineSpacing+(RForms.iControlCornerRadius*2):(RFont.rfontDefault.iLineSpacing); } } //aka FontHeight
+		//temporary variables:
+		private static int[] AttribNameStarterEnderIndeces=new int[20*2];
+		private static int[] AttribValueStarterEnderIndeces=new int[20*2];
+		private static int[] PropNameStarterEnderIndeces=new int[20*2];
+		private static int[] PropValueStarterEnderIndeces=new int[20*2];
 		///<summary>
 		///IF necessary, draws scrollbars and modifies rects.
 		///rectSrc: the source rectangle of the object to be drawn, made
@@ -74,45 +87,50 @@ namespace ExpertMultimedia {
 		///RectAbsolute: the destination rectangle in the output image, NOT modified
 		///</summary>
 		private void DrawScrollBars(RImage riOutput, IRect RectAbsolute, bool MouseIsDownOnIt, int ScrollBarMouseDownPart_ElseZero) {
-			int BarX2=iScrollBarThickness*2;
+			int BarX2=RForms.iControlScrollBarThickness*2;
 			if (riOutput!=null&&RectAbsolute!=null&&rectSrc!=null) {
 				if (bDropDown) {
-					rectScrollTemp.Width=iScrollBarThickness;
+					rectScrollTemp.Width=RForms.iControlScrollBarThickness;
 					rectScrollTemp.Height=LineHeight;
 					rectScrollTemp.Y=RectAbsolute.Y;
-					rectScrollTemp.X=(RectAbsolute.Y+RectAbsolute.Width)-iScrollBarThickness;
-					rectSrc.Width-=iScrollBarThickness;
+					rectScrollTemp.X=(RectAbsolute.Y+RectAbsolute.Width)-RForms.iControlScrollBarThickness;
+					rectSrc.Width-=RForms.iControlScrollBarThickness;
 					RenderItem(riOutput,rectScrollTemp,RenderItemButton,bOpen||ScrollBarMouseDownPart_ElseZero==MouseDownPartDropDown);
 
 					//TODO: finish this
 					// 5 lines alternating between 110.6%,61.5%
 					//-expand RectRelative so renderer will know to draw scrollable subitems
 					//-draw scrollbars if bDown
+					int yNow=rectScrollTemp.Y;//TODO: check this (should arrow start lower?  should that lower yNow be used instead of rectScrollTemp.Y?)
 					RenderArrow(riOutput, rectScrollTemp.X, rectScrollTemp.Y, rectScrollTemp.Width, rectScrollTemp.Height, RenderArrowDown);
 					yNow+=RForms.iControlArrowLength;
-					//stripes below down arrow:
+					//stripes below down arrow (drop-down box arrow):
 					int yEndBefore=yNow+5;
-					int ArrowSideStart=(iScrollBarThickness-RForms.iControlArrowWidth)/2;
+					int ArrowSideStart=(RForms.iControlScrollBarThickness-RForms.iControlArrowWidth)/2;
 					bool bDark=false;
 					while (yNow<yEndBefore) {
-						riOutput.DrawHorzLine(bDark?RForms.BrushControlStripeDark:RForms.BrushControlStripeLight,ArrowSideStart,yNow,RForms.iControlArrowWidth,"DrawScrollBars");
+						riOutput.DrawHorzLine(bDark?RForms.rpaintControlStripeDark:RForms.rpaintControlStripeLight,ArrowSideStart,yNow,RForms.iControlArrowWidth);
 						yNow++;
 						bDark=!bDark;
 					}
 				}//end if bDropDown
 				if (rectSrc.Width<RectAbsolute.Width) { ///TODO: ok since rectSrc dimensions and RectAbsolute location should be rendered by renderer
 					//draw horizontal scrollbar
-					int iMoverBlockContainerSize=rectSrc.Width-BarX2;
+					//-draw mover block (the moveable rectangle in the scrollbar)
+					int iMoverBlockContainerSize=rectSrc.Width-BarX2;//use BarX2 to account for both arrows
 					if (iMoverBlockContainerSize<0) iMoverBlockContainerSize=0;
-					int iMoverBlockSize=RMath.SafeDivideRound(RMath.SafeMultiply(rectSrc.Width,iMoverBlockContainerSize),RectAbsolute.Width);
-					rectSrc.Height-=iScrollBarThickness;///done LAST (remove scrollbar area)
+					int iMoverBlockSize=RMath.SafeDivideRound(RMath.SafeMultiply(rectSrc.Width,iMoverBlockContainerSize),RectAbsolute.Width,iMoverBlockContainerSize);
+					rectSrc.Height-=RForms.iControlScrollBarThickness;///done LAST (remove scrollbar area)
 				}
 			}//end if all non-null rects and dest
 		}//end DrawScrollBars
 		///<summary>
 		///Additional vars are used when RenderItemX is RenderItemScrollH or RenderItemScrollV
 		///</summary>
-		public static RBrush brushTemp=new Brush();
+		public static RPaint rpaintTemp=new RPaint();
+		/// <summary>
+		/// RenderArrow constants are used by the arrow drawing method
+		/// </summary>
 		public const int RenderArrowRight=0;
 		public const int RenderArrowUp=1;
 		public const int RenderArrowLeft=2;
@@ -127,23 +145,24 @@ namespace ExpertMultimedia {
 				//if (bVertical) {
 					int iArrowWidthNow=RForms.iControlArrowWidth;
 					int iBlackWidthNow=RForms.iControlArrowBlackWidth;
-					int xDarkNow=(bVertical?(containerbutton_x+(containerbutton_width-RForms.iControlArrowWidth)/2):(containerbutton_y+(containerbutton_height-RForms.iControlArrowWidth)/2));//iScrollBarThickness/4;//truncated not rounded, since size is rounded
+					int xDarkNow=(bVertical?(containerbutton_x+(containerbutton_width-RForms.iControlArrowWidth)/2):(containerbutton_y+(containerbutton_height-RForms.iControlArrowWidth)/2));//RForms.iControlScrollBarThickness/4;//truncated not rounded, since size is rounded
 					int ArrowSideStart=xDarkNow;
 					int xBlackNow=xDarkNow+1;
 					int xLightNow=xDarkNow+iBlackWidthNow;
 					int iMin=(iArrowWidthNow%2==0)?2:1;
-					int yNow=(bVertical?RectAbsolute.Y:RectAbsolute.X)+RMath.IRound((float)(bVertical?containerbutton_height:containerbutton_width)*0.4375f);//RMath.IRound((float)RectAbsolute.Y*.35f);
+					//next line used to use (bVertical?RectAbsolute.Y:RectAbsolute.X) 
+					int yNow=(bVertical?containerbutton_y:containerbutton_x)+RMath.IRound((float)(bVertical?containerbutton_height:containerbutton_width)*0.4375f);//RMath.IRound((float)RectAbsolute.Y*.35f);
 					//down arrow:
 					while (iArrowWidthNow>=iMin) {
 						if (bVertical) {
-							riOutput.SetPixel(RForms.BrushControlSymbolShadowDark,xLightNow,yNow);
-							riOutput.DrawHorzLine(RForms.BrushControlSymbol,xBlackNow,yNow,iBlackWidthNow,"DrawScrollBars");
-							riOutput.SetPixel(RForms.BrushControlSymbolShadowLight,xDarkNow,yNow);
+							riOutput.SetPixel(RForms.rpaintControlSymbolShadowDark,xLightNow,yNow);
+							riOutput.DrawHorzLine(RForms.rpaintControlSymbol,xBlackNow,yNow,iBlackWidthNow);
+							riOutput.SetPixel(RForms.rpaintControlSymbolShadowLight,xDarkNow,yNow);
 						}
 						else {
-							riOutput.SetPixel(RForms.BrushControlSymbolShadowDark,yNow,xDarkNow);
-							riOutput.DrawVertLine(RForms.BrushControlSymbol,yNow,xBlackNow,iBlackWidthNow,"DrawScrollBars");
-							riOutput.SetPixel(RForms.BrushControlSymbolShadowLight,yNow,xLightNow);
+							riOutput.SetPixel(RForms.rpaintControlSymbolShadowDark,yNow,xDarkNow);
+							riOutput.DrawVertLine(RForms.rpaintControlSymbol,yNow,xBlackNow,iBlackWidthNow);
+							riOutput.SetPixel(RForms.rpaintControlSymbolShadowLight,yNow,xLightNow);
 						}
 						xDarkNow++;
 						xBlackNow++;
@@ -151,7 +170,7 @@ namespace ExpertMultimedia {
 						iArrowWidthNow-=2;
 						iBlackWidthNow-=2;
 						yNow+=iDirAdder;
-					}
+					} //end while (iArrowWidthNow>=iMin)
 				//}//end if vertical
 				//else {
 				//}
@@ -161,10 +180,10 @@ namespace ExpertMultimedia {
 			}
 		}//end RenderArrow
 		public static void RenderItem(RImage riOutput, IRect RectItem, int RenderItemX, bool MouseIsDownOnItem) {//, int SizeOuter, int SizeShown, int AmountScroll) {
-			RBrush brushSwap=brushTemp;
+			RPaint rpaintSwap=rpaintTemp;
 			//TODO: cropping
 			if (riOutput!=null&&RectItem!=null) {
-				//string sSender="RenderItem(RImage,IRect,RenderItem="+RenderItemX.ToString()+",MouseIsDownOnItem="+RConvert.ToString(MouseIsDownOnItem)+",...)";
+				//string sDebugMethod="RenderItem(RImage,IRect,RenderItem="+RenderItemX.ToString()+",MouseIsDownOnItem="+RConvert.ToString(MouseIsDownOnItem)+",...)";
 				int RectItem_Bottom_Inclusive=RectItem.BottomInclusive;
 				int RectItem_Right_Inclusive=RectItem.RightInclusive;
 				int LeftShrink1=RectItem.X+1;
@@ -172,61 +191,67 @@ namespace ExpertMultimedia {
 				//int RectItem_Width_minus_2=RectItem.Width-2;
 				if (RenderItemX==RenderItemButton||RenderItemX==RenderItemTextBox) {	//render rounded black outline
 					//draw rounded non-antialiased black border (corners are drawn later below):
-					riOutput.DrawHorzLine(RForms.brushControlLine,RectItem.X+2,RectItem.Y,RectItem.Width-4,RenderItem_SenderString);
-					riOutput.DrawHorzLine(RForms.brushControlLine,RectItem.X+2,RectItem_Bottom_Inclusive,RectItem.Width-4,RenderItem_SenderString);
-					riOutput.DrawVertLine(RForms.brushControlLine,RectItem.X,RectItem.Y+2,RectItem.Height-4,RenderItem_SenderString); //Left side
-					riOutput.DrawVertLine(RForms.brushControlLine,RectItem_Right_Inclusive,RectItem.Y+2,RectItem.Height-4,RenderItem_SenderString); //Right side
+					riOutput.DrawHorzLine(RForms.rpaintControlLine,RectItem.X+2,RectItem.Y,RectItem.Width-4);
+					riOutput.DrawHorzLine(RForms.rpaintControlLine,RectItem.X+2,RectItem_Bottom_Inclusive,RectItem.Width-4);
+					riOutput.DrawVertLine(RForms.rpaintControlLine,RectItem.X,RectItem.Y+2,RectItem.Height-4); //Left side
+					riOutput.DrawVertLine(RForms.rpaintControlLine,RectItem_Right_Inclusive,RectItem.Y+2,RectItem.Height-4); //Right side
 				}//more drawn after cases below
-				if (RenderItemX==RenderItemButton) { //brushControl 107% to 90%
+				if (RenderItemX==RenderItemButton) { //rpaintControl 107% to 90%
 					if (RenderItemX==RenderItemButton) {
 						//draw gradient inner part:
-						riOutput.DrawGradTopDownRectFilled(RForms.brushControlGradientLight,brushControlGradientDark,LeftShrink1, TopShrink1, RectItem.Width-2, RectItem.Height-2, RenderItem_SenderString);
+						riOutput.DrawGradTopDownRectFilled(RForms.rpaintControlGradientLight,RForms.rpaintControlGradientDark,LeftShrink1, TopShrink1, RectItem.Width-2, RectItem.Height-2);
 					}
-					else {//set brush to sunken shadow color, and draw inner solid background
-						riOutput.DrawRectFilled(RForms.brushTextBoxBack,LeftShrink1, TopShrink1, RectItem.Width-2, RectItem.Height-2, RenderItem_SenderString);
+					else {//set rpaint to sunken shadow color, and draw inner solid background
+						riOutput.DrawRectFilled(RForms.rpaintTextBoxBack,LeftShrink1, TopShrink1, RectItem.Width-2, RectItem.Height-2);
 					}
 					if (RenderItemX==RenderItemButton&&MouseIsDownOnItem) {
-						riOutput.SetPixel(RForms.brushControl,LeftShrink1,TopShrink1);
-						brushSwap=RForms.brushControlInsetShadow;
+						riOutput.SetPixel(RForms.rpaintControl,LeftShrink1,TopShrink1);
+						rpaintSwap=RForms.rpaintControlInsetShadow;
 					}
 					else {//draw up
-						if (RenderItemX==RenderItemButton) brushSwap=RForms.brushButtonShine;
-						else brushSwap=RForms.brushTextBoxBackShadow;
-						riOutput.DrawHorzLine(brushSwap,LeftShrink1, RectItem.Y+2, 2, RenderItem_SenderString); //2 pixel line for left fx
-						riOutput.DrawVertLine(brushSwap,LeftShrink1, RectItem.Y+3, RectItem.Height-5, RenderItem_SenderString); //inner left line
-						riOutput.SetPixel(brushSwap,RectItem.X+2,RectItem_Bottom_Inclusive-1);
+						if (RenderItemX==RenderItemButton) rpaintSwap=RForms.rpaintButtonShine;
+						else rpaintSwap=RForms.rpaintTextBoxBackShadow;
+						riOutput.DrawHorzLine(rpaintSwap,LeftShrink1, RectItem.Y+2, 2); //2 pixel line for left fx
+						riOutput.DrawVertLine(rpaintSwap,LeftShrink1, RectItem.Y+3, RectItem.Height-5); //inner left line
+						riOutput.SetPixel(rpaintSwap,RectItem.X+2,RectItem_Bottom_Inclusive-1);
 					}//end draw up
 					//common (for button, whether up or down) lines:
-					riOutput.DrawHorzLine(brushSwap,RectItem.X+2, TopShrink1, RectItem.Width-4, RenderItem_SenderString); //inner top line
-					riOutput.DrawHorzLine(brushSwap,RectItem_Right_Inclusive-2, RectItem.Y+2, 2, RenderItem_SenderString); //2 pixel line for right fx
-					riOutput.DrawVertLine(brushSwap,RectItem_Right_Inclusive-1, RectItem.Y+3, RectItem.Height-5, RenderItem_SenderString); //inner right line
-					riOutput.SetPixel(brushSwap,RectItem_Right_Inclusive-2,RectItem_Bottom_Inclusive-1);
+					riOutput.DrawHorzLine(rpaintSwap,RectItem.X+2, TopShrink1, RectItem.Width-4); //inner top line
+					riOutput.DrawHorzLine(rpaintSwap,RectItem_Right_Inclusive-2, RectItem.Y+2, 2); //2 pixel line for right fx
+					riOutput.DrawVertLine(rpaintSwap,RectItem_Right_Inclusive-1, RectItem.Y+3, RectItem.Height-5); //inner right line
+					riOutput.SetPixel(rpaintSwap,RectItem_Right_Inclusive-2,RectItem_Bottom_Inclusive-1);
 				}//end if RenderItemButton
 				//end RenderItem* types
 				if (RenderItemX==RenderItemButton||RenderItemX==RenderItemTextBox) {
 					//draw dots on top of shaded area for inner pixel of rounded corners
-					riOutput.SetPixel(RForms.brushControlLine,LeftShrink1,TopShrink1); //TL dot
-					riOutput.SetPixel(RForms.brushControlLine,RectItem_Right_Inclusive-1,TopShrink1); //TR dot
-					riOutput.SetPixel(RForms.brushControlLine,LeftShrink1,RectItem_Bottom_Inclusive-1); //BL dot
-					riOutput.SetPixel(RForms.brushControlLine,RectItem_Right_Inclusive-1,RectItem_Bottom_Inclusive-1); //BR dot
+					riOutput.SetPixel(RForms.rpaintControlLine,LeftShrink1,TopShrink1); //TL dot
+					riOutput.SetPixel(RForms.rpaintControlLine,RectItem_Right_Inclusive-1,TopShrink1); //TR dot
+					riOutput.SetPixel(RForms.rpaintControlLine,LeftShrink1,RectItem_Bottom_Inclusive-1); //BL dot
+					riOutput.SetPixel(RForms.rpaintControlLine,RectItem_Right_Inclusive-1,RectItem_Bottom_Inclusive-1); //BR dot
 				}
 			}
 			else RReporting.ShowErr("Null destination","rendering interface item",String.Format("RenderItem{{RImage:{0}; IRect:{1}}}",RImage.ToString(riOutput),IRect.ToString(RectItem)) );
 		}//RenderItem
+		public void CalculateDisplayMethodVars() {
+			CalculateDisplayMethodVars(this.TagwordLower,this.GetProperty("type",true),this.GetStyleAttrib("display"));
+		}
 		///<summary>
 		///(called by rforms UpdateAll)
 		///Calculates display vars such as display attribute index (specified or inferred),
 		/// RenderItemBackground (such as RenderItemButton); 
 		/// creates textbox (multi- or single-line) if necessary
 		///</summary>
-		public void CalculateDisplayMethodVars(string TagwordX, string TypePropertyValue, string DisplayAttribValue) {
+		/// <param name="TagwordX">The HTML Tagword</param>
+		/// <param name="TypeX">The value of the HTML "TYPE" property</param>
+		/// <param name="CSSDisplayX">Overrides the calculated display method (leave this null unless specifying manually)</param>
+		public void CalculateDisplayMethodVars(string TagwordX, string TypeX, string CSSDisplayX) {
 			DisplayMethodIndex=DisplayUninitialized;
 			if (TagwordX!=null) TagwordX=TagwordX.ToLower();
 			if (TypeX!=null) TypeX=TypeX.ToLower();
-			if (DisplayAttribValue!=null) DisplayAttribValue=DisplayAttribValue.ToLower();
+			if (CSSDisplayX!=null) CSSDisplayX=CSSDisplayX.ToLower();
 			DisplayMethodIndex=DisplayInline; //default
 			RenderItemBackground=RenderItemNone; //default
-			if ( TagwordX=="button" || (TagwordX=="input"&&(TypePropertyValue=="submit"||TypePropertyValue=="button"||TypePropertyValue=="reset")) ) {
+			if ( TagwordX=="button" || (TagwordX=="input"&&(TypeX=="submit"||TypeX=="button"||TypeX=="reset")) ) {
 				RenderItemBackground=RenderItemButton;
 			}
 			else if (TagwordX=="input") {
@@ -248,6 +273,7 @@ namespace ExpertMultimedia {
 				RenderItemBackground=RenderItemTextBox;
 				textbox=new RTextBox(this,32,true);
 			}
+			//TODO: use CSSDisplayX param to override calculated display method
 		}//end CalculateDisplayMethodVars
 /* ///TODO:
 //from <http://www.w3.org/TR/REC-html40/interact/forms.html> 2008-11-24
@@ -278,16 +304,22 @@ namespace ExpertMultimedia {
 
 		#region required vars
 		//public string sPreText="";//text before the tag area--this was only needed for text before an opening (i.e. "<html") tag--this is no longer needed since Node(0) is now the tagless (no opener, closer, or post-text) root node and contains any data preceding "<html" as it's sContent.
-		public string sOpener="";//ALL data including opening '<' and closing '>' OR "/>"
+		public string sOpener="";//ALL data including opening '<', html property assignments, and closing '>' OR "/>"
 		public string sContent="";//text AFTER sOpener & before children //formerly sInnerText
 		public string sCloser="";//closing tag after children, & opening '</' & closing '>' IF ANY
 		public string sPostText="";//any data after closing tag (or after self-closing sOpener), including newlines,
 		//RForm rformParent=null;
 		public int iIndex=-1;//index in the RForms.rformarr array
 		public int ParentIndex=-1;
-		private int iSubNodes=0;
-		//public int indexParent; //index in RFormr
+		private int iSubNodes=0;//TODO: make sure this is set correctly EVERYWHERE including when node is manually pushed under parent
+		//public int indexParent; //index in rformarr (replaced by ParentIndex)
 		public bool bLeaf; //whether this can be drawn as text
+		/// <summary>
+		// Formerly, iType was used, i.e. iType was set to TypeTextArea.
+		// Now, the precalculated DisplayMethodIndex is set to a Display*
+		// constant for display style, and behavior is determined using
+		// the html tagword and other variables.
+		/// </summary>
 		private int DisplayMethodIndex=DisplayUninitialized; //fixed by CalculateDisplayMethodVars
 		#endregion required vars
 
@@ -298,13 +330,13 @@ namespace ExpertMultimedia {
 		public int iLengthChildren=0;
 		public int Length {
 			get {
-				return RString.SafeLength(sPreText)+RString.SafeLength(sOpener)+RString.SafeLength(sContent)+iLengthChildren+RString.SafeLength(sCloser);
+				return RString.SafeLength(sOpener)+RString.SafeLength(sContent)+iLengthChildren+RString.SafeLength(sCloser);
 			}
 			set {
-				iLengthChildren=value-(RString.SafeLength(sPreText)+RString.SafeLength(sOpener)+RString.SafeLength(sContent)+RString.SafeLength(sCloser));
+				iLengthChildren=value-(RString.SafeLength(sOpener)+RString.SafeLength(sContent)+RString.SafeLength(sCloser));
 				if (iLengthChildren<0) {
 					iLengthChildren=0;
-					Base.ShowErr("Tried to set rform length to but the value must be greater than or equal to the sum of the PreText, Opener, Content, and Closer (the child tags are all that is left, the length of which is set by the value sent here minus the sum of the strings listed above).","","rform set Length="+value.ToString());
+					RReporting.ShowErr("Tried to set rform length to but the value must be greater than or equal to the sum of the PreText, Opener, Content, and Closer (the child tags are all that is left, the length of which is set by the value sent here minus the sum of the strings listed above).","","rform set Length="+value.ToString());
 				}
 			}
 		}//end Length get/set
@@ -327,7 +359,7 @@ namespace ExpertMultimedia {
 		private RTextBox textbox=null;//version of sText for TextArea
 		public bool Visible {
 			get {
-				return StyleAttribEqualsI_AssumingNeedleIsLower("visibility","hidden");
+				return !StyleAttribEqualsI_AssumingNeedleIsLower("visibility","hidden");
 			}
 			set {
 				SetStyleAttrib("visibility",value?"visible":"hidden");
@@ -338,12 +370,21 @@ namespace ExpertMultimedia {
 		}
 		public RForm Parent {
 			get {
-				if (ParentPage!=null) {
-					if (iNodeIndex>-1) return ParentPage.Node(ParentIndex);
+				RForm rformReturn=null;
+				if (ContainerPage!=null) {
+					if (iIndex>-1) {
+						if (ParentIndex>-1) {
+							rformReturn=ContainerPage.Node(ParentIndex);
+							if (rformReturn==null) {
+								RReporting.ShowErr("Node at parent index is null!","getting parent node via RForm node","RForm get RForm Parent {this.iIndex:"+iIndex.ToString()+"; this.ParentIndex:"+ParentIndex.ToString()+"}");
+							}
+						}
+						else RReporting.Warning("Tried to get parent object from a base node!");
+					}
 					else RReporting.Warning("Bad saved self-index in an RForm (RForms corruption)--will not be able to get parent object");
 				}
-				else RReporting.ShowErr("Null ParentPage for an RForm (RForms corruption while getting Parent object)");
-				return null;
+				else RReporting.ShowErr("Null  for an RForm (RForms corruption while getting Parent object)");
+				return rformReturn;
 			}
 		}
 		#endregion optional vars
@@ -359,14 +400,15 @@ namespace ExpertMultimedia {
 		public IZone zoneInner=null; //absolute screen position derived from margin styles (used by child; or by inner text if IsLeaf)
 		public Pixel32 pxBack=new Pixel32(0,255,255,255);
 		public Pixel32 pxFore=new Pixel32(255,0,0,0);
-		private string sTagwordLower=null;
+		private string sTagwordLower=null; //generated first time needed using sOpener (see TagwordLower get)
 		public string TagwordLower {
 			get {
-				if (sTagwordLower==null) {
+				if (sTagwordLower==null) { //only generated first time needed
 					int iAbs=RString.IndexOfNonWhiteSpaceNorChar(sOpener,0,'<');
 					if (iAbs>-1) {
-						iEnder=RString.IndexOfWhiteSpaceOrChar(sOpener,iAbs,'>');
+						int iEnder=RString.IndexOfWhiteSpaceOrChar(sOpener,'>',iAbs);
 						if (iEnder>-1) {
+							if (iEnder>0&&sOpener[iEnder-1]=='/') iEnder--;
 							sTagwordLower=RString.SafeSubstring(sOpener,iAbs,iEnder-iAbs);
 						}
 					}
@@ -401,50 +443,84 @@ namespace ExpertMultimedia {
 // 				return sNameLower;
 // 			}
 // 		}//end get/set NameLower
-		private string sValueOrContent=null;
-		public string ValueOrContent {
-			get {
-				if (sValueOrContent==null) {
-					sValueOrContent=GetProperty("value");
-					if (!HasProperty("value")) sValueOrContent=sContent;
-					if (sValueOrContent==null) sValueOrContent="";
-				}
-				return sValueOrContent;
-			}
-		}//end get/set ValueOrContent
+		//private string sValueOrContent=null;//private cache only
+		/// Manipulates ValueOrContent without dealing with textbox
+		//public string ValueOrContent { //replaced by more comprehensive Text accessor which also accounts for textbox object in addition to sContent or "value" property
+		//	get {
+		//		if (sValueOrContent==null) {
+		//			sValueOrContent=GetProperty("value");
+		//			if (!HasProperty("value")) sValueOrContent=sContent;
+		//			if (sValueOrContent==null) sValueOrContent="";
+		//		}
+		//		return sValueOrContent;
+		//	}
+		//}//end get/set ValueOrContent
 		public bool ValueTagIsContent {
 			get { return TagwordLower=="input"||TagwordLower=="button"; }
 		}
-		private string Text {//formerly sText
+		/// <summary>
+		/// Gets/sets value of the "value" property or the tag content where 
+		/// appropriate, also dealing with textbox object where appropriate.
+		/// </summary>
+		public string Text {//formerly sText
 			get {
 				//TODO: finish this -- make textbox automatically update value or sContent as needed
 				if (ValueTagIsContent) {
-					if (textbox!=null) SetProperty("value",RString.ToHtmlValue(textbox.ToString()));
+					//Before getting, set value property to textbox if object exists:
+					if (textbox!=null) SetProperty("value",RString.ToHtmlValue(textbox.ToString()));//debug performance
 					return GetProperty("value");
 				}
-				else {
-					if (textbox!=null) sContent=RString.ToHtmlValue(textbox.ToString());
+				else {//if sContent is content
+					if (textbox!=null) sContent=RString.ToHtmlValue(textbox.ToString());//debug performance
 					return sContent; //TODO: for sgml: (only used if root !bUpdateHTML, otherwise root node gets it from an sgmlNow.Substring(...))
 				}
 			}
 			set {
-				if (textbox!=null) textbox.SetData(value);
+				if (textbox!=null) textbox.SetText(value);
 				//do this separately:
-				if ValueTagIsContent) SetProperty("value",value);
+				if (ValueTagIsContent) SetProperty("value",value);
 				else sContent=value;
 			}
-		}
+		}//end Text (get/set via content)
+		/*
+		public string Text {
+			get {
+				if (textbox!=null) {//iType==TypeTextArea) {
+					//if (textbox!=null)
+						return textbox.ToString("\n");//TODO: debug whether to use \n here
+					//else {
+					//	RReporting.ShowErr("TextArea rtextbox was null upon trying to get text!");
+					//	return "";
+					//}
+				}
+				else return sText;
+			}
+			set {
+				//try {
+					//if (iType==TypeTextArea) {
+						//if (textbox==null) textbox=new RTextBox(this,1);
+						if (textbox!=null) textbox.SetText(value);
+					//}
+					else sText=value;
+				//}
+				//catch (Exception exn) {
+					//RReporting.ShowExn(exn,"setting text","RForm set Text to "+(value!=null?(value!=""?"\""+value+"\"":"\"\""):"null")+" for interface node");
+				//}
+			}
+		}//end Text (DEPRECATED, via textbox or sText)
+		*/
+
 		#endregion cached variables
 		
 		//public Variable vParent=null; //TODO: implement this (create Variable [created from HTML] "re-parser") has links to sourcecode etc
 		
 		#region variables, rendering (framework Graphics) vars
 		public Color colorBack=SystemColors.Window;
-		//public SolidBrush brushBack=new SolidBrush(SystemColors.Window);
+		//public SolidBrush rpaintBack=new SolidBrush(SystemColors.Window);
 		//public System.Drawing.Pen penBack=new System.Drawing.Pen(SystemColors.Window);
 		//Color color=Color.Black;
-		//SolidBrush brush=new SolidBrush(Color.Black);
-		Color colorTextNow=Color.Black;
+		//SolidBrush rpaint=new SolidBrush(Color.Black);
+		public Color colorTextNow=Color.Black;
 		//System.Drawing.Pen pen=new System.Drawing.Pen(Color.Black);
 		//System.Drawing.Font font=new Font("Andale Mono",9);//default monospaced font
 		//FontFamily fontfamily = new FontFamily("Andale Mono");
@@ -508,8 +584,9 @@ namespace ExpertMultimedia {
 			get {
 				int iReturn=0;
 				try {
-					if (textbox!=null) iReturn=textbox.Length; //iType==TypeTextArea) iReturn=textbox.Length; //TODO: make sure textbox is set to null if type changes, and make sure it changes mode if input type changes
-					else return sText.Length;
+					iReturn=Text.Length;
+					//if (textbox!=null) iReturn=textbox.Length; //iType==TypeTextArea) iReturn=textbox.Length; //TODO: make sure textbox is set to null if type changes, and make sure it changes mode if input type changes
+					//else return sText.Length;
 				}
 				catch (Exception exn) {
 					RReporting.ShowExn(exn,"","RForm TextLength");
@@ -526,31 +603,6 @@ namespace ExpertMultimedia {
 		public bool IsRoot {
 			get {
 				return ParentIndex<0;//rformParent==null;
-			}
-		}
-		public string Text {
-			get {
-				if (textbox!=null) {//iType==TypeTextArea) {
-					//if (textbox!=null)
-						return textbox.ToString("\n");//TODO: debug whether to use \n here
-					//else {
-					//	RReporting.ShowErr("TextArea rtextbox was null upon trying to get text!");
-					//	return "";
-					//}
-				}
-				else return sText;
-			}
-			set {
-				//try {
-					//if (iType==TypeTextArea) {
-						//if (textbox==null) textbox=new RTextBox(this,1);
-						if (textbox!=null) textbox.SetText(value);
-					//}
-					else sText=value;
-				//}
-				//catch (Exception exn) {
-					//RReporting.ShowExn(exn,"setting text","RForm set Text to "+(value!=null?(value!=""?"\""+value+"\"":"\"\""):"null")+" for interface node");
-				//}
 			}
 		}
 		public bool Undo() {
@@ -602,12 +654,12 @@ namespace ExpertMultimedia {
 		//	set {
 		//		try {
 		//			if (value<=0) {
-		//				if (value<MAXBRANCHES) Base.WriteLine("shrinking "+(IsLeaf?"a leaf":(IsRoot?"root":"a"))+" rform's MAXBRANCHES to "+value.ToString()+" (sub array set to null)");
+		//				if (value<MAXBRANCHES) RReporting.WriteLine("shrinking "+(IsLeaf?"a leaf":(IsRoot?"root":"a"))+" rform's MAXBRANCHES to "+value.ToString()+" (sub array set to null)");
 		//				rformarr=null;
 		//			}
 		//			else {
 		//					RForm[] rformarrNew=new RForm[value];
-		//					if (value<MAXBRANCHES) Base.WriteLine("shrinking "+(IsLeaf?"a leaf":(IsRoot?"root":"a"))+" rform's MAXBRANCHES");
+		//					if (value<MAXBRANCHES) RReporting.WriteLine("shrinking "+(IsLeaf?"a leaf":(IsRoot?"root":"a"))+" rform's MAXBRANCHES");
 		//					int iMin=MAXBRANCHES<value?MAXBRANCHES:value;
 		//					for (int iNow=0; iNow<value; iNow++) {
 		//						if (iNow<iMin) rformarrNew[iNow]=rformarr[iNow];
@@ -626,29 +678,64 @@ namespace ExpertMultimedia {
 		
 		
 		#region constructors
+		/// <summary>
+		/// Initializes RForm.  See RForm Init method for information on variables.
+		/// </summary>
 		public RForm() {
-			Init(0,0,"","",0,0,0,0);
-			RReporting.Warning("The default RForm constructor was used--the ParentPage must still be set!");
+			Init(null,0,"","",0,0,0,0,"");
+			RReporting.Warning("The default RForm constructor was used--the  has yet to be set!");
 		}
-		public RForm(RForms SetParentPage) {
-			ParentPage=SetParentPage;
-			Init(0,0,"","",0,0,0,0);
+		/// <summary>
+		/// Initializes RForm.  See RForm Init method for information on variables.
+		/// </summary>
+		public RForm(RForms SetContainerPage) {
+			Init(SetContainerPage,0,"","",0,0,0,0,"");
 		}
 		//public RForm(RImage riSurface) {
 		//	Init(riSurface);
 		//}
-		public RForm(int iSetParentNode, int RFormType, string sSetName, string sSetText, IRect rectSetAbsToCopy) {
-			Init(iSetParentNode, RFormType, sSetName, sSetText, rectSetAbsToCopy.X,rectSetAbsToCopy.Y,rectSetAbsToCopy.Width,rectSetAbsToCopy.Height, ""); //IndexParent, 
+		/// <summary>
+		/// Initializes RForm.  See RForm Init method for information on variables.
+		/// </summary>
+		public RForm(RForms SetContainerPage, int iSetParentNode,/* int RFormType, */string sSetName, string sSetText, IRect rectSetAbsToCopy) {
+			Init(SetContainerPage, iSetParentNode, /*RFormType, */sSetName, sSetText, rectSetAbsToCopy.X,rectSetAbsToCopy.Y,rectSetAbsToCopy.Width,rectSetAbsToCopy.Height, ""); //IndexParent, 
 		}
-		public RForm(int iSetParentNode, int RFormType, string sSetName, string sSetText, int xLoc, int yLoc, int Width, int Height) {
-			Init(iSetParentNode, RFormType, sSetName, sSetText, xLoc, yLoc, Width, Height, ""); //IndexParent, 
+		/// <summary>
+		/// Initializes RForm.  See RForm Init method for information on variables.
+		/// </summary>
+		public RForm(RForms SetContainerPage, int iSetParentNode, /*int RFormType, */string sSetName, string sSetText, int xLoc, int yLoc, int Width, int Height) {
+			Init(SetContainerPage, iSetParentNode, /*RFormType, */sSetName, sSetText, xLoc, yLoc, Width, Height, ""); //IndexParent, 
 		}
-		public RForm(int iSetParentNode, int RFormType, string sSetName, string sSetText, int xLoc, int yLoc, int Width, int Height, string HTMLTag) {
-			Init(iSetParentNode, RFormType, sSetName, sSetText, xLoc, yLoc, Width, Height, HTMLTag); //IndexParent, 
+		/// <summary>
+		/// Initializes RForm.  See RForm Init method for information on variables.
+		/// </summary>
+		public RForm(RForms SetContainerPage, int iSetParentNode, /*int RFormType, */string sSetName, string sSetText, int xLoc, int yLoc, int Width, int Height, string HTMLTag) {
+			Init(SetContainerPage, iSetParentNode, /*RFormType, */sSetName, sSetText, xLoc, yLoc, Width, Height, HTMLTag); //IndexParent, 
 		}
-		public void Init(int iSetParentNode, int RFormType, string sSetName, string sSetText, int xLoc, int yLoc, int iSetWidth, int iSetHeight, string HTMLTag) { //int IndexParent,
+		public void Init(RForms SetContainerPage, int iSetParentNode, /*int RFormType, */string sSetName, string sSetText) {
+			Init(SetContainerPage, iSetParentNode, /*RFormType, */sSetName, sSetText,0,0,0,0,"");
+		}
+		public void Init(RForms SetContainerPage, int iSetParentNode, /*int RFormType, */string sSetName, string sSetText, IRect rectSetAbsToCopy) { //int IndexParent,
+			Init(SetContainerPage, iSetParentNode, /*RFormType, */sSetName, sSetText, rectSetAbsToCopy.X, rectSetAbsToCopy.Y, rectSetAbsToCopy.Width, rectSetAbsToCopy.Height, "");
+		}
+		public void Init(RForms SetContainerPage, int iSetParentNode, /*int RFormType, */string sSetName, string sSetText, int xLoc, int yLoc, int iSetWidth, int iSetHeight) { //int IndexParent,
+			Init(SetContainerPage, iSetParentNode, /*RFormType, */sSetName, sSetText, xLoc, yLoc, iSetWidth, iSetHeight, "");
+		}
+		/// <summary>
+		/// Initializes RForm.
+		/// </summary>
+		/// <param name="iSetParentNode"></param>
+		/// <param name="sSetName"></param>
+		/// <param name="sSetText">Must be non-null if tag is input and input type=text is desired (otherwise can't input text)!</param>
+		/// <param name="xLoc"></param>
+		/// <param name="yLoc"></param>
+		/// <param name="iSetWidth"></param>
+		/// <param name="iSetHeight"></param>
+		/// <param name="HTMLTag">The text to go between the &lt; (less than) and &gt; (greater than) signs.  MUST end with '/' (forward slash) if you don't want a closing tag (&lt; then HTMLTag--excluding the first space and following characters if any--then &gt;)</param>
+		public void Init(RForms SetContainerPage, int iSetParentNode, /*int RFormType, */string sSetName, string sSetText, int xLoc, int yLoc, int iSetWidth, int iSetHeight, string HTMLTag) { //int IndexParent,
+			ContainerPage=SetContainerPage;
 			ParentIndex=iSetParentNode;//rformParent=rformSetParent;
-			iType=RFormType;
+			//iType=RFormType;
 			rectAbs=new IRect();
 			rectAbs.X=xLoc;
 			rectAbs.Y=yLoc;
@@ -659,12 +746,47 @@ namespace ExpertMultimedia {
 			//rectTemp.y++;
 			//rectTemp.Width-=2;
 			//rectTemp.Height-=2;
+			int iCloserEnder=RString.SafeIndexOf(HTMLTag," ");
 			zoneInner=new IZone(rectTemp);
-			if (RFormType==TypeTextArea) textbox=new RTextBox(this,1);
-			if (RFormType==TypeTextEdit) textbox=new RTextBox(this,1,false);
-			sText=sSetText; //not used unless using !rformrRoot.bUpdateHTML
+			string HTMLTagLower=HTMLTag.ToLower();
+			sOpener="";
+			sContent="";
+			sCloser="";
+			//if (HTMLTagLower=="input"&&sSetText!=null) {
+			//}
+			//else {
+			//	if (HTMLTagLower=="textarea") {
+			//	}
+			//	else {
+					
+			//	}
+			//	sCloser="</"+((iCloserEnder>-1)?(RString.SafeSubstring(HTMLTag,0,iCloserEnder)):HTMLTag)+>";
+			//}
+			if (HTMLTagLower=="input"&&sSetText!=null) {
+				textbox=new RTextBox(this,1,false);//false: non-multiline
+				sOpener="<"+HTMLTag+" type=text value=\""+RString.ToHtmlValue(sSetText)+"\""+((RString.SafeLength(HTMLTag)>0&&HTMLTag[HTMLTag.Length-1]!='/')?"/":"")+">";
+				sContent="";
+				sCloser="";
+			}
+			else if (HTMLTagLower=="textarea") {
+				textbox=new RTextBox(this,1);
+				textbox.SetText(RString.ToHtmlValue(sSetText));
+				sOpener="<"+HTMLTag+">";
+				
+				//ALWAYS add CLOSER if is a textarea:
+				sCloser="</"+((iCloserEnder>-1)?(RString.SafeSubstring(HTMLTag,0,iCloserEnder)):HTMLTag)+">";
+			}
+			else {
+				sOpener="<"+HTMLTag+">";
+				if (!RString.CompareAt(HTMLTag,'/',RString.SafeLength(HTMLTag)-1)) {
+				//add closer only if textarea OR does not have '/'
+					sCloser="</"+((iCloserEnder>-1)?(RString.SafeSubstring(HTMLTag,0,iCloserEnder)):HTMLTag)+">";
+				}
+			}
+			//if (RFormType==TypeTextArea) textbox=new RTextBox(this,1);
+			//else if (RFormType==TypeTextEdit) textbox=new RTextBox(this,1,false);
+			Text=sSetText; //TODO:? not used unless rformrRoot.bUpdateHTML is false??
 			//indexParent=IndexParent;
-			SetTag(sHTMLTag);
 			//rformarr=null;
 			iSubNodes=0;
 			iCursor=0;
@@ -685,124 +807,114 @@ namespace ExpertMultimedia {
 		//		RReporting.ShowExn(exn,"setting node by surface","RForm Init");
 		//	}
 		//	Init(-1,RForm.TypePlane,"",0,0,iSetWidth,iSetHeight);
-		//}
-		public void Init(int iSetParentNode, int RFormType, string sSetName, string sSetText) {
-			Init(iSetParentNode,RFormType, sSetName, sSetText,0,0,0,0,"");
-		}
-		public void Init(int iSetParentNode, int RFormType, string sSetName, string sSetText, IRect rectSetAbsToCopy) { //int IndexParent,
-			Init(iSetParentNode, RFormType, sSetName, sSetText, rectSetAbsToCopy.X, rectSetAbsToCopy.Y, rectSetAbsToCopy.Width, rectSetAbsToCopy.Height, "");
-		}
-		public void Init(int iSetParentNode, int RFormType, string sSetName, string sSetText, int xLoc, int yLoc, int iSetWidth, int iSetHeight) { //int IndexParent,
-			Init(iSetParentNode, RFormType, sSetName, sSetText, xLoc, yLoc, iSetWidth, iSetHeight, "");
-		}
-		
+		//}//end Init		
 		#endregion constructors
 		
 		#region input
 		public bool Backspace() {
-			if (iType==TypeTextArea) return textbox.Backspace();
+			if (textbox!=null) return textbox.Backspace();
 			else {
-				RReporting.ShowErr("Backspace is only implemented for TextArea");
+				RReporting.ShowErr("Backspace is only implemented for text input nodes");
 				return false;
 			}
 		}
 		public bool Delete() {
-			if (iType==TypeTextArea) return textbox.Delete();
+			if (textbox!=null) return textbox.Delete();
 			else {
-				RReporting.ShowErr("Delete is only implemented for TextArea");
+				RReporting.ShowErr("Delete is only implemented for text input nodes");
 				return false;
 			}
 		}
 		public bool Return() {
-			if (iType==TypeTextArea) return textbox.Return();
+			if (textbox!=null) return textbox.Return();
 			else {
-				RReporting.ShowErr("Entering a line return is only implemented for TextArea");
+				RReporting.ShowErr("Entering a line return is only implemented for text input nodes");
 				return false;
 			}
 		}
 		//public bool InsertLine(int iLine, string sLine) {
-		//	if (iType==TypeTextArea) return textbox.InsertLine(iLine,sLine);
+		//	if (textbox!=null) return textbox.InsertLine(iLine,sLine);
 		//	else {
-		//		RReporting.ShowErr("InsertLine is only implemented for TextArea");
+		//		RReporting.ShowErr("InsertLine is only implemented for text input nodes");
 		//		return false;
 		//	}
 		//}
 		//public bool RemoveLine(int iLine) {
-		//	if (iType==TypeTextArea) return textbox.RemoveLine(iLine);
+		//	if (textbox!=null) return textbox.RemoveLine(iLine);
 		//	else {
-		//		RReporting.ShowErr("RemoveLine is only implemented for TextArea");
+		//		RReporting.ShowErr("RemoveLine is only implemented for text input nodes");
 		//		return false;
 		//	}
 		//}
 		//public bool AddLine(string sLine) {
-		//	if (iType==TypeTextArea) return textbox.AddLine(sLine);
+		//	if (textbox!=null) return textbox.AddLine(sLine);
 		//	else {
-		//		RReporting.ShowErr("AddLine is only implemented for TextArea");
+		//		RReporting.ShowErr("AddLine is only implemented for text input nodes");
 		//		return false;
 		//	}
 		//}
 		public bool Insert(char cToInsertAtCursor) { //formerly EnterText
 			//rformrRoot.sgmlNow.InsertText(Char.ToString(cToInsertAtCursor));
-			if (iType==TypeTextArea) return textbox.Insert(char.ToString(cToInsertAtCursor));
+			if (textbox!=null) return textbox.Insert(char.ToString(cToInsertAtCursor));
 			else {
-				RReporting.ShowErr("EnterText(char) is only implemented for TextArea");
+				RReporting.ShowErr("EnterText(char) is only implemented for text input nodes","typing character in non-textinput node","Insert(char) {RApplication.ActiveTabIndex:"+RApplication.ActiveTabIndex+"; rform index:"+this.ContainerPage.iActiveNode+"}");
 				return false;
 			}
 		}
 		public bool Insert(string sToInsertAtCursor) { //formerly EnterText
 			//rformrRoot.sgmlNow.InsertText(sToInsertAtCursor); //TODO: must shift all variables of all necessary nodes
-			if (iType==TypeTextArea) return textbox.Insert(sToInsertAtCursor);
+			if (textbox!=null) return textbox.Insert(sToInsertAtCursor);
 			else {
-				RReporting.ShowErr("EnterText(string) is only implemented for TextArea");
+				RReporting.ShowErr("EnterText(string) is only implemented for text input nodes");
 				return false;
 			}
 		}
 		public bool SetTextAreaSelection(int iRowStart, int iColStart, int iRowEnd, int iColEnd) {
-			if (iType==TypeTextArea) return textbox.SetSelection(iRowStart,iColStart,iRowEnd,iColEnd);
+			if (textbox!=null) return textbox.SetSelection(iRowStart,iColStart,iRowEnd,iColEnd);
 			else {
-				RReporting.ShowErr("SetTextAreaSelection(...) is only implemented for TextArea");
+				RReporting.ShowErr("SetTextAreaSelection(...) is only implemented for text input nodes");
 				return false;
 			}
 		}
 		public bool ShiftSelection(int iRows, int iCols, bool bWithShiftKey) {
-			if (iType==TypeTextArea) return textbox.ShiftSelection(iRows,iCols,bWithShiftKey);
+			if (textbox!=null) return textbox.ShiftSelection(iRows,iCols,bWithShiftKey);
 			else {
-				RReporting.ShowErr("ShiftSelection(...,bool) is only implemented for TextArea");
+				RReporting.ShowErr("ShiftSelection(...,bool) is only implemented for text input nodes");
 				return false;
 			}
 		}
 		public bool ShiftSelection(int iRows, int iCols) {
-			if (iType==TypeTextArea) return textbox.ShiftSelection(iRows,iCols);
+			if (textbox!=null) return textbox.ShiftSelection(iRows,iCols);
 			else {
-				RReporting.ShowErr("ShiftSelection(...) is only implemented for TextArea");
+				RReporting.ShowErr("ShiftSelection(...) is only implemented for text input nodes");
 				return false;
 			}
 		}
 		public bool GrowSelection(int iRows, int iCols) {
-			if (iType==TypeTextArea) return textbox.GrowSelection(iRows,iCols);
+			if (textbox!=null) return textbox.GrowSelection(iRows,iCols);
 			else {
-				RReporting.ShowErr("GrowSelection(...) is only implemented for TextArea");
+				RReporting.ShowErr("GrowSelection(...) is only implemented for text input nodes");
 				return false;
 			}
 		}
 		public bool Home(bool bWithShiftKey) {
-			if (iType==TypeTextArea) return textbox.Home(bWithShiftKey);
+			if (textbox!=null) return textbox.Home(bWithShiftKey);
 			else {
-				RReporting.ShowErr("Home(...) is only implemented for TextArea");
+				RReporting.ShowErr("Home(...) is only implemented for text input nodes");
 				return false;
 			}
 		}
 		public bool End(bool bWithShiftKey) {
-			if (iType==TypeTextArea) return textbox.End(bWithShiftKey);
+			if (textbox!=null) return textbox.End(bWithShiftKey);
 			else {
-				RReporting.ShowErr("End(...) is only implemented for TextArea");
+				RReporting.ShowErr("End(...) is only implemented for text input nodes");
 				return false;
 			}
 		}
 		public bool SetTextAreaCursor(int iRow, int iCol) {
-			if (iType==TypeTextArea) return textbox.SetCursor(iRow,iCol);
+			if (textbox!=null) return textbox.SetCursor(iRow,iCol);
 			else {
-				RReporting.ShowErr("SetTextAreaCursor(...) is only implemented for TextArea");
+				RReporting.ShowErr("SetTextAreaCursor(...) is only implemented for text input nodes");
 				return false;
 			}
 			//try {
@@ -813,18 +925,26 @@ namespace ExpertMultimedia {
 			//}
 		}
 		public bool Clear() {
-			if (iType==TypeTextArea) return textbox.Clear();
+			if (textbox!=null) return textbox.Clear();
 			else {
-				RReporting.ShowErr("Clear is only implemented for TextArea");
+				RReporting.ShowErr("Clear is only implemented for text input nodes");
 				return false;
 			}
 		}
 		public bool SetLines(string[] SetLines) {
-			if (iType==TypeTextArea) return textbox.SetLines(SetLines);
+			if (textbox!=null) return textbox.SetLines(SetLines);
 			else {
-				RReporting.ShowErr("SetLines is only implemented for TextArea");
+				RReporting.ShowErr("SetLines is only implemented for text input nodes");
 				return false;
 			}
+		}
+		public bool Tab() {
+			//TODO: impement this--tab
+			//-if selected text push line(s) to the right
+			//-else if selected text and shift+tab push line(s) to the left 
+			//-else insert a tab character
+			RReporting.ShowErr("Tab is not yet implemented","typing tab","rform Tab()");
+			return false;
 		}
 		#endregion input
 		
@@ -835,7 +955,7 @@ namespace ExpertMultimedia {
 		///Compares the tagword of this node to a substring of val (case-insensitive)
 		///</summary>
 		public bool TagwordEquals(string val, int startInVal, int endbeforeInVal) {
-			return RString.CompareAtI_AssumingNeedleIsLower(val,TagwordLower,startInVal,endbeforeInVal);
+			return RString.CompareAtI_AssumingNeedleIsLower(val,TagwordLower,startInVal,endbeforeInVal,false);
 // 			if (sOpener!=null) {
 // 				int iAbs=RString.IndexOfNonWhiteSpaceNorChar(sOpener,0,'<');
 // 				if (iAbs>-1) {
@@ -857,31 +977,84 @@ namespace ExpertMultimedia {
 			if (val!=null) return TagwordEquals(val,0,val.Length);
 			return false;
 		}
-		public bool StyleSetOrCreate(string sName, string sValue) {
-			try {
-				//TODO: set by modifying sTag 
+		public static bool FindLastFuzzyStyleAssignment(ref int[] iarrReturn, string Haystack, string sAttribName) {
+			return FindLastFuzzyStyleAssignment(ref iarrReturn,Haystack,sAttribName,0,RString.SafeLength(Haystack));
+		}
+		/// <summary>
+		/// Gets the location and length of both the given style attribute 
+		/// name and of the associated value following it
+		/// </summary>
+		/// <param name="iarrReturn">If method returns true, this array will 
+		/// contain the following index,length pairs relative to Haystack 
+		/// (not relative to iStart): location of sAttribName, length of 
+		/// sAttribName, location of associated value, and length of associated 
+		/// value (4 values total--using or creating array with 4 or more 
+		/// indeces--creates 30 if null or if too small).</param>
+		/// <param name="Haystack">The html data, including a list of style assignments</param>
+		/// <param name="sAttribName">The attribute name to find inside Haystack</param>
+		/// <param name="StartInHaystack">Where in Haystack to start examining</param>
+		/// <param name="LengthInHaystack">Number of characters in Haystack to examine</param>
+		/// <returns>returns whether iarrReturn is complete and usable</returns>
+		public static bool FindLastFuzzyStyleAssignment(ref int[] iarrReturn, string Haystack, string sAttribName, int StartInHaystack, int LengthInHaystack) {
+			bool bGood=false;
+			if (iarrReturn==null||iarrReturn.Length<2) iarrReturn=new int[30];//uses 2
+			iarrReturn[0]=RString.LastIndexOf_OnlyIfWholeWord(Haystack,sAttribName,StartInHaystack,LengthInHaystack);
+			iarrReturn[1]=RString.SafeLength(sAttribName);
+			iarrReturn[2]=-1;
+			int iHaystackEnder=StartInHaystack+LengthInHaystack;
+			if (iarrReturn[0]>=0) {
+				iarrReturn[2]=iarrReturn[0]+sAttribName.Length;
+				bool bInRange=RString.MovePastWhiteSpaceOrChar(ref iarrReturn[2],Haystack,':');
+				if (iarrReturn[2]>iHaystackEnder) bInRange=false;
+				if (bInRange) {
+					int iValEnder=iarrReturn[2];
+					bInRange=RString.MoveToOrStayAtSpacing(ref iValEnder, Haystack);
+					if (iValEnder>iHaystackEnder) bInRange=false;
+					if (bInRange) {
+						iarrReturn[3]=iValEnder-iarrReturn[2];
+						bGood=true;
+					}
+					else {
+						iarrReturn[3]=0;
+						RReporting.Warning("Value not found after style assignment name or range ends before value","finding attribute assignment value","FindLastFuzzyStyleAssignment");
+					}
+				}
+				else RReporting.Warning("This method got an out-of-range starting point, indicating corruption in the calling method","finding attribute assignment name","FindLastFuzzyStyleAssignment");
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
-			}
-		}//end StyleSetOrCreate
+			return bGood;
+		}//FindLastFuzzyStyleAssignment
+		//public static int[] iarrAssignTemp=new int[32];
+		//public bool SetOrCreateStyle(string sName, string sValue) { //replaced by SetStyleAttrib; formerly StyleSetOrCreate
+		//	bool bGood=false;
+		//	try {
+		//		//TODO: set by modifying sOpener
+		//		//-find start and length of set statement
+		//		bGood=FindLastFuzzyStyleAssignment(ref iarrAssignTemp,this.sOpener,sName,0);
+		//		if (bGood) {
+		//			
+		//		}
+		//		else { //else not found so create
+		//		}
+		//	}
+		//	catch (Exception exn) {
+		//		RReporting.ShowExn(exn);
+		//	}
+			//return bGood;
+		//}//end StyleSetOrCreate
 		/* TODO:?
 		public void EnterTextCommand(char cAsciiCommand) {
 			rformrRoot.sgmlNow.InsertTextCommand(cAsciiCommand);
 		}
 		*/
-		/// <summary>
-		/// Return
-		/// </summary>
-		/// <returns>Returns text but only if IsLeaf.</returns>
-		public string MyText() {
-			if (IsLeaf) {
+		// Returns text but only if IsLeaf.
+		//public string MyText() {
+		//	if (IsLeaf) {
 				//if (!rformrRoot.sgmlNow.bUpdateCousin) {
-					return sText;
+		//			return sText;
 				//}
-			}
-			return "";
-		}
+		//	}
+		//	return "";
+		//}
 		public bool Contains(int xAt,int yAt) {
 			if (zoneInner!=null) {
 				return zoneInner.Contains(xAt,yAt);
@@ -900,13 +1073,13 @@ namespace ExpertMultimedia {
 		public bool SetProperty(string sName, string sValue) {
 			bool bGood=false;
 			int iContentPropertiesEndEx=ContentPropertiesEndEx();
-			int iCount=RString.GetMultipleAssignmentLocations(ref iarrPropName, ref iarrProp, sOpener, sName, '=', ' ',ContentPropertiesStart(),iContentPropertiesEndEx,false);
+			int iCount=RString.GetMultipleAssignmentLocations(ref PropNameStarterEnderIndeces, ref PropValueStarterEnderIndeces, sOpener, sName, '=', ' ',ContentPropertiesStart(),iContentPropertiesEndEx,false);
 			try {
 				if (iCount>0) {//at least 0 and 1 are usable
 					//found existing property so overwrite last instance of it
-					int iProp=iCount-1;
-					if ( RString.IsBlank(sValue) &&((iarrProp[iProp*2+1]-iarrProp[iProp*2])>0) ) sValue="\"\""; //ONLY do this if value exists already
-					if (RString.IsNotBlank(sValue)) sOpener=RString.SafeSubstring(sOpener,0,iarrProp[iProp*2])+sValue+RString.SafeSubstring(sOpener,iarrProp[iProp*2+1]); //ok to only do if not blank, since set to nonblank (i.e. "\"\"") if original value was nonblank
+					int MatchingPropRelHalfindex=iCount-1;
+					if ( RString.IsBlank(sValue) &&((PropValueStarterEnderIndeces[MatchingPropRelHalfindex*2+1]-PropValueStarterEnderIndeces[MatchingPropRelHalfindex*2])>0) ) sValue="\"\""; //ONLY do this if value exists already
+					if (RString.IsNotBlank(sValue)) sOpener=RString.SafeSubstring(sOpener,0,PropValueStarterEnderIndeces[MatchingPropRelHalfindex*2])+sValue+RString.SafeSubstring(sOpener,PropValueStarterEnderIndeces[MatchingPropRelHalfindex*2+1]); //ok to only do if not blank, since set to nonblank (i.e. "\"\"") if original value was nonblank
 				}
 				else { //else create the property
 					sOpener=sOpener.Insert( iContentPropertiesEndEx, " " + sName + (sName!=null?("="+RConvert.ToSgmlPropertyValue(sName)):"") );
@@ -922,48 +1095,64 @@ namespace ExpertMultimedia {
 		}
 		public bool SetStyleAttrib(string sName, string sValue, bool bForceAppend) {
 			bool bGood=false;
+			//RReporting.Debug("SetStyleAttrib: sOpener is "+RReporting.StringMessage(sOpener,true));//debug only
 			if (RString.IsBlank(sOpener)) sOpener="<style=\"\">";
+			if (sOpener=="<>") sOpener="< style=\"\">";//space first to represent that it is a tagword-less tag
+			//RReporting.Debug("SetStyleAttrib: sOpener with style  "+RReporting.StringMessage(sOpener,true));//debug only
 			int iPropEndEx=ContentPropertiesEndEx();
-			int iProps=RString.GetMultipleAssignmentLocations(ref iarrPropName, ref iarrProp, sOpener,"style",'=',' ',ContentPropertiesStart(),iPropEndEx,false);
+			int StylePropCount=RString.GetMultipleAssignmentLocations(ref PropNameStarterEnderIndeces, ref PropValueStarterEnderIndeces, sOpener,"style",'=',' ',ContentPropertiesStart(),iPropEndEx,false);
 			int iAttribs=0;
-			string sStyleOpener=" style=\"";//(sOpener!="<>"?" style=\"":"style=\"");
+			string sStyleOpener=" style=\"";//(sOpener!="<>"?" style=\"":"style=\""); //space first to represent that it is a tagword-less tag
+			int LastStylePropRelHalfindex=-1;
+			int iAttrib=-1;
 			if (RString.IsBlank(sValue)) {
 				RReporting.ShowErr("Cannot add blank style value");
 				sValue="";
 			}
-			if (iarrProp==null) {
-				iarrProp=new int[10*2];
-				iarrProp[0]=-1;
+			if (PropValueStarterEnderIndeces==null) {
+				PropValueStarterEnderIndeces=new int[10*2];
+				PropValueStarterEnderIndeces[0]=-1;
 			}
 			try {
-				if (iProps<1) {
-					iProps=1;
-					RString.SafeInsert(sOpener,iPropEndEx,sStyleOpener+"\"");
-					iarrProp[0]=iPropEndEx;
-					iarrProp[1]=iPropEndEx+sStyleOpener.Length+1;//+1 for closing quote
+				if (StylePropCount<1) {//if no properties, add a style property to contain the style attribute
+					//RReporting.Debug("SetStyleAttrib: No style property (ContentPropertiesStart():"+ContentPropertiesStart()+"; StylePropCount:"+StylePropCount+"; iPropEndEx:"+iPropEndEx+") in  "+RReporting.StringMessage(sOpener,true));//debug only
+					StylePropCount=1;
+					//RReporting.DebugWrite(sOpener);
+					sOpener=RString.SafeInsert(sOpener,iPropEndEx,sStyleOpener+"\"");
+					PropValueStarterEnderIndeces[0]=iPropEndEx;
+					PropValueStarterEnderIndeces[1]=iPropEndEx+sStyleOpener.Length+1;//+1 for closing quote
+					//RReporting.DebugWriteLine(" becomes "+RReporting.StringMessage(sOpener,true));//debug only
+					//if (StylePropCount<1) RReporting.Debug("No style property found even after inserted! (in substring \""+RString.SafeSubstringByExclusiveEnder(sOpener,ContentPropertiesStart(),iPropEndEx)+"\")");
 				}
-				if (iProps>0) {
-					int iProp=iProps-1;
-					RString.ShrinkToInsideQuotes(sOpener,ref iarrProp[iProp*2], ref iarrProp[iProp*2+1]);
-					iAttribs=RString.GetMultipleAssignmentLocations(ref iarrStyleAttribName, ref iarrStyleAttrib, sOpener, sName, ':', ';', iarrProp[iProp*2], iarrProp[iProp*2+1], false);
-					int iAttrib=iAttribs-1;
+				if (StylePropCount>0) {
+					LastStylePropRelHalfindex=StylePropCount-1;//get the last style property (PropValueStarterEnderIndeces only contains style property--see GetMultipleAssignmentLocations above)
+					//RReporting.Debug("SetStyleAttrib: style property (including quotes) "+LastStylePropRelHalfindex+" at "+PropValueStarterEnderIndeces[LastStylePropRelHalfindex*2]+" (to before "+PropValueStarterEnderIndeces[LastStylePropRelHalfindex*2+1]+") is "+RString.SafeSubstringByExclusiveEnder(sOpener,PropValueStarterEnderIndeces[LastStylePropRelHalfindex*2],PropValueStarterEnderIndeces[LastStylePropRelHalfindex*2+1]));//debug only
+					RString.ShrinkToInsideQuotes(sOpener,ref PropValueStarterEnderIndeces[LastStylePropRelHalfindex*2], ref PropValueStarterEnderIndeces[LastStylePropRelHalfindex*2+1]);
+					//RReporting.Debug("SetStyleAttrib: style property (inside quotes) "+LastStylePropRelHalfindex+" at "+PropValueStarterEnderIndeces[LastStylePropRelHalfindex*2]+" (to before "+PropValueStarterEnderIndeces[LastStylePropRelHalfindex*2+1]+") is "+RString.SafeSubstringByExclusiveEnder(sOpener,PropValueStarterEnderIndeces[LastStylePropRelHalfindex*2],PropValueStarterEnderIndeces[LastStylePropRelHalfindex*2+1]));//debug only
+					iAttribs=RString.GetMultipleAssignmentLocations(ref AttribNameStarterEnderIndeces, ref AttribValueStarterEnderIndeces, sOpener, sName, ':', ';', PropValueStarterEnderIndeces[LastStylePropRelHalfindex*2], PropValueStarterEnderIndeces[LastStylePropRelHalfindex*2+1], false);
+					iAttrib=iAttribs-1;
 					if (iAttribs<1||bForceAppend) {
 						//if there is a style property but the named attribute needs to be created
+						//RReporting.Debug("SetStyleAttrib: found "+iAttribs+" style attribs");//debug only
 						iAttribs=1;
 						iAttrib=iAttribs-1;
-						if (iarrStyleAttrib==null) iarrStyleAttrib=new int[10*2];
-						string sAppend= (RString.EndsWithCharOrCharThenWhiteSpace(sOpener,';',iarrProp[iProp*2],iarrProp[iProp*2+1])?"":"; ") + sName + ":";
-						RString.SafeInsert(sOpener,iarrProp[iProp*2+1],sAppend);
-						iarrProp[iProp*2+1]+=sAppend.Length;
-						iarrStyleAttrib[iAttrib*2]=iarrProp[iProp*2+1];
-						iarrStyleAttrib[iAttrib*2+1]=iarrStyleAttrib[iAttrib*2];
-					}
-					sOpener=sOpener.Substring(0,iarrStyleAttrib[iAttrib*2])+sValue+sOpener.Substring(iarrStyleAttrib[iAttrib*2+1]);
+						if (AttribValueStarterEnderIndeces==null) AttribValueStarterEnderIndeces=new int[10*2];
+						//RReporting.Debug("SetStyleAttrib: appending to style attrib "+iAttrib+" at "+PropValueStarterEnderIndeces[LastStylePropRelHalfindex*2]+" in "+RReporting.StringMessage(sOpener,true));//debug only
+						string sAppend=( ((LastStylePropRelHalfindex==0)||RString.EndsWithCharOrCharThenWhiteSpace(sOpener,';',PropValueStarterEnderIndeces[LastStylePropRelHalfindex*2],PropValueStarterEnderIndeces[LastStylePropRelHalfindex*2+1])) ? "" : "; ") + sName + ":";
+						sOpener=RString.SafeInsert(sOpener,PropValueStarterEnderIndeces[LastStylePropRelHalfindex*2],sAppend);
+						PropValueStarterEnderIndeces[LastStylePropRelHalfindex*2+1]+=sAppend.Length;
+						AttribValueStarterEnderIndeces[iAttrib*2]=PropValueStarterEnderIndeces[LastStylePropRelHalfindex*2]+sAppend.Length;
+						AttribValueStarterEnderIndeces[iAttrib*2+1]=AttribValueStarterEnderIndeces[iAttrib*2];//same as start since no value yet
+					}//end if appending a new style attribute
+					sOpener=RString.SafeSubstring(sOpener,0,AttribValueStarterEnderIndeces[iAttrib*2])+sValue+RString.SafeSubstring(sOpener,AttribValueStarterEnderIndeces[iAttrib*2+1]);
+					//RReporting.Debug("SetStyleAttrib: final value is "+RReporting.StringMessage(sOpener,true)); //debug only
 				}
 				else RReporting.ShowErr("The style was not modified (SetStyleAttrib corruption)");
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+				RReporting.ShowExn( exn, "setting style attribute" , String.Format("rform SetStyleAttrib(...,bForceAppend={0}) {{sOpener:{1}; LastStylePropRelHalfindex:{2}; StylePropCount:{3}; iAttrib:{4}; iAttribs:{5}; {6}; {7}}}",bForceAppend?"yes":"no",RReporting.StringMessage(sOpener,true),LastStylePropRelHalfindex,StylePropCount,iAttrib,iAttribs,
+				                                                                   RReporting.ArrayDebugStyle("PropValueStarterEnderIndeces",PropValueStarterEnderIndeces,false),
+				                                                                   RReporting.ArrayDebugStyle("AttribValueStarterEnderIndeces",AttribValueStarterEnderIndeces,false) ) );
 			}
 			return bGood;
 		}//end SetStyleAttrib
@@ -973,9 +1162,9 @@ namespace ExpertMultimedia {
 		public bool HasStyleAttrib(string sName) { //aka StyleAttributeExists
 			bool bFound=false;
 			try {
-				int iProps=RString.GetMultipleAssignmentLocations(ref iarrPropName, ref iarrProp, sOpener, "style", '=', ' ', ContentPropertiesStart(),ContentPropertiesEndEx(),false);
-				for (int iProp=0; iProp<iProps; iProp++) {
-					if (RString.GetMultipleAssignmentLocations(ref iarrStyleAttribName, ref iarrStyleAttrib, sOpener, sName, ':', ';', iarrProp[iProp*2], iarrProp[iProp*2+1], false)>0) {
+				int StylePropCount=RString.GetMultipleAssignmentLocations(ref PropNameStarterEnderIndeces, ref PropValueStarterEnderIndeces, sOpener, "style", '=', ' ', ContentPropertiesStart(),ContentPropertiesEndEx(),false);
+				for (int StylePropertyNowHalfindex=0; StylePropertyNowHalfindex<StylePropCount; StylePropertyNowHalfindex++) {
+					if (RString.GetMultipleAssignmentLocations(ref AttribNameStarterEnderIndeces, ref AttribValueStarterEnderIndeces, sOpener, sName, ':', ';', PropValueStarterEnderIndeces[StylePropertyNowHalfindex*2], PropValueStarterEnderIndeces[StylePropertyNowHalfindex*2+1], false)>0) {
 						bFound=true;
 						break;
 					}
@@ -987,7 +1176,7 @@ namespace ExpertMultimedia {
 			return bFound;
 		}//end HasStyleAttrib
 		public bool HasProperty(string sName) { //aka PropertyExists
-			return RString.GetMultipleAssignmentLocations(ref iarrPropName, ref iarrProp, sOpener, sName, '=', ' ',ContentPropertiesStart(),ContentPropertiesEndEx(),false) > 0;
+			return RString.GetMultipleAssignmentLocations(ref PropNameStarterEnderIndeces, ref PropValueStarterEnderIndeces, sOpener, sName, '=', ' ',ContentPropertiesStart(),ContentPropertiesEndEx(),false) > 0;
 		}//end HasProperty
 		public bool RemoveProperty(string sName) {
 			int iIterations=0;
@@ -995,9 +1184,9 @@ namespace ExpertMultimedia {
 			int iCount=1;
 			try {
 				while (iCount>0) {
-					iCount=RString.GetMultipleAssignmentLocations(ref iarrPropName, ref iarrProp, sOpener,sName,'=',' ',ContentPropertiesStart(),ContentPropertiesEndEx(),false);
+					iCount=RString.GetMultipleAssignmentLocations(ref PropNameStarterEnderIndeces, ref PropValueStarterEnderIndeces, sOpener,sName,'=',' ',ContentPropertiesStart(),ContentPropertiesEndEx(),false);
 					if (iCount>0) {
-						sOpener=RString.SafeSubstring(sOpener,0,iarrPropName[0])+RString.SafeSubstring(sOpener,iarrProp[1]);//intentionally use PropName Start and PropVal EndEx (remove whole property assignment)
+						sOpener=RString.SafeSubstring(sOpener,0,PropNameStarterEnderIndeces[0])+RString.SafeSubstring(sOpener,PropValueStarterEnderIndeces[1]);//intentionally use PropName Start and PropVal EndEx (remove whole property assignment)
 						bRemoved=true;
 					}
 					iIterations++;
@@ -1017,11 +1206,24 @@ namespace ExpertMultimedia {
 		///</summary>
 		public string GetProperty(string sName, bool RemoveQuotes) {
 			string sReturn="";
-			int iProps=RString.GetMultipleAssignmentLocations(ref iarrPropName, ref iarrProp, sOpener, sName, '=', ' ',ContentPropertiesStart(),ContentPropertiesEndEx());
-			if (iProps>0) {//for (int iProp=0; iProp<iProps; iProp+=2) {
-				int iProp=iProps-1;
-				if (RemoveQuotes) RString.ShrinkToInsideQuotes(sOpener, ref iarrProp[iProp], ref iarrProp[iProp+1]);
-				if (iarrProp[iProp+1]-iarrProp[iProp]>0) sReturn=RString.SafeSubstring(sOpener,iarrProp[iProp],iarrProp[iProp+1]-iarrProp[iProp]);
+			int MatchingPropCount=RString.GetMultipleAssignmentLocationsI(ref PropNameStarterEnderIndeces, ref PropValueStarterEnderIndeces, sOpener, sName, '=', ' ',ContentPropertiesStart(),ContentPropertiesEndEx());
+			if (MatchingPropCount>0) { //for (int iLastProp=0; iLastProp<MatchingPropCount; iLastProp+=2) {
+				int iLastProp=MatchingPropCount-1;
+				if (RemoveQuotes) RString.ShrinkToInsideQuotes(sOpener, ref PropValueStarterEnderIndeces[iLastProp], ref PropValueStarterEnderIndeces[iLastProp+1]);
+				if (PropValueStarterEnderIndeces[iLastProp+1]-PropValueStarterEnderIndeces[iLastProp]>0) sReturn=RString.SafeSubstring(sOpener,PropValueStarterEnderIndeces[iLastProp],PropValueStarterEnderIndeces[iLastProp+1]-PropValueStarterEnderIndeces[iLastProp]);
+			}
+			return sReturn;
+		}//end GetProperty
+		///<summary>
+		///get html property value by case-insentitive name
+		///</summary>
+		public string GetProperty_AssumingNameIsLower(string sName, bool RemoveQuotes) {
+			string sReturn="";
+			int MatchingPropCount=RString.GetMultipleAssignmentLocationsI_AssumingNameIsLower(ref PropNameStarterEnderIndeces, ref PropValueStarterEnderIndeces, sOpener, sName, '=', ' ',ContentPropertiesStart(),ContentPropertiesEndEx());
+			if (MatchingPropCount>0) { //for (int iLastProp=0; iLastProp<MatchingPropCount; iLastProp+=2) {
+				int iLastProp=MatchingPropCount-1;
+				if (RemoveQuotes) RString.ShrinkToInsideQuotes(sOpener, ref PropValueStarterEnderIndeces[iLastProp], ref PropValueStarterEnderIndeces[iLastProp+1]);
+				if (PropValueStarterEnderIndeces[iLastProp+1]-PropValueStarterEnderIndeces[iLastProp]>0) sReturn=RString.SafeSubstring(sOpener,PropValueStarterEnderIndeces[iLastProp],PropValueStarterEnderIndeces[iLastProp+1]-PropValueStarterEnderIndeces[iLastProp]);
 			}
 			return sReturn;
 		}//end GetProperty
@@ -1043,37 +1245,49 @@ namespace ExpertMultimedia {
 		};
 		private static int InterchangeableCascadeGroupIndex(string sFuzzyAttrib) {
 			int iReturn=-1;
-			if (sFuzzyAttrib!=null) {
-				sFuzzyAttrib=sFuzzyAttrib.ToLower();
-				for (int iGroup=0; iGroup<InterchangeableStyleAttribute.Length; iGroup++) {
-					for (int iSubItem=0; iSubItem<InterchangeableStyleAttribute[iGroup].Length; iSubItem++) {
-						if (sFuzzyAttrib==InterchangeableStyleAttribute[iGroup][iSubItem]) {
-							iReturn=iGroup;
-							break;
+			try {
+				if (sFuzzyAttrib!=null) {
+					sFuzzyAttrib=sFuzzyAttrib.ToLower();
+					for (int iGroup=0; iGroup<InterchangeableStyleAttribute.Length; iGroup++) {
+						for (int iSubItem=0; iSubItem<InterchangeableStyleAttribute[iGroup].Length; iSubItem++) {
+							if (sFuzzyAttrib==InterchangeableStyleAttribute[iGroup][iSubItem]) {
+								iReturn=iGroup;
+								break;
+							}
 						}
-					}
-					for (int iSubItem=0; iSubItem<InterchangeableProperty[iGroup].Length; iSubItem++) {
-						if (sFuzzyAttrib==InterchangeableProperty[iGroup][iSubItem]) {
-							iReturn=iGroup;
-							break;
+						for (int iSubItem=0; iSubItem<InterchangeableProperty[iGroup].Length; iSubItem++) {
+							if (sFuzzyAttrib==InterchangeableProperty[iGroup][iSubItem]) {
+								iReturn=iGroup;
+								break;
+							}
 						}
+						if (iReturn>-1) break;
 					}
-					if (iReturn>-1) break;
 				}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,RReporting.sParticiple,"InterchangeableCascadeGroupIndex");
 			}
 			return iReturn;
 		}//end InterchangeableCascadeGroup
 		///<summary>
 		///Applies stylesheet, header style in order of appearance in header, AND ancestor styles
 		///</summary>
-		private string ParentPage_GetCascadedFuzzyAttribApplyingToTag(string sOpeningTag, string sFuzzyAttrib, int iNodeIndex) {
-			if (iNodeIndex<0) RReporting.Warning("Bad saved self-index in an RForm (RForms corruption)--will not be able to get parent styles");
-			if (ParentPage!=null) return ParentPage.GetCascadedFuzzyAttribApplyingToTag(sOpeningTag,sFuzzyAttrib,iNodeIndex);
-			else {
-				RReporting.ShowErr("Null ParentPage for an RForm (RForms corruption)");
-				return null;
+		private string GetCascadedFuzzyAttribApplyingToTag(string sOpeningTag, string sFuzzyAttrib, int iNodeIndex) {
+			string sReturn=null;
+			try {
+				if (iNodeIndex<0) RReporting.Warning("Bad saved self-index in an RForm (RForms corruption)--will not be able to get parent styles");
+				if (ContainerPage!=null) sReturn=ContainerPage.GetCascadedFuzzyAttribApplyingToTag(sOpeningTag,sFuzzyAttrib,iNodeIndex);
+				else {
+					RReporting.ShowErr("Null  ("+(this.Parent!=null?"OK":"null")+" parent node) for an RForm (RForms corruption)","getting cascaded attrib","GetCascadedFuzzyAttribApplyingToTag(sOpeningTag="+RReporting.StringMessage(sOpeningTag,true)+",sFuzzyAttrib="+RReporting.StringMessage(sFuzzyAttrib,true)+",iNodeIndex="+iNodeIndex+") {name property of this:"+this.GetProperty_AssumingNameIsLower("name",true)+"; this.sTagwordLower:"+this.sTagwordLower+"; this.Index:"+this.Index+"; this.ParentIndex:"+this.ParentIndex+"}");
+					sReturn=null;//this is OK since parentpage is allowed to be null (parent NODE is NOT)
+				}
 			}
-		}//end ParentPage_GetCascadedFuzzyAttribApplyingToTag
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,RReporting.sParticiple,"GetCascadedFuzzyAttribApplyingToTag");
+			}
+			return sReturn;
+		}//end GetCascadedFuzzyAttribApplyingToTag
 		///<summary>
 		///sFuzzyAttrib can be something like "bgcolor" or "background-color" (case-insensitive)
 		///</summary>
@@ -1082,64 +1296,98 @@ namespace ExpertMultimedia {
 			string sReturn=null;
 			string sValNow;
 			try {
-				if (RString.HasUpperCharacters(sFuzzyAttrib)) sFuzzyAttrib=sFuzzyAttrib.ToLower();
-				sReturn=ParentPage_GetCascadedFuzzyAttribApplyingToTag(sOpener,sFuzzyAttrib,iIndex);
-				int iCascadeGroup=InterchangeableCascadeGroupIndex(sFuzzyAttrib);
-				if (iCascadeGroup>-1) {
-					for (int iProperty=InterchangeableProperty[iCascadeGroup].Length-1; iProperty>=0; iProperty--) {
-						sValNow=GetProperty(InterchangeableProperty[iCascadeGroup][iProperty]);
-						if (RReporting.IsNotBlank(sValNow)) {
-							sReturn=sValNow; //do NOT break, keep going to get more specific values from the cascade group
+				if (sFuzzyAttrib!=null) {
+					if (RString.HasUpperCharacters(sFuzzyAttrib)) sFuzzyAttrib=sFuzzyAttrib.ToLower();
+					if (RReporting.bUltraDebug) RReporting.sParticiple="getting cascaded fuzzy attribute";
+					sReturn=GetCascadedFuzzyAttribApplyingToTag(sOpener,sFuzzyAttrib,iIndex);
+					if (RReporting.bUltraDebug) RReporting.sParticiple="getting cascade group index from fuzzy attribute";
+					int iCascadeGroup=InterchangeableCascadeGroupIndex(sFuzzyAttrib);
+					if (iCascadeGroup>=0) {
+						if (RReporting.bUltraDebug) RReporting.sParticiple="getting html property using cascade group";
+						for (int iProperty=InterchangeableProperty[iCascadeGroup].Length-1; iProperty>=0; iProperty--) {
+							sValNow=GetProperty(InterchangeableProperty[iCascadeGroup][iProperty]);
+							if (RReporting.IsNotBlank(sValNow)) {
+								sReturn=sValNow; //do NOT break, keep going to get more specific values from the cascade group
+							}
 						}
-					}
-					for (int iStyleAttrib=InterchangeableStyleAttrib[iCascadeGroup].Length-1; iStyleAttrib>=0; iStyleAttrib--) {
-						sValNow=GetStyleAttrib(InterchangeableStyleAttrib[iCascadeGroup][iStyleAttrib]);
-						if (RReporting.IsNotBlank(sValNow)) {
-							sReturn=sValNow; //do NOT break, keep overwriting to get more specific values from the cascade group
+						if (RReporting.bUltraDebug) RReporting.sParticiple="getting style attribute using cascade group";
+						for (int iStyleAttrib=InterchangeableStyleAttribute[iCascadeGroup].Length-1; iStyleAttrib>=0; iStyleAttrib--) {
+							if (RReporting.bUltraDebug) RReporting.sParticiple="accessing cascade group ["+iCascadeGroup+"] item ["+iStyleAttrib+"]";
+							sValNow=GetStyleAttrib(InterchangeableStyleAttribute[iCascadeGroup][iStyleAttrib]);
+							if (RReporting.IsNotBlank(sValNow)) {
+								sReturn=sValNow; //do NOT break, keep overwriting to get more specific values from the cascade group
+							}
 						}
+					}//end if fuzzy attribute is part of interchangeable cascade group
+					else {
+						if (RReporting.bUltraDebug) RReporting.sParticiple="getting non-fuzzy attribute using literal attribute name";
+						sValNow=GetProperty(sFuzzyAttrib);
+						if (RReporting.IsNotBlank(sValNow)) sReturn=sValNow;
+						sValNow=GetStyleAttrib(sFuzzyAttrib);
+						if (RReporting.IsNotBlank(sValNow)) sReturn=sValNow;
 					}
-				}//end if fuzzy attribute is part of interchangeable cascade group
-				else {
-					sValNow=GetProperty(sFuzzyAttrib);
-					if (RReporting.IsNotBlank(sValNow)) sReturn=sValNow;
-					sValNow=GetStyleAttrib(sFuzzyAttrib);
-					if (RReporting.IsNotBlank(sValNow)) sReturn=sValNow;
 				}
+				else RReporting.ShowErr("Fuzzy attribute was null (RForms corruption)");
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+				RReporting.ShowExn(exn,RReporting.sParticiple);
 			}
 			return sReturn;
 		}//end CascadedFuzzyAttrib
 		private int ContentPropertiesStart() {
-			int iOpener=sOpener.IndexOf("<");
-			if (iOpener>-1) {
-				iOpener=RString.IndexOfNonWhiteSpace(sOpener,iOpener);
+			int iOpener=RString.SafeIndexOf(sOpener,'<');
+			int iBracket=iOpener;
+			int iCloser=0;
+			if (iOpener>=0) {
+				iOpener=RString.IndexOfWhiteSpaceOrChar(sOpener,'>',iOpener);
+				iCloser=RString.IndexOf(sOpener,'>');
 				if (iOpener>-1) {
-					iOpener=RString.IndexOfWhiteSpace(sOpener,iOpener);
-					if (iOpener<0) iOpener=0;
+					if (iOpener==iCloser&&RString.CompareAt(sOpener,'<',iBracket-1)) {
+						RReporting.Warning("Tagword missing in "+sOpener);
+						iOpener=iBracket+1;
+					}
+					//RReporting.Debug("ContentPropertiesStart: IndexOfWhiteSpaceOrChar OK ("+iOpener+")");
+					iOpener=RString.IndexOfNonWhiteSpace(sOpener,iOpener);
+					if (iOpener<0) {
+						RReporting.Debug("ContentPropertiesStart: no nonwhitespace (zero-length opening tag!)");
+						iOpener=0;
+					}
+					else {
+						//RReporting.Debug("ContentPropertiesStart: nonwhitespace OK ("+iOpener+")");
+					}
 				}
-				else iOpener=0;
+				else {
+					RReporting.Debug("ContentPropertiesStart: no opening whitespace (tagword is missing)");
+					iOpener=0;
+				}
 			}
-			else iOpener=0;
+			else {
+				RReporting.Debug("ContentPropertiesStart: no opening '<' sign {iIndex:"+iIndex.ToString()+"; ParentIndex:"+this.ParentIndex.ToString()+"; sOpener:"+RReporting.StringMessage(sOpener,true)+"; sContent:"+RReporting.StringMessage(sContent,true)+"; sCloser:"+RReporting.StringMessage(sCloser,true)+"}");
+				iOpener=0;
+			}
 			return iOpener;
 		}//end ContentPropertiesStart
+		/// <summary>
+		/// Last index (exclusive ender) in sOpener range of usable properties excluding self-closing tag slash
+		/// </summary>
+		/// <returns></returns>
 		private int ContentPropertiesEndEx() {
 			int iEndEx=-1;
 			if (sOpener!=null) iEndEx=sOpener.LastIndexOf(">");
 			if (iEndEx<0&&sOpener!=null) iEndEx=sOpener.Length;
-			if ( iEndEx<sOpener.Length && sOpener[iEndEx]=='>' && (iEndEx-1>=0) &&sOpener[iEndEx-1]=='/' ) iEndEx--;//excludes self-closing tag slash
+			if (sOpener!=null && iEndEx<sOpener.Length && sOpener[iEndEx]=='>' && (iEndEx-1>=0) &&sOpener[iEndEx-1]=='/' ) iEndEx--;//excludes self-closing tag slash
+			return iEndEx;
 		}
-		public string StyleAttribEqualsI_AssumingNeedleIsLower(string NameInHaystack, string NeedleValue) {
+		public bool StyleAttribEqualsI_AssumingNeedleIsLower(string NameInHaystack, string NeedleValue) {
 			bool bReturn=false;
-			int iProps=RString.GetMultipleAssignmentLocations(ref iarrPropName, ref iarrProp, sOpener,"style",'=',' ',ContentPropertiesStart(),ContentPropertiesEndEx(),false);
+			int MatchingPropCount=RString.GetMultipleAssignmentLocations(ref PropNameStarterEnderIndeces, ref PropValueStarterEnderIndeces, sOpener,"style",'=',' ',ContentPropertiesStart(),ContentPropertiesEndEx(),false);
 			try {
-				for (int iProp=iProps-1; iProp>=0; iProp--) {
-					int iAttribs=RString.GetMultipleAssignmentLocations(ref iarrStyleAttribName, ref iarrStyleAttrib, sOpener,NameInHaystack,':',';',iarrProp[iProp*2],iarrProp[iProp*2+1],false);
+				for (int iProp=MatchingPropCount-1; iProp>=0; iProp--) {
+					int iAttribs=RString.GetMultipleAssignmentLocations(ref AttribNameStarterEnderIndeces, ref AttribValueStarterEnderIndeces, sOpener,NameInHaystack,':',';',PropValueStarterEnderIndeces[iProp*2],PropValueStarterEnderIndeces[iProp*2+1],false);
 					for (int iAttrib=iAttribs-1; iAttrib>=0; iAttrib--) {
-						if ((iarrStyleAttrib[iAttrib*2+1]-iarrStyleAttrib[iAttrib*2])>0) {
+						if ((AttribValueStarterEnderIndeces[iAttrib*2+1]-AttribValueStarterEnderIndeces[iAttrib*2])>0) {
 							//name was already checked in GetMultipleAssignmentLocations
-							bReturn=RString.CompareAtI(sOpener,NeedleValue,iarrStyleAttrib[iAttrib*2],iarrStyleAttrib[iAttrib*2+1]);
+							bReturn=RString.CompareAtI(sOpener,NeedleValue,AttribValueStarterEnderIndeces[iAttrib*2],AttribValueStarterEnderIndeces[iAttrib*2+1],false);
 							iProp=-1;
 							break;
 						}
@@ -1152,21 +1400,20 @@ namespace ExpertMultimedia {
 			return bReturn;
 		}//end StyleAttribEqualsI
 		///<summary>
-		///Gets self-cascaded style attribute, but NOT globally [parent, stylesheet, header]
+		///Gets self-cascaded style attribute, NOT including globals [parent, stylesheet, header]
 		///</summary>
-		private static int[] iarrStyleAttrib=new int[3*2];
-		private static int[] iarrPropName=new int[20*2];
-		private static int[] iarrProp=new int[20*2];
 		public string GetStyleAttrib(string sName) {
 			string sReturn=null;
-			int iProps=RString.GetMultipleAssignmentLocations(ref iarrPropName, ref iarrProp, sOpener,"style",'=',' ',ContentPropertiesStart(),ContentPropertiesEndEx(),false);
+			if (RReporting.bUltraDebug) RReporting.sParticiple="getting style attribute";
+			int MatchingPropCount=RString.GetMultipleAssignmentLocations(ref PropNameStarterEnderIndeces, ref PropValueStarterEnderIndeces, sOpener,"style",'=',' ',ContentPropertiesStart(),ContentPropertiesEndEx(),false);
 			try {
-				for (int iProp=iProps-1; iProp>=0; iProp--) {
-					int iAttribs=RString.GetMultipleAssignmentLocations(ref iarrStyleAttribName, ref iarrStyleAttrib, sOpener,sName,':',';',iarrProp[iProp*2],iarrProp[iProp*2+1],false);
+				for (int iProp=MatchingPropCount-1; iProp>=0; iProp--) {
+					int iAttribs=RString.GetMultipleAssignmentLocations(ref AttribNameStarterEnderIndeces, ref AttribValueStarterEnderIndeces, sOpener,sName,':',';',PropValueStarterEnderIndeces[iProp*2],PropValueStarterEnderIndeces[iProp*2+1],false);
+					if (RReporting.bUltraDebug) RReporting.sParticiple="accessing assignment indeces";
 					for (int iAttrib=iAttribs-1; iAttrib>=0; iAttrib--) {
-						if ((iarrStyleAttrib[iAttrib*2+1]-iarrStyleAttrib[iAttrib*2])>0) {
+						if ((AttribValueStarterEnderIndeces[iAttrib*2+1]-AttribValueStarterEnderIndeces[iAttrib*2])>0) {
 							//name was already checked in GetMultipleAssignmentLocations
-							sReturn=RString.SafeSubstring(sOpener,iarrStyleAttrib[iAttrib*2],iarrStyleAttrib[iAttrib*2+1]-iarrStyleAttrib[iAttrib*2]);
+							sReturn=RString.SafeSubstring(sOpener,AttribValueStarterEnderIndeces[iAttrib*2],AttribValueStarterEnderIndeces[iAttrib*2+1]-AttribValueStarterEnderIndeces[iAttrib*2]);
 							iProp=-1;
 							break;
 						}
@@ -1199,10 +1446,10 @@ namespace ExpertMultimedia {
 			//TODO: cascade from html border property and css border properties, in order of usage (do this in GetStyle?)
 			try {
 				if (rectAbs!=null&&zoneInner!=null) {
-					if (bLeft) zoneInner.Left=rectAbs.X+RConvert.ToInt(GetStyle("margin-left"));
-					if (bTop) zoneInner.Top=rectAbs.Y+RConvert.ToInt(GetStyle("margin-top"));
-					if (bRight) zoneInner.Right=(rectAbs.X+rectAbs.Width)-RConvert.ToInt(GetStyle("margin-right"));
-					if (bBottom) zoneInner.Bottom=(rectAbs.Y+rectAbs.Height)-RConvert.ToInt(GetStyle("margin-bottom"));
+					if (bLeft) zoneInner.Left=rectAbs.X+RConvert.ToInt(GetStyleAttrib("margin-left"));
+					if (bTop) zoneInner.Top=rectAbs.Y+RConvert.ToInt(GetStyleAttrib("margin-top"));
+					if (bRight) zoneInner.Right=(rectAbs.X+rectAbs.Width)-RConvert.ToInt(GetStyleAttrib("margin-right"));
+					if (bBottom) zoneInner.Bottom=(rectAbs.Y+rectAbs.Height)-RConvert.ToInt(GetStyleAttrib("margin-bottom"));
 				}
 				else if (bWarnExpandMissingData) {
 					RReporting.Warning("Cannot expand--both inner and outer rect must be declared.{rectAbs:"+IRect.ToString(rectAbs)+"; zoneInner:"+IZone.ToString(zoneInner)+"}");
@@ -1311,29 +1558,51 @@ namespace ExpertMultimedia {
 		
 		
 		#region Render
-		//TODO: move to RForms and replace with html-painting-cursor-based method
+		//TODO: replace with html-relative-cursor-based rendering
 		public void Render(RImage riDest, bool bAsActive) {
-			if (bAsActive) {
-				//see also RTextBox.Render
-				RImage.brushFore.Set(RForms.colorActive);
-				riDest.DrawRectCropped(rectAbs.X,rectAbs.Y,rectAbs.Width-1,rectAbs.Height-1);
-			}
-			else {
-				RImage.brushFore.SetRgb(64,64,64);//debug only
-				riDest.DrawRectCropped(rectAbs);//debug only
-			}
-			if (textbox!=null) textbox.Render(riDest,bAsActive);
-			else {
-				Color colorBack=RConvert.ToColor(CascadedProperty("background-color"));
-				if (colorBack.A>0||TagwordLower=="button"||TypeLower=="button") {
-					riDest.DrawRectStyleCropped(colorBack,rectAbs);
-					//riDest.brushFore.SetArgb(colorBack.A,colorBack.R,colorBack.G,colorBack.B);
-					//riDest.DrawRectCroppedFilled(rectAbs);
+			try {
+				if (RReporting.bDebug) RReporting.sParticiple="starting to render node";
+				if (textbox!=null) textbox.Render(riDest,bAsActive);
+				else {
+					if (RReporting.bUltraDebug) RReporting.sParticiple="getting node color";
+					string sBackgroundColor=CascadedFuzzyAttrib("background-color");
+					RPaint rpaintNow=null;
+					if (sBackgroundColor!=null) rpaintNow=new RPaint(RConvert.ToColor(sBackgroundColor));//debug performance (cache this)
+					else rpaintNow=new RPaint(RForms.colorBackgroundDefault);
+					if (RReporting.bUltraDebug) RReporting.sParticiple="accessing node color";
+					if (colorBack.A>0||TagwordLower=="button"||TypeLower=="button") {
+						rectAbs.Width++;//debug only
+						rectAbs.Height++;//debug only
+						if (RReporting.bUltraDebug) RReporting.sParticiple="drawing button outline "+rectAbs.ToString()+" with text "+RReporting.StringMessage(Text,true);
+						riDest.DrawRectStyleCropped(rpaintNow,rectAbs);
+						//RImage.rpaintFore.SetArgb(colorBack.A,colorBack.R,colorBack.G,colorBack.B);//debug only
+						//RImage.rpaintFore.SetRgb(255,0,255);//debug only
+						//riDest.DrawRectFilledCropped(rectAbs);//debug only
+					}
+					RenderText(riDest,Text);//rfont.Render(ref riDest, zoneInner, Text);
 				}
-				RenderText(riDest,Text);//rfont.Render(ref riDest, zoneInner, Text);
+				RReporting.sParticiple="drawing node outline";
+				if (bAsActive) {
+					//see also RTextBox.Render
+					RPaint rpaintPrev=RImage.rpaintFore;
+					RImage.rpaintFore=RForms.rpaintActive;//RImage.rpaintFore.Set(colorActive);
+					riDest.DrawRectCropped(rectAbs.X+1,rectAbs.Y+1,rectAbs.Width-2,rectAbs.Height-2);
+					RImage.rpaintFore=rpaintPrev;
+				}
+				else {
+					RPaint rpaintPrev=RImage.rpaintFore;
+					RImage.rpaintFore=RForms.rpaintControlLine;//RImage.rpaintFore.SetRgb(64,64,64);//debug only
+					riDest.DrawRectCropped(rectAbs.X+1,rectAbs.Y+1,rectAbs.Width-2,rectAbs.Height-2);//riDest.DrawRectCropped(rectAbs);//debug only
+					RImage.rpaintFore=rpaintPrev;
+				}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,RReporting.sParticiple,"RForm Render(RImage,bAsActive="+RConvert.ToString(bAsActive)+")");
 			}
 		}//end Render primary overload
 		public void RenderText(RImage riDest, string sText) {
+			if (RReporting.bUltraDebug) RReporting.sParticiple="accessing form rfont {this.rfont:"+RFont.ToString(this.rfont)+"}";
+			//NOTE: Uses RImage.rpaintFore for color (see rfont RenderLine)
 			rfont.Render(ref riDest, zoneInner, sText);//TODO: horizontal and vertical alignment
 		}
 		#endregion Render

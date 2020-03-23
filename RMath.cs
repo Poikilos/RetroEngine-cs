@@ -1,5 +1,6 @@
 using System;
-using REAL = System.Single; //System.Double
+//using REAL = System.Single; //System.Double
+using System.IO;
 
 namespace ExpertMultimedia {
 	class RMath {
@@ -14,7 +15,11 @@ namespace ExpertMultimedia {
 		public const int LineRelationshipLineBPoint1IsOnLineA=4;
 		public const int LineRelationshipLineBPoint2IsOnLineA=5;
 		public const int LineRelationshipIntersectionOutOfRange=6;
+		public const float FPI=3.1415926535897932384626433832795f;
+		public const double DPI=3.1415926535897932384626433832795d;
+		public const decimal MPI=3.1415926535897932384626433832795m;
 		public static byte[][] SubtractBytes=null;//static constructor creates array of 65536 results of NON-WRAPPED (i.e. 0 - 1 = 0) byte subtraction operations
+		public static readonly IPoint ipZero=new IPoint(0,0);
 		///<summary>
 		///Calculate value of color using AlphaLook[srcByte][destByte][alphaByte]
 		///-same as Approach(destByte,srcByte,alphaByte) since alphaByte causes source approach
@@ -22,31 +27,99 @@ namespace ExpertMultimedia {
 		public static byte[][][] AlphaLook=null;
 		public static byte[][] AddBytes=null;//static constructor creates array of 65536 results of NON-WRAPPED (i.e. 0 - 1 = 0) byte subtraction operations
 		public static byte[][] MultiplyBytes=null;
-
+		private static string AlphaLookFile_FullName="./etc/alphalook.raw";
 		static RMath() {
+			Console.Error.Write("Loading RMath static constructor"+(File.Exists(AlphaLookFile_FullName)?"":(" (this may take a while--on first run, \""+AlphaLookFile_FullName+"\" is created if does not exist)"))+"...");
+			Console.Error.Flush();
 			SubtractBytes=new byte[256][];
 			AddBytes=new byte[256][];
 			MultiplyBytes=new byte[256][];
 			AlphaLook=new byte[256][][];
-			int iResult;
+			//int iResult;
+			byte[] AlphaLookData=null;
+			bool bCached=false;
+			try {
+				if (!Directory.Exists("etc")) Directory.CreateDirectory("etc");
+				if (File.Exists(AlphaLookFile_FullName)) {
+					Console.Error.Write("found AlphaLookData file so loading...");
+					Console.Error.Flush();
+					StreamReader streamIn=new StreamReader(AlphaLookFile_FullName);
+					BinaryReader binIn=new BinaryReader(streamIn.BaseStream);
+					AlphaLookData=binIn.ReadBytes( 256*256*256 );
+					streamIn.Close();
+				}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"reading alphalook file","RMath static constructor {File:\""+AlphaLookFile_FullName+"\"}");
+				AlphaLookData=null;
+				bCached=false;
+			}
+			if (AlphaLookData!=null&&AlphaLookData.Length==256*256*256) {
+				bCached=true;
+			}
+			else {
+				AlphaLookData=new byte[256*256*256];
+				Console.Error.Write("no AlphaLookData so generating...");
+				Console.Error.Flush();
+			}
+			int AlphaLook_RelIndex=0;
+			
 			for (int i1=0; i1<256; i1++) {//must be int because byte will never get to 256!
 				SubtractBytes[i1]=new byte[256];
 				AddBytes[i1]=new byte[256];
 				MultiplyBytes[i1]=new byte[256];
-				AlphaLook[i1]=new byte[256];
+				AlphaLook[i1]=new byte[256][]; //always create even if cached--will be loaded from 1D array if so
+				
 				for (int i2=0; i2<256; i2++) {//must be int because byte will never get to 256!
 					SubtractBytes[i1][i2]=SafeSubtract_Math((byte)i1,(byte)i2);//iResult=i1-i2; =(iResult>=0)?(byte)iResult:by0; 
 					AddBytes[i1][i2]=SafeAdd_Math((byte)i1,(byte)i2);
 					MultiplyBytes[i1][i2]=SafeMultiply_Math((byte)i1,(byte)i2);
-					AlphaLook[i1][i2]=new byte[256];
-					for (int i3=0; i3<256; i3++) {
-						AlphaLook[i1][i2][i3]=RMath.ByRound(RMath.Approach((double)i2, (double)i1, (double)i3/(double)255)); ///approach works like start,toward,fRatioTowardDest but alpha goes toward start (source) so they are switched (back to linear order) when Approach is used
+					AlphaLook[i1][i2]=new byte[256]; //always create even if cached--will be loaded from 1D array if so
+					
+					if (bCached) {
+						for (int i3=0; i3<256; i3++) {
+							//load from 1D array since cached:
+							AlphaLook[i1][i2][i3]=AlphaLookData[AlphaLook_RelIndex]; 
+							AlphaLook_RelIndex++;
+						}
+					}
+					else {
+						Console.Error.Write("Generating Alpha lookup table...");
+						for (int i3=0; i3<256; i3++) {
+							AlphaLook[i1][i2][i3]=RMath.ByRound(RMath.Approach((double)i2, (double)i1, (double)i3/(double)255)); ///approach works like start,toward,fRatioTowardDest but alpha goes toward start (source) so they are switched (back to linear order) when Approach is used
+							AlphaLookData[AlphaLook_RelIndex]=AlphaLook[i1][i2][i3];
+							AlphaLook_RelIndex++;
+						}
+						Console.Error.WriteLine("OK");
 					}
 				}
+			}//end for 256-long lookup tables
+			StreamWriter streamOut=null;
+			
+			if (!bCached) {
+				Console.Error.Write("Saving "+AlphaLookFile_FullName+"...");
+				Console.Error.Flush();
+				try {
+					streamOut=new StreamWriter(AlphaLookFile_FullName);
+					BinaryWriter binOut=new BinaryWriter(streamOut.BaseStream);
+					binOut.Write(AlphaLookData);
+					streamOut.Close();
+					streamOut=null;
+				}
+				catch (Exception exn) {
+					RReporting.ShowExn(exn,"saving alpha lookup table","RMath static constructor {AlphaLookFile_FullName:\""+AlphaLookFile_FullName+"\"}");
+				}
+				try {
+					if (streamOut!=null) streamOut.Close();
+				}
+				catch (Exception exn) {
+					RReporting.ShowExn(exn,"closing new alpha lookup table","RMath static constructor {AlphaLookFile_FullName:\""+AlphaLookFile_FullName+"\"}");
+				}
 			}
+			Console.Error.WriteLine("OK (RMath static constructor finished)."); //see beginning of constructor for beginning of output line
 		}//end static constructor
 		public static byte SafeAverage(byte by1, byte by2, byte by3) {
-			return (byte)SafeDivideRound((int)by1+(int)by2+(int)by3,3);
+			return (byte)SafeDivideRound((int)by1+(int)by2+(int)by3,3,255);
 		}
 		public static float SafeAdd(float var1, float var2) {
 			if (var1<0) {
@@ -266,10 +339,10 @@ namespace ExpertMultimedia {
 			return MultiplyBytes[val1][val2];
 		}
 		public static byte SafeMultiply_Math(byte val1, byte val2) {
-			byte valReturn=0;
+			//byte valReturn=0;
 			int iVal2=(int)val2;
 			if (SafeDivide(255,val2,255)>=val1) {//== allowed since result floored i.e. if SafeMultiply(127,2), 255/127 results in 2 so allow 127*2 (254)
-				return val1*val2;
+				return RConvert.ToByte(val1*val2);
 			}
 			else {
 				return 255;
@@ -277,7 +350,7 @@ namespace ExpertMultimedia {
 				//	valReturn=SafeAdd_Math(valReturn,val1);//i.e. if val2 is 1, this happens once
 				//}
 			}
-			return valReturn;
+			//return valReturn;
 		}//end int SafeMultiply_Math
 		public static int SafeMultiply(int val1, int val2) {
 			int valReturn=0;
@@ -677,6 +750,136 @@ namespace ExpertMultimedia {
 			}
 			return 0;
 		}
+		/* 
+		00002 Copyright (c) 2000-2003, Jelle Kok, University of Amsterdam
+		00003 All rights reserved.
+		00004 
+		00005 Redistribution and use in source and binary forms, with or without
+		00006 modification, are permitted provided that the following conditions are met:
+		00007 
+		00008 1. Redistributions of source code must retain the above copyright notice, this
+		00009 list of conditions and the following disclaimer.
+		00010 
+		00011 2. Redistributions in binary form must reproduce the above copyright notice,
+		00012 this list of conditions and the following disclaimer in the documentation
+		00013 and/or other materials provided with the distribution.
+		00014 
+		00015 3. Neither the name of the University of Amsterdam nor the names of its
+		00016 contributors may be used to endorse or promote products derived from this
+		00017 software without specific prior written permission.
+		00018 
+		00019 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+		00020 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+		00021 IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+		00022 DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE
+		00023 FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+		00024 DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+		00025 SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+		00026 CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+		00027 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+		00028 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+		00029 */
+		int GetCircleIntersectionPoints(ref DPoint p1, ref DPoint p2, double c1_X, double c1_Y, double c1_Radius, double c2_X, double c2_Y, double c2_Radius) { //from "int Circle::getIntersectionPoints( Circle c, VecPosition *p1, VecPosition *p2) {" <http://staff.science.uva.nl/~jellekok/robocup/2003/html/Geometry_8cpp-source.html> 2009-08-14
+			double x0, y0, r0;
+			double x1, y1, r1;
+			
+			x0 = c1_X;
+			y0 = c1_Y;
+			r0 = c1_Radius;
+			x1 = c2_X;
+			y1 = c2_Y;
+			r1 = c2_Radius;
+			
+			double d, dx, dy, h, a, p2_x, p2_y; //x, y,
+			
+			// first calculate distance between two centers circles P0 and P1.
+			dx = x1 - x0;
+			dy = y1 - y0;
+			d = Math.Sqrt(dx*dx + dy*dy);
+			
+			// normalize differences
+			dx /= d; dy /= d;
+			
+			// a is distance between p0 and point that is the intersection point P2
+			// that intersects P0-P1 and the line that crosses the two intersection
+			// points P3 and P4.
+			// Define two triangles: P0,P2,P3 and P1,P2,P3.
+			// with distances a, h, r0 and b, h, r1 with d = a + b
+			// We know a^2 + h^2 = r0^2 and b^2 + h^2 = r1^2 which then gives
+			// a^2 + r1^2 - b^2 = r0^2 with d = a + b ==> a^2 + r1^2 - (d-a)^2 = r0^2
+			// ==> r0^2 + d^2 - r1^2 / 2*d
+			a = (r0*r0 + d*d - r1*r1) / (2.0 * d);
+			
+			// h is then a^2 + h^2 = r0^2 ==> h = sqrt( r0^2 - a^2 )
+			double arg = r0*r0 - a*a;
+			h = (arg > 0.0) ? Math.Sqrt(arg) : 0.0;
+			
+			// First calculate P2
+			p2_x = x0 + a * dx;
+			p2_y = y0 + a * dy;
+			
+			// and finally the two intersection points
+			p1.X =  p2_x - h * dy;
+			p1.Y =  p2_y + h * dx;
+			p2.X =  p2_x + h * dy;
+			p2.Y =  p2_y - h * dx;
+			
+			return (arg < 0.0) ? 0 : ((arg == 0.0 ) ? 1 :  2);
+		}//end GetCircleIntersectionPoints
+		public static void GetPointOnLineByRatio(ref DPoint dpReturn, DPoint p1, DPoint p2, double dRatioTo1) { //VecPosition VecPosition::getVecPositionOnLineFraction( VecPosition &p,
+			// determine point on line that lies at fraction dRatioTo1 of whole line
+			// example: this --- 0.25 ---------  p2
+			// formula: this + dRatioTo1 * ( p2 - p1 ) = p1 - dRatioTo1 * p1 + dRatioTo1 * p2 =
+			//		 ( 1 - dRatioTo1 ) * p1 + dRatioTo1 * p2
+			
+			dpReturn.X=( ( p1.X ) * ( 1.0 - dRatioTo1 ) + ( p2.X * dRatioTo1 ) );
+			dpReturn.Y=( ( p1.Y ) * ( 1.0 - dRatioTo1 ) + ( p2.Y * dRatioTo1 ) );
+		}
+		double GetAreaOfCirclesIntersection(double c1_X, double c1_Y, double c1_Radius, double c2_X, double c2_Y, double c2_Radius) { //from "double Circle::getIntersectionArea( Circle c ) {" <http://staff.science.uva.nl/~jellekok/robocup/2003/html/Geometry_8cpp-source.html> 2009-08-14
+			DPoint pos1=new DPoint(), pos2=new DPoint(), pos3=new DPoint();//VecPosition pos1, pos2, pos3;
+			double d, h, dArea=0.0;
+			double ang;//AngDeg ang;
+			try {
+				d = RMath.Dist(c1_X,c1_Y,c2_X,c2_Y);//getCenter().getDistanceTo( c2_Center() ); // dist between two centers
+				if( d > c2_Radius + c1_Radius )           // larger than sum radii
+					return 0.0;                                   // circles do not intersect
+				if( d <= Math.Abs(c2_Radius - c1_Radius ) ) {  // one totally in the other
+					double dR = Math.Min( c2_Radius, c1_Radius );// return area smallest circ
+					return RMath.DPI*dR*dR;
+				}
+				int iNrSol = GetCircleIntersectionPoints(ref pos1, ref pos2, c1_X,c1_Y,c1_Radius,c2_X,c2_Y,c2_Radius);
+				if( iNrSol != 2 )
+					return 0.0;
+				// the intersection area of two circles can be divided into two segments:
+				// left and right of the line between the two intersection points p1 and p2.
+				// The outside area of each segment can be calculated by taking the part
+				// of the circle pie excluding the triangle from the center to the
+				// two intersection points.
+				// The pie equals pi*r^2 * rad(2*ang) / 2*pi = 0.5*rad(2*ang)*r^2 with ang
+				// the angle between the center c of the circle and one of the two
+				// intersection points. Thus the angle between c and p1 and c and p3 where
+				// p3 is the point that lies halfway between p1 and p2.
+				// This can be calculated using ang = asin( d / r ) with d the distance
+				// between p1 and p3 and r the radius of the circle.
+				// The area of the triangle is 2*0.5*h*d.
+				GetPointOnLineByRatio(ref pos3, pos1, pos2, 0.5 );//pos3 = pos1.getVecPositionOnLineFraction( pos2, 0.5 );
+				d = RMath.Dist(ref pos1,ref pos3);
+				h = RMath.Dist(pos3.X, pos3.Y, c1_X, c1_Y); //pos3.getDistanceTo( getCenter() );
+				ang = Math.Asin(d/c1_Radius);
+				dArea = ang*c1_Radius*c1_Radius;
+				dArea = dArea - d*h;
+				// and now for the other segment the same story
+				h =  RMath.Dist(pos3.X, pos3.Y, c2_X, c2_Y); //pos3.getDistanceTo( c2_Center() );
+				ang = Math.Asin(d/c2_Radius);
+				dArea = dArea + ang*c2_Radius*c2_Radius;
+				dArea = dArea - d*h;
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn);
+			}
+			return dArea;
+		}//end GetAreaOfCirclesIntersection
+
 		public static double Dist(double x1, double y1, double x2, double y2) {
 			try {
 				return SafeSqrt(System.Math.Abs(x2-x1)+System.Math.Abs(y2-y1));
@@ -694,6 +897,17 @@ namespace ExpertMultimedia {
 				RReporting.ShowExn(exn,"double Dist()");
 			}
 			return 0;
+		}
+		public static int Dist1D(int x1, int x2) {
+			int valReturn=0;
+			try {
+				valReturn=SafeSubtract(x1,x2);
+				if (valReturn<0) valReturn=SafeSubtract(0,valReturn);//still need SafeSubtract since negative and positive limits are not the same
+			}
+			catch {
+				valReturn=int.MaxValue;
+			}
+			return valReturn;
 		}
 		public static int Dist(int x1, int y1, int x2, int y2) {
 			try {
@@ -722,16 +936,82 @@ namespace ExpertMultimedia {
 			}
 			return 0;
 		}
+		public static float SafeDivide(float val, float valDivisor, float valMax) {
+			return SafeDivide(val,valDivisor,valMax,-valMax);
+		}
 		public static double SafeDivide(double val, double valDivisor, double valMax) {
 			return SafeDivide(val,valDivisor,valMax,-valMax);
 		}
+		public static decimal SafeDivide(decimal val, decimal valDivisor, decimal valMax) {
+			return SafeDivide(val,valDivisor,valMax,-valMax);
+		}
+		public static float SafeDivide(float val, float valDivisor, float valMax, float valMin) {
+			try {
+				bool bSameSign=(val<0.0f&&valDivisor<0.0f)?true:((val>=0.0f&&valDivisor>=0.0f)?true:false);
+				if (valDivisor==0f) {
+					if (val>0f) return valMax;
+					else if (val<0f) return valMin;
+					else return 0f;
+				}
+				//replaced by +inf and -inf below //else if (float.IsInfinity(val)) return valMax;
+				else if (float.IsPositiveInfinity(val)) {
+					if (float.IsPositiveInfinity(valDivisor)) return 1.0f;
+					else if (bSameSign) {
+						return valMax;
+					}
+					else {
+						if (float.IsNegativeInfinity(valDivisor)) return -1f;
+						else return valMin; //since not same sign
+					}
+				}
+				else if (float.IsNegativeInfinity(val)) {
+					if (float.IsNegativeInfinity(valDivisor)) return 1.0f;
+					else if (bSameSign) {
+						return valMax;
+					}
+					else {
+						if (float.IsPositiveInfinity(valDivisor)) return -1f;
+						else return valMin; //since not same sign (i.e. -inf/2.0)
+					}
+				}
+				else if (float.IsPositiveInfinity(valDivisor)) {
+					if (float.IsPositiveInfinity(val)) return 1.0f;
+					else if (bSameSign) {
+						return valMax;
+					}
+					else {
+						if (float.IsNegativeInfinity(val)) return -1f;
+						else return valMin;
+					}
+				}
+				else if (float.IsNegativeInfinity(valDivisor)) {
+					if (float.IsNegativeInfinity(val)) return 1.0f;
+					else if (bSameSign) {
+						return valMax;
+					}
+					else {
+						if (float.IsNegativeInfinity(val)) return 1f;
+						else return valMin;
+					}
+				}
+					//TODO: finish this (cases of inf or -inf denominator)
+				//TODO: output error if NaN?
+				else if (float.IsNaN(val)) return 0f;
+				else if (float.IsNaN(valDivisor)) return 0f;
+				else return val/valDivisor;
+			}
+			catch (Exception exn)  {
+				RReporting.ShowExn(exn,"SafeDivide("+val.ToString()+","+valDivisor.ToString()+","+valMax.ToString()+")");
+			}
+			return 0f;
+		} //end SafeDivide(float,float,float,float)
 		public static double SafeDivide(double val, double valDivisor, double valMax, double valMin) {
 			try {
 				bool bSameSign=(val<0.0&&valDivisor<0.0)?true:((val>=0.0&&valDivisor>=0.0)?true:false);
-				if (valDivisor==0) {
-					if (val>0) return valMax;
-					else if (val<0) return valMin;
-					else return 0;
+				if (valDivisor==0.0) {
+					if (val>0.0) return valMax;
+					else if (val<0.0) return valMin;
+					else return 0.0;
 				}
 				//replaced by +inf and -inf below //else if (double.IsInfinity(val)) return valMax;
 				else if (double.IsPositiveInfinity(val)) {
@@ -740,7 +1020,7 @@ namespace ExpertMultimedia {
 						return valMax;
 					}
 					else {
-						if (double.IsNegativeInfinity(valDivisor)) return -1;
+						if (double.IsNegativeInfinity(valDivisor)) return -1.0;
 						else return valMin; //since not same sign
 					}
 				}
@@ -750,7 +1030,7 @@ namespace ExpertMultimedia {
 						return valMax;
 					}
 					else {
-						if (double.IsPositiveInfinity(valDivisor)) return -1;
+						if (double.IsPositiveInfinity(valDivisor)) return -1.0;
 						else return valMin; //since not same sign (i.e. -inf/2.0)
 					}
 				}
@@ -760,7 +1040,7 @@ namespace ExpertMultimedia {
 						return valMax;
 					}
 					else {
-						if (double.IsNegativeInfinity(val)) return -1;
+						if (double.IsNegativeInfinity(val)) return -1.0;
 						else return valMin;
 					}
 				}
@@ -770,21 +1050,84 @@ namespace ExpertMultimedia {
 						return valMax;
 					}
 					else {
-						if (double.IsNegativeInfinity(val)) return 1;
+						if (double.IsNegativeInfinity(val)) return 1.0;
 						else return valMin;
 					}
 				}
 					//TODO: finish this (cases of inf or -inf denominator)
 				//TODO: output error if NaN?
-				else if (double.IsNaN(val)) return 0;
-				else if (double.IsNaN(valDivisor)) return 0;
+				else if (double.IsNaN(val)) return 0.0;
+				else if (double.IsNaN(valDivisor)) return 0.0;
 				else return val/valDivisor;
 			}
 			catch (Exception exn)  {
 				RReporting.ShowExn(exn,"SafeDivide("+val.ToString()+","+valDivisor.ToString()+","+valMax.ToString()+")");
 			}
-			return 0;
-		} //end SafeDivide
+			return 0.0;
+		} //end SafeDivide(double,double,double,double)
+		public static decimal SafeDivide(decimal val, decimal valDivisor, decimal valMax, decimal valMin) {
+			try {
+				bool bSameSign=(val<0.0M&&valDivisor<0.0M)?true:((val>=0.0M&&valDivisor>=0.0M)?true:false);
+				if (valDivisor==0.0M) {
+					if (val>0.0M) return valMax;
+					else if (val<0.0M) return valMin;
+					else return 0.0M;
+				}
+				//replaced by +inf and -inf below //else if (decimal.IsInfinity(val)) return valMax;
+				/*
+				else if (decimal.IsPositiveInfinity(val)) {
+					if (decimal.IsPositiveInfinity(valDivisor)) return 1.0M;
+					else if (bSameSign) {
+						return valMax;
+					}
+					else {
+						if (decimal.IsNegativeInfinity(valDivisor)) return -1.0M;
+						else return valMin; //since not same sign
+					}
+				}
+				else if (decimal.IsNegativeInfinity(val)) {
+					if (decimal.IsNegativeInfinity(valDivisor)) return 1.0M;
+					else if (bSameSign) {
+						return valMax;
+					}
+					else {
+						if (decimal.IsPositiveInfinity(valDivisor)) return -1.0M;
+						else return valMin; //since not same sign (i.e. -inf/2.0)
+					}
+				}
+				else if (decimal.IsPositiveInfinity(valDivisor)) {
+					if (decimal.IsPositiveInfinity(val)) return 1.0M;
+					else if (bSameSign) {
+						return valMax;
+					}
+					else {
+						if (decimal.IsNegativeInfinity(val)) return -1.0M;
+						else return valMin;
+					}
+				}
+				else if (decimal.IsNegativeInfinity(valDivisor)) {
+					if (decimal.IsNegativeInfinity(val)) return 1.0M;
+					else if (bSameSign) {
+						return valMax;
+					}
+					else {
+						if (decimal.IsNegativeInfinity(val)) return 1.0M;
+						else return valMin;
+					}
+				}
+				*/
+				//TODO: finish this (cases of inf or -inf denominator)
+				//TODO: output error if NaN?
+				//else if (decimal.IsNaN(val)) return 0.0M;
+				//else if (decimal.IsNaN(valDivisor)) return 0.0M;
+				else return val/valDivisor;
+			}
+			catch (Exception exn)  {
+				RReporting.ShowExn(exn,"SafeDivide("+val.ToString()+","+valDivisor.ToString()+","+valMax.ToString()+")");
+			}
+			return 0.0M;
+		} //end SafeDivide(decimal,decimal,decimal,decimal)
+
 		public static int SafeAbs(int val) {
 			SafeAbsByRef(ref val);
 			return val;
@@ -1136,6 +1479,9 @@ namespace ExpertMultimedia {
 			xToMove=RConvert.XOFRTHETA_RAD(rTemp,thetaTemp);
 			yToMove=RConvert.YOFRTHETA_RAD(rTemp,thetaTemp);
 		}
+		public static float Round(float val) {
+			return RConvert.ToFloat(Math.Round((double)val));
+		}
 		///<summary>
 		///Uses AlphaLook array in switched order to get true approach toward "toward" by factor
 		///Returns AlphaLook[toward][start][factor]
@@ -1184,15 +1530,71 @@ namespace ExpertMultimedia {
 			//return result;
 		//}
 		public static float Mod(float val, float divisor) { //formerly FMOD
-			return ((val>divisor) ? ( val - Floor(val/divisor)*divisor) : 0 );
+			return ((val>divisor) ? ( val - RMath.Floor(val/divisor)*divisor) : 0.0f );
 		}
 		public static double Mod(double val, double divisor) { //formerly DMOD
 			return ((val>divisor) ? ( val - System.Math.Floor(val/divisor)*divisor) : 0 );
 		}
-		
-		public static float Floor(float num) {
-			Floor(ref num);
-			return num;
+/*
+-3        -2        -1         0         1         2
+ +--|------+---------+----|----+--|------+----|--|-+
+    a                     b       c           d  e
+
+                       a=-2.7  b=-0.5  c=0.3  d=1.5  e=2.8
+                       ======  ======  =====  =====  =====
+Floor                    -3      -1      0      1      2
+Ceiling                  -2       0      1      2      3
+Truncate                 -2       0      0      1      2
+Round (ToEven)           -3       0      0      2      3
+Round (AwayFromZero)     -3      -1      0      2      3
+
+Pax, I think you've got a mistake with: Round(AwayFromZero) -3 -2 1 2 3 Math.Round(-1.2, MidpointRounding.AwayFromZero) == -1 Math.Round(0.3, MidpointRounding.AwayFromZero)==0.0 etc.. – dtroy May 5 at 3:49
+
+Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Truncate() in .NET?" <http://stackoverflow.com/questions/14/whats-the-difference-between-math-floor-and-math-truncate-in-c/580252#580252> 2009-12-12
+
+*/
+		///NOTE: CEILING rounds UP (in positive direction) even if number is negative!
+		/// - FLOOR rounds DOWN (in negative direction) even if number is negative!
+		/// - TRUNCATE rounds TOWARD ZERO regardless of sign
+		public static void Ceiling(ref float val) {
+			float valTemp=(float)((long)val);//float has 23 bits for the Significand, plus an 8-bit exponent and 1-bit sign
+			if (val>valTemp) val=valTemp+1.0f;
+			else val=valTemp;
+		}
+		public static float CeilingRefToNonRef(ref float val) {
+			float valReturn=(float)((long)val);//float has 23 bits for the Significand, plus an 8-bit exponent and 1-bit sign
+			if (val>valReturn) return valReturn+1.0f;
+			else return valReturn;
+		}
+		public static float Ceiling(float val) {
+			float valReturn=(float)((long)val);//float has 23 bits for the Significand, plus an 8-bit exponent and 1-bit sign
+			if (val>valReturn) valReturn+=1.0f;//val=valReturn+1.0f;
+			//else val=valReturn;
+			return valReturn;
+		}
+		public static void Ceiling(ref decimal val) {
+			if (RReporting.iWarnings<RReporting.iMaxWarnings) {
+				Console.Error.WriteLine("Warning: Performance - should have used System.Math.Floor since it is available for this overload");
+				RReporting.iWarnings++;
+			}
+			val=System.Math.Ceiling(val);
+			//decimal valReturn=(decimal)((long)val);//TODO: debug overflow of long
+			//if (val>valReturn) val=valReturn+1.0f;
+			//else val=valReturn;
+		}
+		public static void Ceiling(ref double val) {
+			double valTemp=(double)((long)val);//double has 52 bits for the Significand, plus an 11-bit exponent and 1-bit sign
+			if (val>valTemp) val=valTemp+1.0;
+			else val=valTemp;
+		}
+		public static double CeilingRefToNonRef(ref double val) {
+			double valReturn=(double)((long)val);//double has 52 bits for the Significand, plus an 11-bit exponent and 1-bit sign
+			if (val>valReturn) return valReturn+1.0;
+			else return valReturn;
+		}
+		public static float Floor(float val) {
+			Floor(ref val);
+			return val;
 		}
 		public static double Floor(double num) {//use System.Math.Floor, which has double and decimal
 			if (RReporting.iWarnings<RReporting.iMaxWarnings) {
@@ -1212,7 +1614,9 @@ namespace ExpertMultimedia {
 			//bool bOverflow=false;//TODO: check for overflow
 			if (num!=0F) {
 				long whole=(long)num;
-				num=(float)whole;
+				float numTemp=(float)whole;
+				if (num<numTemp) num=numTemp-1.0f;
+				else num=numTemp;
 			}
 		}
 		
@@ -1228,7 +1632,9 @@ namespace ExpertMultimedia {
 			}
 			else if (num!=0F) {
 				long whole=(long)num;
-				num=(double)whole;
+				double numTemp=(double)whole;
+				if (num<numTemp) num=numTemp-1.0;
+				else num=numTemp;
 			}
 			*/
 		}
@@ -1305,7 +1711,7 @@ namespace ExpertMultimedia {
 		public static int IRound(float val) {
 			if (val>=f_int_MaxValue_minus_point5) return int.MaxValue;
 			else if (val<f_int_MinValue_plus_point5) return int.MinValue;
-			return val<0?(int)(val-.5f):(int)(val+.5f);
+			return val<0.0f?(int)(val-.5f):(int)(val+.5f);
 		}
 		public const double d_int_MaxValue=(double)int.MaxValue;
 		public const double d_int_MaxValue_minus_point5=(double)int.MaxValue-.5d;
@@ -1318,7 +1724,20 @@ namespace ExpertMultimedia {
 		public static int IRound(double val) {
 			if (val>=d_int_MaxValue_minus_point5) return int.MaxValue;
 			else if (val<d_int_MinValue_plus_point5) return int.MinValue;
-			return val<0?(int)(val-.5d):(int)(val+.5d);
+			return val<0.0d?(int)(val-.5d):(int)(val+.5d);
+		}
+		public const decimal m_int_MaxValue=(decimal)int.MaxValue;
+		public const decimal m_int_MaxValue_minus_point5=(decimal)int.MaxValue-.5m;
+		public const decimal m_int_MaxValue_minus_1=(decimal)int.MaxValue-1.0m;
+		public const decimal m_long_MaxValue_minus_1=(decimal)long.MaxValue-1.0m;
+		public const decimal m_int_MinValue=(decimal)int.MinValue;
+		public const decimal m_int_MinValue_plus_point5=(decimal)int.MinValue+.5m;
+		public const decimal m_int_MinValue_plus_1=(decimal)int.MinValue+1.0m;
+		public const decimal m_long_MinValue_plus_1=(decimal)long.MinValue+1.0m;
+		public static int IRound(decimal val) {
+			if (val>=m_int_MaxValue_minus_point5) return int.MaxValue;
+			else if (val<m_int_MinValue_plus_point5) return int.MinValue;
+			return val<0.0M?(int)(val-.5m):(int)(val+.5m);
 		}
 		public static int ICeiling(float val) {
 			if (val>f_int_MaxValue_minus_1) return int.MaxValue;
@@ -1458,6 +1877,59 @@ namespace ExpertMultimedia {
 		#endregion math
 
 		#region utilities
+		
+		public static int DaysAbsoluteValueOfDifferenceIgnoringHours(DateTime datetime1, DateTime datetime2) { //formerly DaysAbsoluteDifferenceIgnoringHours
+			int iReturn=DaysDifferenceIgnoringHours(datetime1,datetime2);
+			if (iReturn<0) iReturn=0-iReturn;
+			return iReturn;
+		}
+		/// <summary>
+		/// Gets difference in days (only looks at the day, NOT the time of day), taking leapyear into account.  Not optimized, goes day by day.
+		/// </summary>
+		/// <param name="datetime1"></param>
+		/// <param name="datetime2"></param>
+		/// <returns></returns>
+		public static int DaysDifferenceIgnoringHours(DateTime datetime1, DateTime datetime2) {
+			int iReturn=0;
+			bool bNeg=false;
+			try {
+				DateTime dtDestruct=(DateTime)datetime1;//.ToUniversalTime();
+				DateTime dtLast=(DateTime)datetime2;//.ToUniversalTime();
+				dtDestruct=dtDestruct.AddMilliseconds(dtLast.Millisecond-dtDestruct.Millisecond);
+				dtDestruct=dtDestruct.AddSeconds(dtLast.Second-dtDestruct.Second);
+				dtDestruct=dtDestruct.AddMinutes(dtLast.Minute-dtDestruct.Minute);
+				dtDestruct=dtDestruct.AddHours(dtLast.Hour-dtDestruct.Hour);
+				long lTickDiff=dtDestruct.Ticks-dtLast.Ticks;
+				//1 Tick==100ns==1/10,000,000s==1/10,000ms.
+				iReturn=(int)(lTickDiff/10000000/60/60/24);//OK to truncate since should be 0 if less than 1 day difference
+				//if (dtDestruct.Ticks>dtLast.Ticks) {
+				//	DateTime dtTemp=dtDestruct;
+				//	dtDestruct=dtLast;
+				//	dtLast=dtTemp;
+				//	bNeg=true;
+				//}
+				//while (dtDestruct.Year<dtLast.Year
+				//       ||dtDestruct.Month<dtLast.Month
+				//       ||dtDestruct.Day<dtLast.Day) {
+				//	iReturn++;
+				//	dtDestruct.AddDays(1.0d);
+				//}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"getting difference of datetime objects","DaysAbsoluteValueOfDifferenceIgnoringHours");
+			}
+			if (bNeg) iReturn=0-iReturn;
+			return iReturn;
+		}
+		public static string ToString(IPoint point) {
+			return (point!=null)?("("+point.X.ToString()+","+point.Y.ToString()+")"):"null";
+		}
+		public static string ToString(FPoint point) {
+			return "("+point.X.ToString()+","+point.Y.ToString()+")"; //return (point!=null)?("("+point.X.ToString()+","+point.Y.ToString()+")"):"null";
+		}
+		public static string ToString(DPoint point) {
+			return "("+point.X.ToString()+","+point.Y.ToString()+")"; //return (point!=null)?("("+point.X.ToString()+","+point.Y.ToString()+")"):"null";
+		}
 		public static int IndexOf(int[] arrX, int valX) {
 			if (arrX!=null) {
 				for (int iNow=0; iNow<arrX.Length; iNow++) {
@@ -1626,8 +2098,10 @@ namespace ExpertMultimedia {
 // 			if (rect_Width<0) rect_Width=0;
 // 			if (rect_Height<0) rect_Height=0;
 // 		}
+		//public static bool RectIntersect(out int Return_X, out int Return_Y, out int Return_W, out int Return_H, int to_X, 
+		
 		///<summary>
-		///Crops the RectToModify to the Boundary rect
+		///Crops the RectToModify to the Boundary rect INCLUSIVELY
 		///Returns false if there is nothing left of the RectToModify after cropping.
 		///</summary>
 		public static bool CropRect(ref int RectToModify_X, ref int RectToModify_Y, ref int RectToModify_Width, ref int RectToModify_Height, int Boundary_X, int Boundary_Y, int Boundary_Width, int Boundary_Height) {
@@ -1657,13 +2131,160 @@ namespace ExpertMultimedia {
 				if (RectToModify_Height<1) { RectToModify_Height=0; bGood=false;}
 			}
 			catch (Exception exn) {
-				Console.Error.WriteLine("RForms CropRect error:");
-				Console.Error.WriteLine(exn.ToString());
-				Console.Error.WriteLine();
+				RReporting.ShowExn(exn,"clipping rectangle","RMath CropRect(int,...)");
 			}
 			return bGood;
 		}//end CropRect(integers)
 
+		///<summary>
+		///Crops the RectToModify to the Boundary rect INCLUSIVELY
+		///Returns false if there is nothing left of the RectToModify after cropping.
+		///</summary>
+		public static bool CropRect(ref float RectToModify_X, ref float RectToModify_Y, ref float RectToModify_Width, ref float RectToModify_Height, float Boundary_X, float Boundary_Y, float Boundary_Width, float Boundary_Height) {
+			bool bGood=false;
+			try {
+				if (RectToModify_X<Boundary_X) {
+					RectToModify_Width-=(Boundary_X-RectToModify_X);//i.e. (0 - -1 = 1 ; so subtract 1 from width) OR i.e. 1 - 0 = 1 ; so subtract 1 from width
+					RectToModify_X=Boundary_X;
+				}
+				if (RectToModify_Y<Boundary_Y) {
+					RectToModify_Height-=(Boundary_Y-RectToModify_Y);
+					RectToModify_Y=Boundary_Y;
+				}
+				
+				float Boundary_Right=Boundary_X+Boundary_Width;
+				float RectToModify_Right=RectToModify_X+RectToModify_Width;
+				if (RectToModify_Right>Boundary_Right) {
+					RectToModify_Width-=RectToModify_Right-Boundary_Right;
+				}
+				float Boundary_Bottom=Boundary_Y+Boundary_Height;
+				float RectToModify_Bottom=RectToModify_Y+RectToModify_Height;
+				if (RectToModify_Bottom>Boundary_Bottom) {
+					RectToModify_Height-=RectToModify_Bottom-Boundary_Bottom;
+				}
+				bGood=true;
+				if (RectToModify_Width<=0) { RectToModify_Width=0; bGood=false;}
+				if (RectToModify_Height<=0) { RectToModify_Height=0; bGood=false;}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"clipping rectangle","RMath CropRect(float,...)");
+			}
+			return bGood;
+		}//end CropRect(float,...)
+		
+		/// <summary>
+		///Crops the ZoneToModify to the Boundary Zone INCLUSIVELY--slightly faster than CropRect because
+		/// right&bottom edges don't have to be created or calculated.
+		/// </summary>
+		/// <param name="ZoneToModify_X"></param>
+		/// <param name="ZoneToModify_Y"></param>
+		/// <param name="ZoneToModify_Right"></param>
+		/// <param name="ZoneToModify_Bottom"></param>
+		/// <param name="Boundary_X"></param>
+		/// <param name="Boundary_Y"></param>
+		/// <param name="Boundary_Right"></param>
+		/// <param name="Boundary_Bottom"></param>
+		/// <returns>Returns false if there is nothing left of the ZoneToModify after cropping.</returns>
+		public static bool CropZone(ref float ZoneToModify_X, ref float ZoneToModify_Y, ref float ZoneToModify_Right, ref float ZoneToModify_Bottom, float Boundary_X, float Boundary_Y, float Boundary_Right, float Boundary_Bottom) {
+			bool bGood=false;
+			//try {
+			if (ZoneToModify_X<Boundary_X) {
+				ZoneToModify_Right-=(Boundary_X-ZoneToModify_X);//i.e. (0 - -1 = 1 ; so subtract 1 from width) OR i.e. 1 - 0 = 1 ; so subtract 1 from width
+				ZoneToModify_X=Boundary_X;
+			}
+			if (ZoneToModify_Y<Boundary_Y) {
+				ZoneToModify_Bottom-=(Boundary_Y-ZoneToModify_Y);
+				ZoneToModify_Y=Boundary_Y;
+			}
+			if (ZoneToModify_Right>Boundary_Right) {
+				ZoneToModify_Right=Boundary_Right;//ZoneToModify_Right-=ZoneToModify_Right-Boundary_Right;
+			}
+			if (ZoneToModify_Bottom>Boundary_Bottom) {
+				ZoneToModify_Bottom=Boundary_Bottom;//ZoneToModify_Height-=ZoneToModify_Bottom-Boundary_Bottom;
+			}
+			bGood=true;
+			if (ZoneToModify_Right<ZoneToModify_X) { ZoneToModify_Right=ZoneToModify_X; bGood=false;}
+			if (ZoneToModify_Y<ZoneToModify_Bottom) { ZoneToModify_Bottom=ZoneToModify_Y; bGood=false;}
+			//}
+			//catch (Exception exn) {
+			//	RReporting.ShowExn(exn,"clipping zone","RMath CropZone(float,...)");
+			//}
+			return bGood;
+		}//end CropZone(float,...)
+
+		///<summary>
+		///Crops the RectToModify to the Boundary rect INCLUSIVELY
+		///Returns false if there is nothing left of the RectToModify after cropping.
+		///</summary>
+		public static bool CropRect(ref double RectToModify_X, ref double RectToModify_Y, ref double RectToModify_Width, ref double RectToModify_Height, double Boundary_X, double Boundary_Y, double Boundary_Width, double Boundary_Height) {
+			bool bGood=false;
+			try {
+				if (RectToModify_X<Boundary_X) {
+					RectToModify_Width-=(Boundary_X-RectToModify_X);//i.e. (0 - -1 = 1 ; so subtract 1 from width) OR i.e. 1 - 0 = 1 ; so subtract 1 from width
+					RectToModify_X=Boundary_X;
+				}
+				if (RectToModify_Y<Boundary_Y) {
+					RectToModify_Height-=(Boundary_Y-RectToModify_Y);
+					RectToModify_Y=Boundary_Y;
+				}
+				
+				double Boundary_Right=Boundary_X+Boundary_Width;
+				double RectToModify_Right=RectToModify_X+RectToModify_Width;
+				if (RectToModify_Right>Boundary_Right) {
+					RectToModify_Width-=RectToModify_Right-Boundary_Right;
+				}
+				double Boundary_Bottom=Boundary_Y+Boundary_Height;
+				double RectToModify_Bottom=RectToModify_Y+RectToModify_Height;
+				if (RectToModify_Bottom>Boundary_Bottom) {
+					RectToModify_Height-=RectToModify_Bottom-Boundary_Bottom;
+				}
+				bGood=true;
+				if (RectToModify_Width<=0) { RectToModify_Width=0; bGood=false;}
+				if (RectToModify_Height<=0) { RectToModify_Height=0; bGood=false;}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"clipping rectangle","RMath CropRect");
+			}
+			return bGood;
+		}//end CropRect(doubles)
+
+		///<summary>
+		///Crops the RectToModify to the Boundary rect
+		///Returns false if there is nothing left of the RectToModify after cropping.
+		///</summary>
+		public static bool CropRect(ref decimal RectToModify_X, ref decimal RectToModify_Y, ref decimal RectToModify_Width, ref decimal RectToModify_Height, decimal Boundary_X, decimal Boundary_Y, decimal Boundary_Width, decimal Boundary_Height) {
+			bool bGood=false;
+			try {
+				if (RectToModify_X<Boundary_X) {
+					RectToModify_Width-=(Boundary_X-RectToModify_X);//i.e. (0 - -1 = 1 ; so subtract 1 from width) OR i.e. 1 - 0 = 1 ; so subtract 1 from width
+					RectToModify_X=Boundary_X;
+				}
+				if (RectToModify_Y<Boundary_Y) {
+					RectToModify_Height-=(Boundary_Y-RectToModify_Y);
+					RectToModify_Y=Boundary_Y;
+				}
+				
+				decimal Boundary_Right=Boundary_X+Boundary_Width;
+				decimal RectToModify_Right=RectToModify_X+RectToModify_Width;
+				if (RectToModify_Right>Boundary_Right) {
+					RectToModify_Width-=RectToModify_Right-Boundary_Right;
+				}
+				decimal Boundary_Bottom=Boundary_Y+Boundary_Height;
+				decimal RectToModify_Bottom=RectToModify_Y+RectToModify_Height;
+				if (RectToModify_Bottom>Boundary_Bottom) {
+					RectToModify_Height-=RectToModify_Bottom-Boundary_Bottom;
+				}
+				bGood=true;
+				if (RectToModify_Width<1) { RectToModify_Width=0; bGood=false;}
+				if (RectToModify_Height<1) { RectToModify_Height=0; bGood=false;}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"clipping rectangle","RMath CropRect");
+			}
+			return bGood;
+		}//end CropRect(decimals)
+		
+		
 		/*
 
 		public static void CropRect(ref int rect_X, ref int rect_Y, ref int rect_Width, ref int rect_Height, int Boundary_X, int Boundary_Y, int Boundary_Width, int Boundary_Height) {
@@ -1701,5 +2322,5 @@ namespace ExpertMultimedia {
 		}
 		#endregion UI methods
 
-	}//end RMath class
+	}//end RMath section
 }//end namespace

@@ -84,7 +84,7 @@ namespace ExpertMultimedia {
 			}
 		}
 		///float is php term for double
-		public static readonly string[] sarrTypePHP=new string[] {"non-php-null-type","string","non-php-float32","float","non-php-float128","integer","non-php-int64",      "non-php-binary","boolean"};
+		public static readonly string[] sarrTypePHP=new string[] {"non-php-null-type","string","non-php-float32","float","non-php-float128","integer","non-php-int64",	  "non-php-binary","boolean"};
 		public const int TypeNULL = 0;
 		public const int TypeString = 1;
 		public const int TypeFloat = 2;
@@ -98,7 +98,7 @@ namespace ExpertMultimedia {
 		public const int TypeArray = 9; //has varrAssoc and IF not an associative array then uses sType
 		private int iType=Var.TypeNULL;
 		/// <summary>
-		/// Optional custom class name (option for TypeArray)
+		/// Optional custom section name (option for TypeArray)
 		/// </summary>
 		private string sType="";
 		
@@ -106,7 +106,7 @@ namespace ExpertMultimedia {
 		/// True for php behavior of setting type when value is set.
 		/// </summary>
 		public static bool bSetTypeEvenIfNotNull=true;//true, for php behavior
-		bool bArray=false;
+		//bool bArray=false;
 		
 		public const int ResultFailure = -2;
 		public const int ResultEOF = -1;
@@ -204,6 +204,30 @@ namespace ExpertMultimedia {
 		#endregion lower variables
 		
 		#region constructors
+		public void Clear(bool bFreeMem) {
+			int iAssocNow=0;
+			int iSeqNow=0;
+			if (bFreeMem) {
+				try {
+					for (iAssocNow=0; iAssocNow<this.iElementsAssoc; iAssocNow++) {
+						this.varrAssoc[iAssocNow]=null;
+					}
+				}
+				catch (Exception exn) {
+					RReporting.ShowExn(exn, "freeing associative values", "rstring.Clear");
+				}
+				try {
+					for (iSeqNow=0; iSeqNow<this.iElementsSeq; iSeqNow++) {
+						this.varrSeq[iSeqNow]=null;
+					}
+				}
+				catch (Exception exn) {
+					RReporting.ShowExn(exn, "freeing sequential values", "rstring.Clear");
+				}
+			}
+			this.iElementsAssoc=0;
+			this.iElementsSeq=0;
+		}//end Clear
 		private static void CopyValues(Var vDest, Var vSrc, bool bCopyBinaryData) {
 			try {
 				if (vDest==null) vDest=vSrc.Copy();
@@ -268,8 +292,8 @@ namespace ExpertMultimedia {
 		//public Var(string sSetName, int iSetType) {
 		//	Init(sSetName,iSetType);
 		//}
-		public Var(string sSetName, int iSetType, int iMinElements) {
-			Init(sSetName,iSetType,iMinElements,iMinElements);
+		public Var(string sSetName, int iSetType, int iMinElements_PerTypeOfArray_SeqAndAssoc) {
+			Init(sSetName,iSetType,iMinElements_PerTypeOfArray_SeqAndAssoc,iMinElements_PerTypeOfArray_SeqAndAssoc);
 		}
 		public Var(string sSetName, int iSetType, int iMinElements_Seq, int iMinElements_Assoc) {
 			Init(sSetName,iSetType,iMinElements_Seq,iMinElements_Assoc);
@@ -305,9 +329,9 @@ namespace ExpertMultimedia {
 		public bool Init(string sSetName, int iSetType, int iMinElements_Seq, int iMinElements_Assoc) {
 			bool bGood=true;
 			InitNull();
-			if (iMinElements_Seq<=0) iMinElements_Seq=Base.ElementsMaxDefault;//ok since only used if type array
-			if (iMinElements_Assoc<=0) iMinElements_Assoc=Base.ElementsMaxDefault;//ok since only used if type array
-			Console.WriteLine("Var Init("+sSetName+","+TypeToString(iSetType)+","+iMinElements_Seq.ToString()+","+iElementsAssoc.ToString()+")"); //debug only
+			if (iMinElements_Seq<=0) iMinElements_Seq=iElementsMaxDefault;//ok since only used if type array
+			if (iMinElements_Assoc<=0) iMinElements_Assoc=iElementsMaxDefault;//ok since only used if type array
+			//RReporting.Debug("Var Init("+sSetName+","+TypeToString(iSetType)+","+iMinElements_Seq.ToString()+","+iElementsAssoc.ToString()+")"); //debug only
 			Self=this;
 			iType=iSetType;
 			sName=sSetName;
@@ -402,14 +426,17 @@ namespace ExpertMultimedia {
 				if (File.Exists(sFileSettings)) {
 					settings.LoadIni(sFileSettings);
 				}
-				
+				bool bCreateVarsDefault=!settings.Exists("iVarsDefault");//debug only
+				//RReporting.Debug("iVarsDefault...");
 				settings.CreateOrIgnore("iVarsDefault",(int)32);
+				//if (bCreateVarsDefault) RReporting.Debug("iVarsDefault type is "+settings.IndexItem("iVarsDefault").TypeToString());
+				//else RReporting.Debug("iVarsDefault type was "+settings.IndexItem("iVarsDefault").TypeToString());
 				settings.CreateOrIgnore("iVarsLimit",(int)65536);
 				//GetOrCreate is only used for speed.  Others are accessed by Var conversion.
-				Base.iElementsMaxDefault=100;
-				settings.GetOrCreate(ref Base.iElementsMaxDefault, "ElementsMaxDefault");
-				Base.iAbsoluteMaximumScriptArray=65536;
-				settings.GetOrCreate(ref Base.iAbsoluteMaximumScriptArray, "AbsoluteMaximumScriptArray");
+				iElementsMaxDefault=100;
+				settings.GetOrCreate(ref iElementsMaxDefault, "ElementsMaxDefault");
+				iAbsoluteMaximumScriptArray=65536;
+				settings.GetOrCreate(ref iAbsoluteMaximumScriptArray, "AbsoluteMaximumScriptArray");
 // 				settings.CreateOrIgnore("iLinesDefault",(int)32768);
 // 				settings.CreateOrIgnore("iLinesLimit",(int)(int.MaxValue/2));
 // 				settings.Comment("AutoGrowVarArray is not yet implemented.");
@@ -420,20 +447,20 @@ namespace ExpertMultimedia {
 // 				settings.CreateOrIgnore("StringStackDefaultStartSize",(int)256);
 // 				settings.CreateOrIgnore("StringQueueDefaultMaximumSize",(int)8192);
 // 				settings.CreateOrIgnore("DefaultFontHeight",16);
-				RReporting.Debug("Saving Var settings...");
+				//RReporting.Debug("Saving Var settings...");
 				settings.SaveIni(sFileSettings);
-				RReporting.Debug("done saving settings to \""+sFileSettings+"\".");
-			//Base.ClearErr();
-			//if (Base.HasErr()) {
-			//	Base.ElementsMaxDefault=256;
-			//	string sReErr=Base.sLastErr;
+				//RReporting.Debug("done saving settings to \""+sFileSettings+"\".");
+			//RString.ClearErr();
+			//if (RString.HasErr()) {
+			//	RString.ElementsMaxDefault=256;
+			//	string sReErr=RString.sLastErr;
 			//	int iCloser=sReErr.IndexOf("}");
-			//	if (iCloser>=0) sReErr=Base.SafeInsert(sReErr,iCloser,"Var:"+Var.
+			//	if (iCloser>=0) sReErr=RString.SafeInsert(sReErr,iCloser,"Var:"+Var.
 			//}
-				RReporting.Debug("Done Var init.");
+				//RReporting.Debug("Done Var init.");
 			}
 			catch (Exception exn) {//do not report this
-				RReporting.Debug(exn,"","initializing utilities class");
+				RReporting.Debug(exn,"","initializing utilities section");
 			}
 		}
 		#endregion constructors
@@ -643,12 +670,12 @@ namespace ExpertMultimedia {
 			iTickSaved=RPlatform.TickCount;
 		}
 		public bool Indexable(int iElement) {
-			return iElement>=0&&iElement<Base.AbsoluteMaximumScriptArray;
+			return iElement>=0&&iElement<AbsoluteMaximumScriptArray;
 		}
 		public static string VarMessageStyleOperatorAndValue(Var val, bool bShowStringIfValid) {
 			string sMsg;//=VariableMessage(byarrToHex);
 			sMsg=VarMessage(val,bShowStringIfValid);
-			if (!bShowStringIfValid && Base.IsNumeric(sMsg,false,false)) sMsg=".Length:"+sMsg;
+			if (!bShowStringIfValid && RString.IsNumeric(sMsg,false,false)) sMsg=".Length:"+sMsg;
 			else sMsg=":"+sMsg;
 			return sMsg;
 		}
@@ -774,7 +801,7 @@ namespace ExpertMultimedia {
 		public bool PushAllAssoc(string[] arrName, string[] arrVal, int iLimit) {
 			bool bGood=false;
 			try {
-				if (RString.AnyNotBlank(arrName)) {
+				if (RReporting.AnyNotBlank(arrName)) {
 					bGood=true;
 					for (int iNow=0; iNow<iLimit; iNow++) {
 						if (arrName[iNow]!=null) PushAssoc(arrName[iNow],arrVal[iNow]);
@@ -1097,7 +1124,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","StringToType(sOfType:"+Base.SafeString(sOfType,true)+")");
+				RReporting.ShowExn(exn,"","StringToType(sOfType:"+RString.SafeString(sOfType,true)+")");
 			}
 			if (iReturn==-1) {
 				RReporting.Warning("Could not find a type number {sOfType:"+sOfType+"}");
@@ -1147,7 +1174,7 @@ namespace ExpertMultimedia {
 					if (bAsArray) {
 						if (bAssociative_IgnoredIfNotAsArray) {
 							if (MaximumAssoc==0) {
-								MaximumAssoc=Base.ElementsMaxDefault;
+								MaximumAssoc=Var.iElementsMaxDefault;
 								iSetType=TypeArray;//debug forced type
 								for (int iNow=0; iNow<MaximumAssoc; iNow++) {
 									varrAssoc[iNow]=null; //TODO: debug RMemory usage--use stack??
@@ -1157,7 +1184,7 @@ namespace ExpertMultimedia {
 						}
 						else {//else not associative
 							if (MaximumSeq==0) {
-								MaximumSeq=Base.ElementsMaxDefault;
+								MaximumSeq=iElementsMaxDefault;
 								for (int iNow=0; iNow<MaximumSeq; iNow++) {
 									varrSeq[iNow]=null; //TODO: debug RMemory usage--use stack??
 								}
@@ -1167,33 +1194,59 @@ namespace ExpertMultimedia {
 					}
 					else {//else not as array
 						//put value into new iSetType
-						switch (iSetType) {//for every Var type
-							case Var.TypeString:
-								ValString=GetForcedString();
-								break;
-							case Var.TypeFloat:
-								ValFloat=GetForcedFloat();
-								break;
-							case Var.TypeDouble:
-								ValDouble=GetForcedDouble();
-								break;
-							case Var.TypeInteger:
-								ValInteger=GetForcedInt();
-								break;
-							case Var.TypeLong:
-								ValLong=GetForcedLong();
-								break;
-							case Var.TypeBool:
-								ValBool=GetForcedBool();
-								break;
-							default:
-								break;
-						}//end switch old type of new STRING
+						if (iType!=Var.TypeNULL) {
+							switch (iSetType) {//for every Var type
+								case Var.TypeString:
+									ValString=GetForcedString();
+									break;
+								case Var.TypeFloat:
+									ValFloat=GetForcedFloat();
+									break;
+								case Var.TypeDouble:
+									ValDouble=GetForcedDouble();
+									break;
+								case Var.TypeInteger:
+									ValInteger=GetForcedInt();
+									break;
+								case Var.TypeLong:
+									ValLong=GetForcedLong();
+									break;
+								case Var.TypeBool:
+									ValBool=GetForcedBool();
+									break;
+								default:
+									break;
+							}//end switch old type of new STRING
+						}//end if iType!=TypeNULL transfer value
+						else {
+							switch (iSetType) {//for every Var type
+								case Var.TypeString:
+									ValString="";
+									break;
+								case Var.TypeFloat:
+									ValFloat=0.0f;
+									break;
+								case Var.TypeDouble:
+									ValDouble=0.0d;
+									break;
+								case Var.TypeInteger:
+									ValInteger=0;
+									break;
+								case Var.TypeLong:
+									ValLong=0;
+									break;
+								case Var.TypeBool:
+									ValBool=false;
+									break;
+								default:
+									break;
+							}//end switch old type of new STRING
+						}//end else iType==TypeNULL so reset the value
 					}//end set local non-array vars
 					if (bModifyArrayStatus) {
 						if (bAsArray) {
-							if (bAssociative_IgnoredIfNotAsArray) MaximumSeq=Base.ElementsMaxDefault;
-							else MaximumAssoc=Base.ElementsMaxDefault;
+							if (bAssociative_IgnoredIfNotAsArray) MaximumSeq=iElementsMaxDefault;
+							else MaximumAssoc=iElementsMaxDefault;
 						}
 						else {
 							MaximumSeq=0;
@@ -1480,11 +1533,16 @@ namespace ExpertMultimedia {
 		public bool Set(int val) {
 			bool bGood=true;
 			if (bSetTypeEvenIfNotNull || iType==TypeNULL) {
+				//RReporting.Debug("Set(int) (called by Var(name,int)) about to modify null var...");
 				if (MaximumAssoc>0) RReporting.Warning("Saving value over associative array var {sName:"+RReporting.StringMessage(sName,true)+"; iType:"+iType.ToString()+";}");
 				else if (MaximumSeq>0) RReporting.Warning("Saving value over array var {sName:"+RReporting.StringMessage(sName,true)+"; iType:"+iType.ToString()+";}");
 				SetType(Var.TypeInteger);
+				//RReporting.Debug("Set(int) (called by Var(name,int)) about to modify null var...done (type is now "+Var.TypeToString(iType)+")");
 				MaximumSeq=0;
 				MaximumAssoc=0; 
+			}
+			else {
+				//RReporting.Debug("Set(int) (called by Var(name,int)) about to modify non-TypeNULL var...");
 			}
 			try {
 				switch (iType) {
@@ -1593,6 +1651,11 @@ namespace ExpertMultimedia {
 			RConvert.HexColorStringToBGR24(ref byarrPixel,0,sHex);
 			return Set(sName,byarrPixel);
 		}
+		public bool SetOrCreateBinaryFromHex24(string sName, string sHex) {
+			byte[] byarrPixel=new byte[3];
+			RConvert.HexColorStringToBGR24(ref byarrPixel,0,sHex);
+			return SetOrCreate(sName,byarrPixel);
+		}
 		public bool GetForcedRgba(out byte r, out byte g, out byte b, out byte a) {
 			bool bGood=false;
 			try {
@@ -1627,15 +1690,16 @@ namespace ExpertMultimedia {
 			}
 			return bGood;
 		}
-		public bool GetForcedRgbaAssoc(out byte r, out byte g, out byte b, out byte a, int iInternalIndex) {
+		public bool GetForcedRgbaAssoc(out byte r, out byte g, out byte b, out byte a, int iInternalIndexOfAssociative) {
 			bool bGood=false;
-			if (iInternalIndex>=0&&iInternalIndex<iElementsAssoc) {
-				if (varrAssoc[iInternalIndex]!=null) {
-					bGood=varrAssoc[iInternalIndex].GetForcedRgba(out r,out g,out b,out a);
+			if (iInternalIndexOfAssociative>=0&&iInternalIndexOfAssociative<iElementsAssoc) {
+				if (varrAssoc[iInternalIndexOfAssociative]!=null) {
+					return varrAssoc[iInternalIndexOfAssociative].GetForcedRgba(out r,out g,out b,out a);
 				}
 				else RReporting.ShowErr("Tried to get Var at null forced associative index");
 			}
 			else RReporting.ShowErr("Tried to get Var at out-of-range forced associative index");
+			r=0; g=0; b=0; a=0;
 			return bGood;
 		}
 		/// <summary>
@@ -2122,8 +2186,16 @@ namespace ExpertMultimedia {
 			try {
 				if (iAt<1) {
 					if (iElementsAssoc>=MaximumAssoc) SetFuzzyMaximumAssoc(iElementsAssoc);
-					if (varrAssoc[iElementsAssoc]==null) varrAssoc[iElementsAssoc]=new Var(sAssociativeIndex,val);
-					else { varrAssoc[iElementsAssoc].SetType(TypeOf(val)); varrAssoc[iElementsAssoc].Set(sAssociativeIndex,val); }
+					if (varrAssoc[iElementsAssoc]==null) {
+						//RReporting.Debug("ForceSet(sAssociativeIndex,int) about to create var...");
+						varrAssoc[iElementsAssoc]=new Var(sAssociativeIndex,val);
+						//RReporting.Debug("ForceSet(sAssociativeIndex,int) about to create var...done");
+					}
+					else {
+						//RReporting.Debug("ForceSet(sAssociativeIndex,int) about to set type of var...");
+						varrAssoc[iElementsAssoc].SetType(TypeOf(val));
+						varrAssoc[iElementsAssoc].Set(sAssociativeIndex,val);
+					}
 					iElementsAssoc++;
 				}
 				else varrAssoc[iAt].Set(val); //else exists and is not null
@@ -2356,13 +2428,13 @@ namespace ExpertMultimedia {
 			Get(out valReturn,index);
 			return valReturn;
 		}
-		public string GetForcedStringAssoc(int iInternalIndex) {
+		public string GetForcedStringAssoc(int iInternalIndexOfAssociative) {
 			string valReturn;
-			Var vTemp=IndexItemAssoc(iInternalIndex);
+			Var vTemp=IndexItemAssoc(iInternalIndexOfAssociative);
 			if (vTemp!=null) Get(out valReturn);
 			else {
 				RConvert.SetToNothing(out valReturn);
-				Console.WriteLine("Null index item.");//debug only
+				Console.Error.WriteLine("Null index item.");//debug only
 			}
 			return valReturn;
 		}
@@ -2382,9 +2454,9 @@ namespace ExpertMultimedia {
 			Get(out valReturn,index);
 			return valReturn;
 		}
-		public float GetForcedFloatAssoc(int iInternalIndex) {
+		public float GetForcedFloatAssoc(int iInternalIndexOfAssociative) {
 			float valReturn;
-			Var vTemp=IndexItemAssoc(iInternalIndex);
+			Var vTemp=IndexItemAssoc(iInternalIndexOfAssociative);
 			if (vTemp!=null) Get(out valReturn);
 			else RConvert.SetToNothing(out valReturn);
 			return valReturn;
@@ -2410,9 +2482,9 @@ namespace ExpertMultimedia {
 			Get(out valReturn,index);
 			return valReturn;
 		}
-		public double GetForcedDoubleAssoc(int iInternalIndex) {
+		public double GetForcedDoubleAssoc(int iInternalIndexOfAssociative) {
 			double valReturn;
-			Var vTemp=IndexItemAssoc(iInternalIndex);
+			Var vTemp=IndexItemAssoc(iInternalIndexOfAssociative);
 			if (vTemp!=null) Get(out valReturn);
 			else RConvert.SetToNothing(out valReturn);
 			return valReturn;
@@ -2438,9 +2510,9 @@ namespace ExpertMultimedia {
 			Get(out valReturn,index);
 			return valReturn;
 		}
-		public decimal GetForcedDecimalAssoc(int iInternalIndex) {
+		public decimal GetForcedDecimalAssoc(int iInternalIndexOfAssociative) {
 			decimal valReturn;
-			Var vTemp=IndexItemAssoc(iInternalIndex);
+			Var vTemp=IndexItemAssoc(iInternalIndexOfAssociative);
 			if (vTemp!=null) Get(out valReturn);
 			else RConvert.SetToNothing(out valReturn);
 			return valReturn;
@@ -2466,9 +2538,9 @@ namespace ExpertMultimedia {
 			Get(out valReturn,index);
 			return valReturn;
 		}
-		public int GetForcedIntAssoc(int iInternalIndex) {
+		public int GetForcedIntAssoc(int iInternalIndexOfAssociative) {
 			int valReturn;
-			Var vTemp=IndexItemAssoc(iInternalIndex);
+			Var vTemp=IndexItemAssoc(iInternalIndexOfAssociative);
 			if (vTemp!=null) Get(out valReturn);
 			else RConvert.SetToNothing(out valReturn);
 			return valReturn;
@@ -2494,9 +2566,9 @@ namespace ExpertMultimedia {
 			Get(out valReturn,index);
 			return valReturn;
 		}
-		public long GetForcedLongAssoc(int iInternalIndex) {
+		public long GetForcedLongAssoc(int iInternalIndexOfAssociative) {
 			long valReturn;
-			Var vTemp=IndexItemAssoc(iInternalIndex);
+			Var vTemp=IndexItemAssoc(iInternalIndexOfAssociative);
 			if (vTemp!=null) Get(out valReturn);
 			else RConvert.SetToNothing(out valReturn);
 			return valReturn;
@@ -2522,9 +2594,9 @@ namespace ExpertMultimedia {
 			Get(out valReturn,index);
 			return valReturn;
 		}
-		public byte[] GetForcedBinaryAssoc(int iInternalIndex) {
+		public byte[] GetForcedBinaryAssoc(int iInternalIndexOfAssociative) {
 			byte[] valReturn;
-			Var vTemp=IndexItemAssoc(iInternalIndex);
+			Var vTemp=IndexItemAssoc(iInternalIndexOfAssociative);
 			if (vTemp!=null) Get(out valReturn);
 			else RConvert.SetToNothing(out valReturn);
 			return valReturn;
@@ -2551,9 +2623,9 @@ namespace ExpertMultimedia {
 			Get(out valReturn,index);
 			return valReturn;
 		}
-		public bool GetForcedBoolAssoc(int iInternalIndex) {
+		public bool GetForcedBoolAssoc(int iInternalIndexOfAssociative) {
 			bool valReturn;
-			Var vTemp=IndexItemAssoc(iInternalIndex);
+			Var vTemp=IndexItemAssoc(iInternalIndexOfAssociative);
 			if (vTemp!=null) Get(out valReturn);
 			else RConvert.SetToNothing(out valReturn);
 			return valReturn;
@@ -2691,7 +2763,7 @@ namespace ExpertMultimedia {
 		#region abstract get methods
 		public bool GetOrCreate(ref string val, string sName) {
 			bool bGood=true;
-			int iAt=LastIndexOf(sName,false);
+			int iAt=LastIndexOf(sName,false,true);
 			bool bFound=(iAt>=0);
 			try {
 				if (bFound) varrAssoc[iAt].Get(out val);
@@ -2705,7 +2777,7 @@ namespace ExpertMultimedia {
 		}
 		public bool GetOrCreate(ref float val, string sName) {
 			bool bGood=true;
-			int iAt=LastIndexOf(sName,false);
+			int iAt=LastIndexOf(sName,false,true);
 			bool bFound=(iAt>=0);
 			try {
 				if (bFound) varrAssoc[iAt].Get(out val);
@@ -2719,7 +2791,7 @@ namespace ExpertMultimedia {
 		}
 		public bool GetOrCreate(ref double val, string sName) {
 			bool bGood=true;
-			int iAt=LastIndexOf(sName,false);
+			int iAt=LastIndexOf(sName,false,true);
 			bool bFound=(iAt>=0);
 			try {
 				if (bFound) varrAssoc[iAt].Get(out val);
@@ -2733,7 +2805,7 @@ namespace ExpertMultimedia {
 		}
 		public bool GetOrCreate(ref decimal val, string sName) {
 			bool bGood=true;
-			int iAt=LastIndexOf(sName,false);
+			int iAt=LastIndexOf(sName,false,true);
 			bool bFound=(iAt>=0);
 			try {
 				if (bFound) varrAssoc[iAt].Get(out val);
@@ -2747,7 +2819,7 @@ namespace ExpertMultimedia {
 		}
 		public bool GetOrCreate(ref int val, string sName) {
 			bool bGood=true;
-			int iAt=LastIndexOf(sName,false);
+			int iAt=LastIndexOf(sName,false,true);
 			bool bFound=(iAt>=0);
 			try {
 				if (bFound) varrAssoc[iAt].Get(out val);
@@ -2761,7 +2833,7 @@ namespace ExpertMultimedia {
 		}
 		public bool GetOrCreate(ref long val, string sName) {
 			bool bGood=true;
-			int iAt=LastIndexOf(sName,false);
+			int iAt=LastIndexOf(sName,false,true);
 			bool bFound=(iAt>=0);
 			try {
 				if (bFound) varrAssoc[iAt].Get(out val);
@@ -2775,7 +2847,7 @@ namespace ExpertMultimedia {
 		}
 		public bool GetOrCreate(ref bool val, string sName) {
 			bool bGood=true;
-			int iAt=LastIndexOf(sName,false);
+			int iAt=LastIndexOf(sName,false,true);
 			bool bFound=(iAt>=0);
 			try {
 				if (bFound) varrAssoc[iAt].Get(out val);
@@ -2789,7 +2861,7 @@ namespace ExpertMultimedia {
 		}
 		public bool GetOrCreate(ref byte[] val, string sName) {
 			bool bGood=true;
-			int iAt=LastIndexOf(sName,false);
+			int iAt=LastIndexOf(sName,false,true);
 			bool bFound=(iAt>=0);
 			try {
 				if (bFound) varrAssoc[iAt].Get(out val);
@@ -2845,7 +2917,11 @@ namespace ExpertMultimedia {
 			if (!Exists(sAssociativeIndex)) ForceSet(sAssociativeIndex,val);
 		}
 		public void CreateOrIgnore(string sAssociativeIndex, int val) {
-			if (!Exists(sAssociativeIndex)) ForceSet(sAssociativeIndex,val);
+			//RReporting.Debug("CreateOrIgnore(...,int)");
+			if (!Exists(sAssociativeIndex)) {
+				//RReporting.Debug("CreateOrIgnore about to run ForceSet(...,int)");
+				ForceSet(sAssociativeIndex,val);
+			}
 		}
 		public void CreateOrIgnore(string sAssociativeIndex, long val) {
 			if (!Exists(sAssociativeIndex)) ForceSet(sAssociativeIndex,val);
@@ -2874,7 +2950,7 @@ namespace ExpertMultimedia {
 					else if (sLine.StartsWith("[")&&sLine.EndsWith("]")) {
 						//int iNow=iElementsAssoc;
 						//PushAssoc("",sLine);
-						sName=Base.SafeSubstring(sLine,1,sLine.Length-2);//TODO: make a sequential list of bracketed named vars instead
+						sName=RString.SafeSubstring(sLine,1,sLine.Length-2);//TODO: make a sequential list of bracketed named vars instead
 						//Var vTemp=IndexItemAssoc(iNow);//IndexItem(sLine);
 						//if (vTemp!=null) vTemp.SetType(TypeNULL);
 					}
@@ -2894,17 +2970,17 @@ namespace ExpertMultimedia {
 							iCursor++;
 						}
 						if (iSign>-1) {
-							sNameNow=Base.SafeSubstringByExclusiveEnder(sLine,0,iSign);
-							sValNow=Base.SafeSubstring(sLine,iSign+1);
+							sNameNow=RString.SafeSubstringByExclusiveEnder(sLine,0,iSign);
+							sValNow=RString.SafeSubstring(sLine,iSign+1);
 							//RReporting.Debug("Found value:\""+sValNow+"\" at col "+(iSign+1).ToString());
 							if (sValNow.Length<1) {
 								RReporting.Debug("Loaded blank value for variable named \""+sNameNow+"\"");
 							}
 							else if (iDetectType==TypeNULL) {
-								if (Base.IsNumeric(sValNow,false,false)) {
+								if (RString.IsNumeric(sValNow,false,false)) {
 									iDetectType=TypeInteger;
 								}
-								else if (Base.IsNumeric(sValNow,true,false)) {
+								else if (RString.IsNumeric(sValNow,true,false)) {
 									iDetectType=TypeFloat;
 								}
 								else if (sValNow=="true"||sValNow=="false"||sValNow=="yes"||sValNow=="no") {
@@ -2939,13 +3015,13 @@ namespace ExpertMultimedia {
 			try {
 				string sLine;
 				int iCursor=0;
-				while (Base.ReadLine(out sLine, sDataNow, ref iCursor)) {
+				while (RString.StringReadLine(out sLine, sDataNow, ref iCursor)) {
 					ReadIniLine(sLine);
 				}
 			}
 			catch (Exception exn) {
 				bGood=false;
-				RReporting.ShowExn(exn,"loading vars from file","LoadIni");//DOES show Base.sLastFile
+				RReporting.ShowExn(exn,"loading vars from file","LoadIni");//DOES show RString.sLastFile
 			}
 			return bGood;
 		}
@@ -2955,7 +3031,7 @@ namespace ExpertMultimedia {
 			bool bGood=true;
 			try {
 				if (File.Exists(sFile)) {
-					string sDataNow=Base.FileToString(sFile);
+					string sDataNow=RString.FileToString(sFile);
 					bGood=LoadIniData(sDataNow);
 				}
 				else {
@@ -2979,37 +3055,37 @@ namespace ExpertMultimedia {
 			//}
 			string sDataNow="";
 			bool bGood=AppendIni(ref sDataNow);//TODO: call subvars recursively
-			if (sDataNow!="") Base.StringToFile(sFile,sDataNow);
+			if (sDataNow!="") RString.StringToFile(sFile,sDataNow);
 			else RReporting.Warning("Tried to save blank var {sFile:"+sFile+"}");
 			return bGood;
 		}
 		public bool AppendIni(ref string sDataNow) {
 			bool bGood=true;
 			try {
-				Base.WriteLine(ref sDataNow,"["+RReporting.StringMessage(sName,true)+"]");
+				RString.StringWriteLine(ref sDataNow,"["+RString.SafeString(sName,false)+"]");
 				if (iType==TypeArray) {
 					if (iElementsSeq>0) {
-						Base.Write(ref sDataNow,"this={");
+						RString.StringWrite(ref sDataNow,"this={");
 						for (int iNow=0; iNow<iElementsSeq; iNow++) {
-							if (iNow==0) Base.Write(ref sDataNow, GetForcedString(iNow));
-							else Base.Write(ref sDataNow, ","+GetForcedString(iNow));
+							if (iNow==0) RString.StringWrite(ref sDataNow, GetForcedString(iNow));
+							else RString.StringWrite(ref sDataNow, ","+GetForcedString(iNow));
 						}
-						Base.WriteLine(ref sDataNow,"}");
+						RString.StringWriteLine(ref sDataNow,"}");
 					}
-					else RReporting.Debug("No sequential elements in \""+RReporting.StringMessage(sName,true)+"\".");
+					//else RReporting.Debug("No sequential elements in "+RReporting.StringMessage(sName,true)+".");
 				}
 				if (iType==TypeArray) {
 					if (iElementsAssoc>0) {
 						for (int iNow=0; iNow<iElementsAssoc; iNow++) {
 							Var vNow=IndexItemAssoc(iNow);
-							if (vNow!=null) Base.WriteLine(ref sDataNow, VarToIniLineAssoc(iNow));
+							if (vNow!=null) RString.StringWriteLine(ref sDataNow, VarToIniLineAssoc(iNow));
 						}
 					}
 				}
 			}
 			catch (Exception exn) {
 				bGood=false;
-				RReporting.ShowExn(exn,"writing vars to ini layout","Var AppendIni");//DOES show Base.sLastFile //{sFile:"+sFile+"}
+				RReporting.ShowExn(exn,"writing vars to ini layout","Var AppendIni");//DOES show RString.sLastFile //{sFile:"+sFile+"}
 			}
 			return bGood;
 		}//end AppendIni
@@ -3024,7 +3100,7 @@ namespace ExpertMultimedia {
 						sReturn=SafeIniVariableName(vNow.sName)+"="+SafeIniVal(val);
 					}
 					else {
-						RReporting.Debug("Converted VarToIniLine("+vNow.sName+") with empty value");
+						RReporting.Debug("Converted VarToIniLine(\""+vNow.sName+"\") with empty value");
 						sReturn=SafeIniVariableName(vNow.sName);
 					}
 				}
@@ -3036,8 +3112,8 @@ namespace ExpertMultimedia {
 			}
 			return sReturn;
 		}
-		public string VarToIniLineAssoc(int iInternalIndex) {
-			return VarToIniLine(IndexItemAssoc(iInternalIndex));
+		public string VarToIniLineAssoc(int iInternalIndexOfAssociative) {
+			return VarToIniLine(IndexItemAssoc(iInternalIndexOfAssociative));
 		}
 		public bool Save() {	
 			return Save(iSaveMode);
@@ -3062,14 +3138,14 @@ namespace ExpertMultimedia {
 		#endregion file methods
 		public string SafeIniVariableName(string sNameNow) {
 			//string sNameNow=NameAtIndex(iInternalAssociativeIndex);
-			if (Base.Contains(sNameNow,"=")) {
-				Base.ReplaceAll(ref sNameNow,"\"","\"\"");
-				sNameNow="\""+sNameNow+"\"";
+			if (RString.Contains(sNameNow,"=")) {
+				RString.ReplaceAll(ref sNameNow,"\"","\"\"");
+				if (sNameNow.Contains(",")) sNameNow="\""+sNameNow+"\"";
 			}
 			return sNameNow;
 		}
 		public static string SafeIniVal(string sVal) {
-			Base.ReplaceNewLinesWithSpaces(ref sVal);
+			RString.ReplaceNewLinesWithSpaces(ref sVal);
 			return sVal;
 		}
 		public static int SafeLength(Var[] arrNow) {
@@ -3081,13 +3157,10 @@ namespace ExpertMultimedia {
 			}
 			return iReturn;
 		}
-		public static bool Redim(ref Var[] arrNow, int iSetSize) {
-			return Redim(ref arrNow,iSetSize,"Var");
-		}
 		/// <summary>
 		/// Sets size, preserving data
 		/// </summary>
-		public static bool Redim(ref Var[] arrNow, int iSetSize, string sSender_ForErrorTrackingOnly) {
+		public static bool Redim(ref Var[] arrNow, int iSetSize) {
 			bool bGood=false;
 			if (iSetSize!=SafeLength(arrNow)) {
 				if (iSetSize<=0) { arrNow=null; bGood=true; }
@@ -3106,7 +3179,8 @@ namespace ExpertMultimedia {
 					}
 					catch (Exception exn) {
 						bGood=false;
-						RReporting.ShowExn(exn,"setting var maximum","Var Redim("+Var.ArrayDebugStyle("array",arrNow,false)+", size:"+iSetSize.ToString()+","+RReporting.DebugStyle("sender",sSender_ForErrorTrackingOnly,true,false)+")");
+						string sStackFrames=RReporting.StackTraceToLatinCallStack(new System.Diagnostics.StackTrace());
+						RReporting.ShowExn(exn,"setting var maximum","Var Redim("+Var.ArrayDebugStyle("array",arrNow,false)+", size:"+iSetSize.ToString()+","+RReporting.DebugStyle("sender",sStackFrames,true,false)+")");
 					}
 				}//end else size >0
 			}//end if length is different
@@ -3114,7 +3188,7 @@ namespace ExpertMultimedia {
 			return bGood;
 		}//end Redim
 		public static string ArrayDebugStyle(string sName, Var[] arrX, bool bAppendSemicolonAndSpace) {
-			return RReporting.SafeString(sName) + ((arrX!=null)?(".Length:"+arrX.Length.ToString()):":null") + (bAppendSemicolonAndSpace?"; ":"");
+			return RString.SafeString(sName) + ((arrX!=null)?(".Length:"+arrX.Length.ToString()):":null") + (bAppendSemicolonAndSpace?"; ":"");
 		}
-	}//end class Var
+	}//end section Var
 }//end namespace

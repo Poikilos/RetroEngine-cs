@@ -4,7 +4,7 @@ using System;
 namespace ExpertMultimedia {
 	public class RTextBox {
 		public static bool bDebug {
-			get { return RForms.bDebug; }
+			get { return RReporting.bDebug; }
 		}
 	
 	
@@ -268,10 +268,12 @@ namespace ExpertMultimedia {
 			}
 		}
 		public void SetFuzzyMaxLinesByLocation(int iLoc) {
-			Maximum=RMath.LocationToFuzzyMaximum(Maximum,iLoc);
+			if (iLoc+iLoc/2>Maximum) Maximum=iLoc+iLoc/2+1;
+			//Maximum=RMath.LocationToFuzzyMaximum(Maximum,iLoc);
 		}
 		public bool SetFuzzyMaxEditsByLocation(int iLoc) {
-			MaxEdits=RMath.LocationToFuzzyMaximum(MaxEdits,iLoc);
+			if (iLoc+iLoc/2>MaxEdits) MaxEdits=iLoc+iLoc/2+1;
+			//MaxEdits=RMath.LocationToFuzzyMaximum(MaxEdits,iLoc);
 			return iLoc<=MaxEdits;
 		}
 		//public int LongestLine() {
@@ -349,7 +351,7 @@ namespace ExpertMultimedia {
 			return iRowStart==iRowEnd&&iColStart==iColEnd;
 		}
 		public static void OrderLocations(ref int iRowStart, ref int iColStart, ref int iRowEnd, ref int iColEnd) {
-			//do NOT use the more specific Base.OrderPoints(ref iColStart, ref iRowStart, ref iColEnd, ref iRowEnd);
+			//do NOT use the more specific RMath.OrderPoints(ref iColStart, ref iRowStart, ref iColEnd, ref iRowEnd);
 			if (iRowStart==iRowEnd) {
 				if (iColStart>iColEnd) RMemory.Swap(ref iColStart, ref iColEnd);
 			}
@@ -404,7 +406,7 @@ namespace ExpertMultimedia {
 			for (int iNow=0; iNow<iUsed; iNow++) {
 				sBuild+=(sBuild=="")?Line(iNow):(Environment.NewLine+Line(iNow));//debug forcing Environment.NewLine
 			}
-			//Console.WriteLine("rtextbox{count:"+iUsed.ToString()+"; max:"+sarrLine.Length+"} ToString:\""+sBuild+"\"");
+			//Console.Error.WriteLine("rtextbox{count:"+iUsed.ToString()+"; max:"+sarrLine.Length+"} ToString:\""+sBuild+"\"");
 			return sBuild;
 		}
 		public string DumpStyle() {
@@ -436,7 +438,7 @@ namespace ExpertMultimedia {
 				sReturn+=sarrLine[iNow]+sInsertThisAtNewLine;
 			}
 			if (sInsertThisAtNewLine!=""&&!bEndWithNewLine&&sReturn.EndsWith(sInsertThisAtNewLine)) {
-				sReturn=Base.SafeSubstring(sReturn,0,sReturn.Length-1);
+				sReturn=RString.SafeSubstring(sReturn,0,sReturn.Length-1);
 			}
 			return sReturn;
 		}
@@ -469,14 +471,14 @@ namespace ExpertMultimedia {
 				}
 				else bGood=true;
 				if (bGood) {
-					//Base.Write("Adding...");
+					//RReporting.Write("Adding...");
 					if (iMods<MaxEdits) {
-						//Base.Write("Copying...");
+						//RReporting.Write("Copying...");
 						if (modarr[iMods]==null) modarr[iMods]=modNow;
 						else modNow.CopyTo(modarr[iMods]);
 						iMods++;
 						bGood=true;
-						//Base.Write("Done.  ");
+						//RReporting.Write("Done.  ");
 					}
 					else {
 						RReporting.ShowErr("Could not resize undo buffer (might be out of memory)");
@@ -488,7 +490,8 @@ namespace ExpertMultimedia {
 				bGood=false;
 			}
 			return bGood;
-		}
+			RApplication.InvalidatePanelIfExists();//RApplication.InvalidateDest();
+		}//end AddMod
 		private RTextBoxMod LastMod {
 			get {
 				try {
@@ -781,7 +784,7 @@ namespace ExpertMultimedia {
 		private bool ChangeLine(int iLine, int iCol_ForReferenceOnly, string sLine, bool bWaitForAnotherPartOfGroup) {
 			bool bTest=AddMod(new RTextBoxMod(RTextBoxMod.TypeModify, iLine, iCol_ForReferenceOnly, sarrLine[iLine], sLine, iModGroups));
 			sarrLine[iLine]=sLine;
-			//Console.WriteLine(sarrLine[iLine]);//debug only 
+			//Console.Error.WriteLine(sarrLine[iLine]);//debug only 
 			if (iLine>=iUsed) iUsed=iLine+1;//TODO: save previous length for undo
 			
 			if (!bWaitForAnotherPartOfGroup) {
@@ -791,7 +794,7 @@ namespace ExpertMultimedia {
 			return true;
 		}
 		#endregion concrete editing (record undo)
-		#region abstract editing
+		#region abstract editing (user-side)
 		public bool SetLines(string[] LinesNew) {
 			int iTest=0;
 			Clear(false);//does call OnChange
@@ -805,16 +808,16 @@ namespace ExpertMultimedia {
 			if (!bSuspendChanges) OnChange();//FindMaxLines();
 			return iTest==LinesNew.Length;
 		}
-		public bool SetText(string sVal) {
-			return SetLines(Base.StringToLines(sVal));
+		public bool SetText(string sVal) { //aka SetData
+			return SetLines(RString.StringToLines(sVal));
 		}
 		public bool SelectAll() {
 			return SetSelection(0,0,iUsed==0?0:iUsed-1,RowLength(iUsed==0?0:iUsed-1));
 		}
 		public bool Insert(string sTyped) {
-			if ( Base.Contains(sTyped,Environment.NewLine)
-				||Base.Contains(sTyped,'\r')
-				||Base.Contains(sTyped,'\n')
+			if ( RString.Contains(sTyped,Environment.NewLine)
+				||RString.Contains(sTyped,'\r')
+				||RString.Contains(sTyped,'\n')
 				) {
 				//TODO: call a newline parsing function to handle this then recurse back to here
 				RReporting.ShowErr("Inserting newlines is not possible.  Use Return() instead (input corruption).");
@@ -822,26 +825,26 @@ namespace ExpertMultimedia {
 			}
 			
 			bool bGood=false;
-			Console.Write(sTyped);
+			Console.Error.Write(sTyped);//debug only
 			try {
 				if (!IsZeroSelection()) {
 					bGood=Delete();
 					SetZeroSelection(iSelRowStart,iSelColStart);
 				}
-				Console.Write("[.]");//debug only
+				Console.Error.Write("[.]");//debug only
 				if (SelectionIsInRange()) {
-					if (!ChangeLine(iSelRowStart,iSelColStart,Base.SafeInsert(sarrLine[iSelRowStart],iSelColStart, sTyped))) {
+					if (!ChangeLine(iSelRowStart,iSelColStart,RString.SafeInsert(sarrLine[iSelRowStart],iSelColStart, sTyped))) {
 						bGood=false;
-						Console.Write("[-]");//debug only
+						Console.Error.Write("[-]");//debug only
 					}
 					else {
 						SetZeroSelection(iSelRowStart, iSelColStart+sTyped.Length);
-						Console.Write("[+]");//debug only
+						Console.Error.Write("[+]");//debug only
 						bGood=true;
 					}
 				}
 				else {
-					Console.Write("[--]");//debug only
+					Console.Error.Write("[--]");//debug only
 					RReporting.ShowErr("Cannot type here since selection is not in range","typing outside of range ","RTextBox Insert()"+DumpStyle());
 				}
 			}
@@ -861,8 +864,8 @@ namespace ExpertMultimedia {
 				}
 				if (SelectionIsInRange()) {
 					sSplit=sarrLine[iSelRowStart];
-					if ( !ChangeLine(iSelRowStart,iSelColStart,Base.SafeSubstring(sSplit,0,iSelColStart))
-						||!InsertLine(iSelRowStart+1,iSelColStart,Base.SafeSubstring(sSplit,iSelColStart)) ) {
+					if ( !ChangeLine(iSelRowStart,iSelColStart,RString.SafeSubstring(sSplit,0,iSelColStart))
+						||!InsertLine(iSelRowStart+1,iSelColStart,RString.SafeSubstring(sSplit,iSelColStart)) ) {
 						bGood=false;
 					}
 					SetZeroSelection(iSelRowStart+1, 0);
@@ -906,7 +909,7 @@ namespace ExpertMultimedia {
 						}
 						else {
 							sParticiple="changing line";
-							bGood=ChangeLine(iRowStart,iColStart,Base.SafeRemoveIncludingEnder(Line(iRowStart),iColStart-1,iColEnd-1));
+							bGood=ChangeLine(iRowStart,iColStart,RString.SafeRemoveIncludingEnder(Line(iRowStart),iColStart-1,iColEnd-1));
 						}
 						sParticiple="shifting selection";
 						ShiftSelection(0,-1);
@@ -960,7 +963,7 @@ namespace ExpertMultimedia {
 										//else do nothing
 									}//end delete one character at end of line
 									else {//delete one character not at end of line
-										if (ChangeLine( iRowStart, iColStart, Base.SafeRemove(Line(iRowStart),iColStart,1)) ) {
+										if (ChangeLine( iRowStart, iColStart, RString.SafeRemove(Line(iRowStart),iColStart,1)) ) {
 											SetZeroSelection(iRowStart,iColStart);
 										}
 										else {
@@ -970,7 +973,7 @@ namespace ExpertMultimedia {
 									}
 								}//end if delete one character 
 								else {//delete more than one character
-									if (ChangeLine(iRowStart,iColStart,Base.SafeRemoveExcludingEnder(Line(iRowStart),iColStart,iColEnd))) {
+									if (ChangeLine(iRowStart,iColStart,RString.SafeRemoveExcludingEnder(Line(iRowStart),iColStart,iColEnd))) {
 										SetZeroSelection(iRowStart,iColStart);
 									}
 									else bGood=false;
@@ -993,7 +996,7 @@ namespace ExpertMultimedia {
 								//iColStartNow=iColStart;
 								if (!ChangeLine(iRow,
 										iColStart,//iColStartNow,
-										Base.SafeSubstring(Line(iRow),0,iColStart)+Base.SafeSubstring(Line(iRowEnd),iColEnd),true)) {
+										RString.SafeSubstring(Line(iRow),0,iColStart)+RString.SafeSubstring(Line(iRowEnd),iColEnd),true)) {
 									bGood=false;
 									RReporting.ShowErr("can't collapse data to first line","deleting text (removing trailing lines)","RTextBox Delete() "+DumpStyle());
 									break;
@@ -1039,11 +1042,12 @@ namespace ExpertMultimedia {
 		#region drawing
 		public void Render(RImage gbDest, bool bAsActive) {
 			try {
+				if (RReporting.bDebug) RReporting.sParticiple="starting to render RTextBox";
 				int iCharH=rformContainer.rfont.Height;//int iCharW=7, iCharH=15;//iCharH=11, iCharDescent=4;//TODO: finish this -- get from font
 				int yStartLine=rformContainer.zoneInner.Top;
 				rformContainer.RenderText(gbDest,ToString());//only breaks on newline
 				//for (int iLine=0; iLine<this.LineCount; iLine++) {
-				//	rformContainer.rfont.Render(gbDest,rformContainer.zoneInner.Left, yStartLine,this.Line(iLine));//gDest.DrawString(this.Line(iLine), font, brush, rformContainer.zoneInner.Left, yStartLine);
+				//	rformContainer.rfont.Render(gbDest,rformContainer.zoneInner.Left, yStartLine,this.Line(iLine));//gDest.DrawString(this.Line(iLine), font, rpaint, rformContainer.zoneInner.Left, yStartLine);
 				//	yStartLine+=iCharH;
 				//}
 				int iAsGlyphType=RFont.GlyphTypeNormal;
@@ -1069,16 +1073,16 @@ namespace ExpertMultimedia {
 						//regionSelection.Union(rectNow);
 						
 						RForms.DrawSelectionRect(
-							gbDest,
-							rformContainer.rfont.WidthOf(Base.SafeSubstring(sLine,0,iColStartNow),iAsGlyphType),
+							gbDest, rformContainer,
+							rformContainer.rfont.WidthOf(RString.SafeSubstring(sLine,0,iColStartNow),iAsGlyphType),
 							(int)(iRow*iCharH),
-							rformContainer.rfont.WidthOf(Base.SafeSubstringByExclusiveEnder(sLine,iColStartNow,iColEndNow)),
+							rformContainer.rfont.WidthOf(RString.SafeSubstringByExclusiveEnder(sLine,iColStartNow,iColEndNow)),
 							iCharH
 							);//DrawSelectionRect(gbDest, iColStartNow*iCharW, iRow*iCharH, (iColEndNow-iColStartNow)*iCharW, iCharH);//DrawSelectionRect(bmpOffscreen, iColStartNow*iCharW, iRow*iCharH, (iColEndNow-iColStartNow)*iCharW, iCharH);//this is right since allows selection to be zero characters wide
 					}
 					if (RForms.TextCursorVisible) {
-						//gOffscreen.FillRectangle(brushTextNow, new Rectangle(SelColEnd*iCharW, SelRowEnd*iCharH, RForms.iTextCursorWidth, iCharH));
-						RForms.InvertRect(gbDest, rformContainer.rfont.WidthOf(Base.SafeSubstring(Line(SelRowEnd),0,SelColEnd)), SelRowEnd*iCharH, RForms.iTextCursorWidth, iCharH);//InvertRect(bmpOffscreen, SelColEnd*iCharW, SelRowEnd*iCharH, RForms.iTextCursorWidth, iCharH);
+						//gOffscreen.FillRectangle(rpaintTextNow, new Rectangle(SelColEnd*iCharW, SelRowEnd*iCharH, RForms.iTextCursorWidth, iCharH));
+						RImage.Invert(gbDest, rformContainer.rfont.WidthOf(RString.SafeSubstring(Line(SelRowEnd),0,SelColEnd)), SelRowEnd*iCharH, RForms.iTextCursorWidth, iCharH);//Invert(bmpOffscreen, SelColEnd*iCharW, SelRowEnd*iCharH, RForms.iTextCursorWidth, iCharH);
 					}
 				}//end if bActive
 			}

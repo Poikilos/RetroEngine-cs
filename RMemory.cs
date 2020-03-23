@@ -5,18 +5,42 @@
 
 using System;
 using System.Windows.Forms;//for PictureBox
+using System.Diagnostics;
 
 namespace ExpertMultimedia {
 	public class RMemory {
 		#region variables
 		//"[rX]" vars below exist to avoid type conversion
 		public const uint dwMask=0xFFFFFFFF;//bitmask for uint bits	
+		public static int iMaxAllocation=268435456; //debug calculated-size allocations where this is not used
+			//1MB = 1048576 bytes
 		#endregion variables
 		public static void Swap(ref int i1, ref int i2) {
 			int iTemp=i1;
 			i1=i2;
 			i2=iTemp;
 		}
+		public static unsafe void SetMultiple(byte[] destination, int iDestByte, byte by0, byte by1, byte by2, byte by3) {
+			try {
+				fixed (byte* lpDest=destination) {
+					byte* lpDestNow=lpDest;
+					lpDestNow+=iDestByte;
+					*lpDestNow=by0; lpDestNow++;
+					*lpDestNow=by1; lpDestNow++;
+					*lpDestNow=by2; lpDestNow++;
+					*lpDestNow=by3;
+				}
+			}
+			catch (Exception exn) {
+				StackTrace stacktraceNow=new System.Diagnostics.StackTrace();
+				StackFrame[] stackframesNow=stacktraceNow.GetFrames();
+				string sStackFrames="";
+				for (int i=0; i<stackframesNow.Length; i++) {
+					sStackFrames+=(i!=0?" via ":"")+stackframesNow[i].GetMethod().Name;
+				}
+				RReporting.ShowExn(exn,"setting multiple","RMemory SetMultiple(destination="+(destination!=null?("non-null[length:"+destination.Length.ToString()+"]"):"null")+", iDestByte="+iDestByte.ToString()+") {Called-By:"+sStackFrames+"}");
+			}
+		}//end SetMultiple
 		public static unsafe bool CopyFast(ref byte[] destination, ref byte[] src, int iDestByte, int iSrcByte, int iBytes) {
 			try {
 				fixed (byte* lpDest=destination, lpSrc=src) { //keeps GC at bay
@@ -38,7 +62,13 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"CopyFast");
+				StackTrace stacktraceNow=new System.Diagnostics.StackTrace();
+				StackFrame[] stackframesNow=stacktraceNow.GetFrames();
+				string sStackFrames="";
+				for (int i=0; i<stackframesNow.Length; i++) {
+					sStackFrames+=(i!=0?" via ":"")+stackframesNow[i].GetMethod().Name;
+				}
+				RReporting.ShowExn(exn,"copying data","RMemory CopyFast(destination="+(destination!=null?"non-null":"null")+";src="+(src!=null?"non-null":"null")+", iDestByte="+iDestByte.ToString()+", iSrcByte="+iSrcByte.ToString()+", iBytes="+iBytes.ToString()+") {Called-By:"+sStackFrames+"}");
 				return false;
 			}
 			return true;
@@ -68,7 +98,8 @@ namespace ExpertMultimedia {
 			return true;
 		}
 		public static unsafe void Copy(byte* lpDest, byte* lpSrc, int iBytes) {
-			try {
+			//do NOT do exception handling--this should bail out to the caller
+			//try {
 				byte* lpDestNow=lpDest;
 				byte* lpSrcNow=lpSrc;
 				//lpDestNow+=iDestByte;
@@ -84,15 +115,16 @@ namespace ExpertMultimedia {
 					lpDestNow++;
 					lpSrcNow++;
 				}
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"void Copy(byte pointers)");
-				return;
-			}
+			//}
+			//catch (Exception exn) {
+			//	RReporting.ShowExn(exn,"void Copy(byte pointers)");
+			//	return;
+			//}
 			return;
 		}
 		public static unsafe void CopyFastVoid(ref byte[] destination, ref byte[] src, int iDestByte, int iSrcByte, int iBytes) {
-			try {
+			//do NOT do exception handling--this should bail out to the caller
+			//try {
 				fixed (byte* lpDest=destination, lpSrc=src) { //keeps GC at bay
 					byte* lpDestNow=lpDest;
 					byte* lpSrcNow=lpSrc;
@@ -110,11 +142,12 @@ namespace ExpertMultimedia {
 						lpSrcNow++;
 					}
 				}
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"CopyFastVoid");
-				return;
-			}
+			//}
+			//catch (Exception exn) {
+			//	RReporting.ShowExn(exn,"CopyFastVoid");
+			//	return;
+			//}
+			
 			return;
 		}//end CopyFastVoid
 		///<summary>
@@ -122,7 +155,7 @@ namespace ExpertMultimedia {
 		/// long or larger
 		///src: first 8 bytes will be looped and written onto destination
 		///</summary>
-		public static unsafe void Fill8(ref byte[] destination, ref byte[] src, int iDestByte, int iSrcByte, int iCount_BytesDivBy8) {
+		private static unsafe void Fill8ByteChunksByUnitCount(ref byte[] destination, ref byte[] src, int iDestByte, int iSrcByte, int iCount_BytesDivBy8) {
 			try {
 				fixed (byte* lpDest=destination, lpSrc=src) { //keeps GC at bay
 					byte* lpDestNow=lpDest;
@@ -136,17 +169,93 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"Memory Fill8(array,array,iDest,iSource,count)");
+				RReporting.ShowExn(exn,"Memory Fill8ByteChunksByUnitCount(array,array,iDest,iSource,count)");
 				return;
 			}
 			return;
-		}//end Fill8
+		}//end Fill8ByteChunksByUnitCount
+		///<summary>
+		///Fills iTotalBytes 1-byte units with data from src which must be 8-bytes
+		/// long or larger
+		///src: first 6 bytes will be looped and written onto destination
+		///</summary>
+		private static unsafe void Fill6ByteChunksByUnitCount(ref byte[] destination, ref byte[] src, int iDestByte, int iSrcByte, int iBytes_DivBy6) {
+			try {
+				fixed (byte* lpDest=destination, lpSrc=src) { //keeps GC at bay
+					byte* lpDestNow=lpDest;
+					byte* lpSrcNow=lpSrc;
+					lpDestNow+=iDestByte;
+					lpSrcNow+=iSrcByte;
+					for (int i=0; i<iBytes_DivBy6; i++) {
+						*((uint*)lpDestNow) = *((uint*)lpSrcNow); //32bit chunks
+						lpDestNow+=4;
+						lpSrcNow+=4;
+						*((ushort*)lpDestNow) = *((ushort*)lpSrcNow); //16bit chunks
+						lpDestNow+=2;//do NOT increment lpSrcNow
+						lpSrcNow-=4;//go back to start of source loop
+					}
+				}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"","Memory Fill6ByteChunksByUnitCount(array,array,iDest,iSource,count)");
+				return;
+			}
+			
+			return;
+		}//end Fill6
+		/// <summary>
+		/// Loops through source to fill destination
+		/// </summary>
+		/// <param name="destination"></param>
+		/// <param name="src"></param>
+		/// <param name="iTotalBytes"></param>
+		public static unsafe void Fill(ref byte[] destination, byte[] byarrSrc, int iDestByte, int iBytesTotal) {
+			try {
+				int iSloppyChunks=iBytesTotal/byarrSrc.Length;
+				int iRemainder=iBytesTotal%byarrSrc.Length;
+				if (byarrSrc.Length==8) {
+					Fill8ByteChunksByUnitCount(ref destination,ref byarrSrc,iDestByte,0,iSloppyChunks);
+				}
+				else if (byarrSrc.Length==6) {
+					Fill6ByteChunksByUnitCount(ref destination,ref byarrSrc,iDestByte,0,iSloppyChunks);
+				}
+				else if (byarrSrc.Length==4) {
+					Fill4ByteChunksByUnitCount(ref destination,ref byarrSrc,iDestByte,0,iSloppyChunks);
+				}
+				else {
+					iRemainder=iBytesTotal;
+				}
+				if (iRemainder>0) {
+					//int iAbs=iDestByte+iTotalBytes-iRemainder;
+					fixed (byte* lpDest=destination, lpSrc=byarrSrc) { //keeps GC at bay
+						byte* lpDestNow=lpDest;
+						byte* lpSrcNow=lpSrc;
+						lpDestNow+=iDestByte+iBytesTotal-iRemainder;//+=iAbs;
+						int iSrcAbs=0;
+						for (int iDestRel=0; iDestRel<iRemainder; iDestRel++) {
+							*lpDestNow=*lpSrcNow;
+							lpDestNow++;//iAbs++;
+							lpSrcNow++;
+							iSrcAbs++;
+							if (iSrcAbs==byarrSrc.Length) {
+								lpSrcNow=lpSrc;
+								iSrcAbs=0;
+							}
+						}
+					}
+				}//end if remainder
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"","Memory Fill(array,array,iDest,count)");
+				return;
+			}
+		}//end fill by looping through source array
 		///<summary>
 		///Fills iCount_BytesDivBy4 4-byte units with data from src which must be 4-bytes
 		/// long or larger
 		///src: first 4 bytes will be looped and written onto destination
 		///</summary>
-		public static unsafe void Fill4(ref byte[] destination, ref byte[] src, int iCount_BytesDivBy4) {
+		private static unsafe void Fill4ByteChunksByUnitCount(ref byte[] destination, ref byte[] src, int iCount_BytesDivBy4) {
 			try {
 				fixed (byte* lpDest=destination, lpSrc=src) { //keeps GC at bay
 					byte* lpDestNow=lpDest;
@@ -158,12 +267,12 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"Memory Fill4(array,array,count)");
+				RReporting.ShowExn(exn,"Memory Fill4ByteChunksByUnitCount(array,array,count)");
 				return;
 			}
 			return;
-		}//end Fill4
-		public static unsafe void Fill4(ref byte[] destination, ref byte[] src, int iDestByte, int iSrcByte, int iCount_BytesDivBy4) {
+		}//end Fill4ByteChunksByUnitCount
+		public static unsafe void Fill4ByteChunksByUnitCount(ref byte[] destination, ref byte[] src, int iDestByte, int iSrcByte, int iCount_BytesDivBy4) {
 			try {
 				fixed (byte* lpDest=destination, lpSrc=src) { //keeps GC at bay
 					byte* lpDestNow=lpDest;
@@ -177,11 +286,11 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"Memory Fill4");
+				RReporting.ShowExn(exn,"Memory Fill4ByteChunksByUnitCount");
 				return;
 			}
 			return;
-		}//end Fill4
+		}//end Fill4ByteChunksByUnitCount
 		public static unsafe void Fill(ref byte[] destination, uint dwFill, int iDestByte, int iCount_BytesDivBy4) {
 			try {
 				fixed (byte* lpDest=destination) { //keeps GC at bay
@@ -206,11 +315,11 @@ namespace ExpertMultimedia {
 					if (iBytes%8==0) {
 						byte[] src=new byte[8];
 						for (int iNow=0; iNow<8; iNow++) src[iNow]=byFill; //debug performance--does this really save time?
-						Fill8(ref destination, ref src, iDestByte, 0, iBytes/8);
+						Fill8ByteChunksByUnitCount(ref destination, ref src, iDestByte, 0, iBytes/8);
 					}
 					else if (iBytes%4==0) {
 						byte[] src=new byte[4];
-						Fill4(ref destination, ref src, iDestByte, 0, iBytes/8);
+						Fill4ByteChunksByUnitCount(ref destination, ref src, iDestByte, 0, iBytes/4);
 					}
 					else bFillManually=true;
 				}//end if enough bytes for optimizations above to help
@@ -363,8 +472,7 @@ namespace ExpertMultimedia {
 			}
 			return byarrReturn;
 		}
-		/// <summary>
-		public static bool Redim(ref string[] valarr, int iSetSize, string sSender_ForErrorTracking) {
+		public static bool Redim(ref string[] valarr, int iSetSize) {
 			bool bGood=false;
 			if (iSetSize==0) valarr=null;
 			else if (iSetSize>0) {
@@ -378,9 +486,29 @@ namespace ExpertMultimedia {
 					bGood=true;
 				}
 			}
-			else RReporting.ShowErr("Tried to set "+sSender_ForErrorTracking+" maximum strings to less than zero",sSender_ForErrorTracking+" set maximum strings","setting "+sSender_ForErrorTracking+" to negative maximum {iSetSize:"+iSetSize.ToString()+"}");
+			else {
+				string sCallStack=RReporting.StackTraceToLatinCallStack(new System.Diagnostics.StackTrace());
+				RReporting.ShowErr("Tried to set "+sCallStack+" maximum strings to less than zero"+" set maximum strings","setting "+sCallStack+" to negative maximum {iSetSize:"+iSetSize.ToString()+"}");
+			}
 			return bGood;
-		}
+		}//end Redim(ref string[],...)
+		public static bool Redim(ref int[] valarr, int iSetSize, string sSender_ForErrorTracking) {
+			bool bGood=false;
+			if (iSetSize==0) valarr=null;
+			else if (iSetSize>0) {
+				if (iSetSize!=RReporting.SafeLength(valarr)) {
+					int[] valarrNew=new int[iSetSize];
+					for (int iNow=0; iNow<iSetSize; iNow++) {
+						if (iNow<RReporting.SafeLength(valarr)) valarrNew[iNow]=valarr[iNow];
+						else valarrNew[iNow]=0;
+					}
+					valarr=valarrNew;
+					bGood=true;
+				}
+			}
+			else RReporting.ShowErr("Tried to set "+sSender_ForErrorTracking+" maximum strings to less than zero"+" set maximum strings","setting "+sSender_ForErrorTracking+" to negative maximum {iSetSize:"+iSetSize.ToString()+"}");
+			return bGood;
+		}//end Redim(ref int[],...)
 
 		#region buffer manipulation
 		
@@ -457,7 +585,7 @@ namespace ExpertMultimedia {
 			return byarrNew;
 		}//end SubArrayReversed
 
-		public void Redim(ref byte[] arrData, int iSize) {
+		public static void Redim(ref byte[] arrData, int iSize) {
 			try {
 				if (arrData==null) arrData=new byte[iSize];
 				else {//not null so copy old data
@@ -473,7 +601,8 @@ namespace ExpertMultimedia {
 				RReporting.ShowExn(exn,"resizing array", String.Format("Redim(bytes:{0},size:{1})",RReporting.ArrayMessage(arrData),iSize) );
 			}
 		}//end Redim byte[]
-		public void Redim(ref char[] arrData, int iSize) {
+		//public const char c0='\0';
+		public static void Redim(ref char[] arrData, int iSize) {
 			try {
 				if (arrData==null) arrData=new char[iSize];
 				else {//not null so copy old data
@@ -481,7 +610,7 @@ namespace ExpertMultimedia {
 					arrData=new char[iSize];
 					for (int iNow=0; iNow<iSize; iNow++) {
 						if (iNow<byarrOld.Length) arrData[iNow]=byarrOld[iNow];
-						else arrData[iNow]=0;
+						else arrData[iNow]='\0';
 					}
 				}
 			}
@@ -489,7 +618,7 @@ namespace ExpertMultimedia {
 				RReporting.ShowExn(exn,"resizing array", String.Format("Redim(characters:{0},size:{1})",RReporting.ArrayMessage(arrData),iSize) );
 			}
 		}//end Redim byte[]
-		public static bool Redim(ref PictureBox[] arrNow, int iSetSize, string sSender_ForErrorTrackingOnly) {
+		public static bool Redim(ref PictureBox[] arrNow, int iSetSize) {
 			bool bGood=false;
 			if (iSetSize!=RReporting.SafeLength(arrNow)) {
 				if (iSetSize<=0) { arrNow=null; bGood=true; }
@@ -508,7 +637,8 @@ namespace ExpertMultimedia {
 					}
 					catch (Exception exn) {
 						bGood=false;
-						RReporting.ShowExn(exn,"resizing picture box array","Redim(PictureBox array)["+(RReporting.IsBlank(sSender_ForErrorTrackingOnly)?"unknown method":sSender_ForErrorTrackingOnly)+" failed setting PictureBox array Maximum]");
+						string sCallStack=RReporting.StackTraceToLatinCallStack(new System.Diagnostics.StackTrace());
+						RReporting.ShowExn(exn,"resizing picture box array","Redim(PictureBox array)["+sCallStack+" failed setting PictureBox array Maximum]");
 					}
 				}
 			}

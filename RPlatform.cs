@@ -25,14 +25,24 @@ namespace ExpertMultimedia {
 	public partial class RPlatform {//formerly Base
 		//TODO:  add the string RPlatform.sThrowTag to somewhere in ALL THROW STATEMENTS.
 		#region variables
-		public static int iMaxAllocation=268435456; //debug wherever this is not used
-			//1MB = 1048576 bytes
+		private static readonly char[] carrInvalidPathChars_Windows=new char[] {'\\','/',':','*','?','"','<','>','|'};
 		//public static RCallback rcbBlank=null;//formerly mcbNULL
 		#endregion variables
 		
 		#region platform
 		public static bool IsWindows() {//formerly PlatformIsWindows
 			return Environment.OSVersion.ToString().IndexOf("Win")>=0;
+		}
+		public static bool IsValidPathChar_AnyPlatform(char val) {
+			bool bReturn=true;
+			for (int i=0; i<carrInvalidPathChars_Windows.Length; i++) {
+				if (val==carrInvalidPathChars_Windows[i]) {
+					bReturn=false;
+					break;
+				}
+			}
+			//TODO: add invalid characters for other platforms (??) if needed 
+			return bReturn;
 		}
 		public static bool Terminate(string sProcessName) {
 			if (IsWindows()) {
@@ -82,7 +92,7 @@ namespace ExpertMultimedia {
 						);
 					}
 				}
-				else Console.WriteLine("Warning: blocked a system command: "+sLine);
+				else Console.Error.WriteLine("Warning: blocked a system command: "+sLine);
 			}
 			else RReporting.Warning("Sent a blank string to RPlatform Run(string sSystemCommand)");
 			return bGood;

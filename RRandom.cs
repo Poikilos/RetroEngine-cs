@@ -1,9 +1,10 @@
 using System;
+//formerly RPseudoRandom.cs
 
 namespace ExpertMultimedia {
-							/// PseudoRandF class ///
-	class PseudoRandF {
-		private PseudoRandF prandDoubler;
+							/// RPseudoRandF class ///
+	class RPseudoRandF {
+		private RPseudoRandF prandDoubler;
 		public float fibonacciprev;
 		public float fibonacci;
 		private float tempprev;
@@ -20,7 +21,7 @@ namespace ExpertMultimedia {
 				return iDualIterationOffset;
 			}
 		}
-		public PseudoRandF() {
+		public RPseudoRandF() {
 			tempprev=0;
 			fibonacci=1;
 			fibonacciprev=0;
@@ -28,9 +29,9 @@ namespace ExpertMultimedia {
 			prandDoubler=null;
 			max=float.MaxValue;
 			int iTest=0;
-			while (Base.FractionPartOf(max)==0) {
+			while (RMath.FractionPartOf(max)==0) {
 				max/=2;
-				iTest=Base.SafeAdd(iTest,1);
+				iTest=RMath.SafeAdd(iTest,1);
 			}
 			if (iTest>0) max*=2;
 			
@@ -42,7 +43,7 @@ namespace ExpertMultimedia {
 			fibonacciprev=0;
 			fibonacci=1;
 		}
-		public void ResetFibonacciToPseudoRandom(float limit) {
+		public void ResetFibonacciToRPseudoRandom(float limit) {
 			fibonacci=1;
 			fibonacciprev=Fibonacci(0F,limit);
 		}
@@ -50,11 +51,11 @@ namespace ExpertMultimedia {
 			tempprev=fibonacciprev;
 			fibonacciprev=fibonacci;
 			if (fibonacci<float.MaxValue-tempprev) fibonacci+=tempprev;
-			else ResetFibonacciToPseudoRandom(9F);
+			else ResetFibonacciToRPseudoRandom(9F);
 			return fibonacciprev;
 		}
 		public float Fibonacci(float min, float max) { //can be negative
-			return Base.Mod(Fibonacci(),max-min)+min;
+			return RMath.Mod(Fibonacci(),max-min)+min;
 		}
 		public void Iterate(int iIterations) {
 			for (int iNow=0; iNow<iIterations; iNow++) {
@@ -64,30 +65,30 @@ namespace ExpertMultimedia {
 		public void ResetDualFibonacci(int iIterations, float offset) {
 			if (offset<0) offset=0;
 			iDualIterationOffset=iIterations;
-			prandDoubler=new PseudoRandF();
+			prandDoubler=new RPseudoRandF();
 			prandDoubler.fibonacciprev=offset;
 			prandDoubler.Iterate(iDualIterationOffset);
 			xDualFibonacciOffset=offset;
 		}
-		public void ResetDualFibonacciToPseudoRandom(int iIterations, float limit) {
+		public void ResetDualFibonacciToRPseudoRandom(int iIterations, float limit) {
 			if (limit<0) limit=0;
 			iDualIterationOffset=iIterations;
-			if (prandDoubler==null) prandDoubler=new PseudoRandF();
-			prandDoubler.ResetFibonacciToPseudoRandom(limit);
+			if (prandDoubler==null) prandDoubler=new RPseudoRandF();
+			prandDoubler.ResetFibonacciToRPseudoRandom(limit);
 			prandDoubler.Iterate(iIterations);
-			xDualFibonacciOffset=Base.SafeSubtract(prandDoubler.fibonacciprev, fibonacciprev);
+			xDualFibonacciOffset=RMath.SafeSubtract(prandDoubler.fibonacciprev, fibonacciprev);
 		}
 		public float DualFibonacci() {
 			if (prandDoubler==null) {
-				prandDoubler=new PseudoRandF();
+				prandDoubler=new RPseudoRandF();
 				prandDoubler.Iterate(iDualIterationOffset);
 			}
-			return Base.SafeAdd(prandDoubler.Fibonacci(), Fibonacci());
+			return RMath.SafeAdd(prandDoubler.Fibonacci(), Fibonacci());
 		}
-	}//end class PseudoRandF
-							/// PseudoRandI class ///
-	class PseudoRandI {
-		private PseudoRandI prandDoubler;
+	}//end class RPseudoRandF
+							/// RPseudoRandI class ///
+	class RPseudoRandI {
+		private RPseudoRandI prandDoubler;
 		public int fibonacciprev;
 		public int fibonacci;
 		private int tempprev;
@@ -104,7 +105,7 @@ namespace ExpertMultimedia {
 				return iDualIterationOffset;
 			}
 		}
-		public PseudoRandI() {
+		public RPseudoRandI() {
 			tempprev=0;
 			fibonacci=1;
 			fibonacciprev=0;
@@ -112,9 +113,9 @@ namespace ExpertMultimedia {
 			prandDoubler=null;
 			max=int.MaxValue;
 			//int iTest=0;
-			//while (Base.FractionPartOf(max)==0) {
+			//while (RMath.FractionPartOf(max)==0) {
 			//	max/=2;
-			//  iTest=Base.SafeAdd(iTest,1);
+			//  iTest=RMath.SafeAdd(iTest,1);
 			//}
 			//if (iTest>0) max*=2;
 			
@@ -126,7 +127,7 @@ namespace ExpertMultimedia {
 			fibonacciprev=0;
 			fibonacci=1;
 		}
-		public void ResetFibonacciToPseudoRandom(int limit) {
+		public void ResetFibonacciToRPseudoRandom(int limit) {
 			fibonacci=1;
 			fibonacciprev=Fibonacci(0,limit);
 		}
@@ -134,7 +135,7 @@ namespace ExpertMultimedia {
 			tempprev=fibonacciprev;
 			fibonacciprev=fibonacci;
 			if (fibonacci<int.MaxValue-tempprev) fibonacci+=tempprev;
-			else ResetFibonacciToPseudoRandom(9);
+			else ResetFibonacciToRPseudoRandom(9);
 			return fibonacciprev;
 		}
 		public int Fibonacci(int min, int max) { //can be negative
@@ -148,25 +149,25 @@ namespace ExpertMultimedia {
 		public void ResetDualFibonacci(int iIterations, int offset) {
 			if (offset<0) offset=0;
 			iDualIterationOffset=iIterations;
-			prandDoubler=new PseudoRandI();
+			prandDoubler=new RPseudoRandI();
 			prandDoubler.fibonacciprev=offset;
 			prandDoubler.Iterate(iDualIterationOffset);
 			xDualFibonacciOffset=offset;
 		}
-		public void ResetDualFibonacciToPseudoRandom(int iIterations, int limit) {
+		public void ResetDualFibonacciToRPseudoRandom(int iIterations, int limit) {
 			if (limit<0) limit=0;
 			iDualIterationOffset=iIterations;
-			if (prandDoubler==null) prandDoubler=new PseudoRandI();
-			prandDoubler.ResetFibonacciToPseudoRandom(limit);
+			if (prandDoubler==null) prandDoubler=new RPseudoRandI();
+			prandDoubler.ResetFibonacciToRPseudoRandom(limit);
 			prandDoubler.Iterate(iIterations);
-			xDualFibonacciOffset=Base.SafeSubtract(prandDoubler.fibonacciprev, fibonacciprev);
+			xDualFibonacciOffset=RMath.SafeSubtract(prandDoubler.fibonacciprev, fibonacciprev);
 		}
 		public int DualFibonacci() {
 			if (prandDoubler==null) {
-				prandDoubler=new PseudoRandI();
+				prandDoubler=new RPseudoRandI();
 				prandDoubler.Iterate(iDualIterationOffset);
 			}
-			return Base.SafeAdd(prandDoubler.Fibonacci(), Fibonacci());
+			return RMath.SafeAdd(prandDoubler.Fibonacci(), Fibonacci());
 		}
-	}//end class PseudoRandI
+	}//end class RPseudoRandI
 }//end namespace

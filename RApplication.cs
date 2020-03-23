@@ -4,16 +4,39 @@
 using System;
 using System.Drawing;//Bitmap etc
 using System.Windows.Forms;//Form etc
+using System.IO;
+using System.Drawing.Imaging;//for PixelFormat
 
 namespace ExpertMultimedia {
 	/// <summary>
 	/// An interface abstractor class.  Allows for a position-free abstract interface that can then be read and translated using any outside skinning mechanism possible.
 	/// </summary>
 	public class RApplication {//formerly IAbstractor
+		public const string sMyName_OfEngine="RetroEngine";
+		///<summary>
+		///Calls Script Function named where the parameters are variable assignments.
+		/// sNativeNameAction is assigned the value of the form action property and
+		/// sNativeResult is assigned the value of the clicked button's
+		/// value property (where the Native constants are used as parameter names).
+		/// i.e. if OK is clicked and the form action is login, the function added
+		/// to the queue may look like:
+		/// EM_Native_FormMethod(EM_Native_FormAction=login,EM_Native_FormResultVar=OK,form1="form1ValueStringHere")
+		///</summary>
+		public const string sNativeFormMethod="EM_Native_FormMethod";
+		/// <summary>
+		/// In the EM_Native_FormMethod, the name of the button is posted as the value of EM_Native_FormResultVar
+		/// </summary>
+		public const string sNativeResult="EM_Native_FormResultVar";
+		/// <summary>
+		/// If this variable exists in EM_Native_FormMethod when it appears in the event 
+		/// queue, the internal method of this name is called using the other form variables.
+		/// </summary>
+		public const string sNativeActionName="EM_Native_FormAction";
+		public static readonly string ProgramFolderThenSlash=RString.LocalFolderThenSlash( (new FileInfo(Application.ExecutablePath)).DirectoryName );
 		private static int iMode=0; //reference to Modes array location in calling program
 		private static int iWorkspace=0;
 		private static int iTool=0;
-		private static int iActiveOption=0;//only for keyboard/mouseover focus
+		private static int iActiveOption=0;//TODO: only for keyboard/mouseover focus
 		private static int iActiveTab=0;
 		private static RFont rfontDefault {
 			get { return RFont.rfontDefault;}
@@ -28,11 +51,41 @@ namespace ExpertMultimedia {
 		private static int iPreviousTab=0;//TODO: set this when switching to a new or other tab
 		private static RKeyboard keyboard=new RKeyboard();
 		private static uint dwMouseButtons=0;
+		public static object LastSender {
+			get {
+				object oReturn=oLastSender;
+				oLastSender=null;
+				return oReturn;
+			}
+			set {
+				oLastSender=value;
+			}
+		}
+		private static object oLastSender=null;
 		public static uint dwButtons=0; ///TODO: finish this--the virtual/mapped gamepad buttons that are currently pressed.
 		//public InteractionQ iactionq=null; //a queue of objects which each contain a cKey, iButton, or joystick op.
 							//may want to split iactionq into: charq and dwButtons;
 							//weigh performance vs. possible unwanted skipping of inputs.
+		private static int xInfiniteScroll;//formerly part of pInfiniteScroll.  For exploring fractals etc
+		private static int yInfiniteScroll;//formerly part of pInfiniteScroll.  For exploring fractals etc
+		public static int XInfiniteScroll { get { return xInfiniteScroll; } }
+		public static int YInfiniteScroll { get { return yInfiniteScroll; } }
+		private static int xDragStart=0;
+		private static int yDragStart=0;
+		private static int xDragEnd=0;
+		private static int yDragEnd=0;
+		private static int xMouse=0;
+		private static int yMouse=0;
+		private static int xMousePrev=0;
+		private static int yMousePrev=0;
+		private static bool bDragging=false;
+		private static int iDragStartNode=0;
+		private static int iDragStartTab=0;//the RForms object where drag started
+		private static int iNodeUnderMouse=0;//Should only be used by RMouseUpdate and methods that it calls (secondary mouse methods)
+		public int MouseX { get { return xMouse; } }
+		public int MouseY { get { return yMouse; } }
 
+		
 		#region Render (framework Graphics) vars
  		public static Bitmap bmpOffscreen=null;
  		public static Graphics gOffscreen=null;
@@ -41,11 +94,10 @@ namespace ExpertMultimedia {
 // 		//public System.Windows.Forms.Border3DStyle b3dstyleNow=System.Windows.Forms.Border3DStyle.Flat;
 // 		//public IPoly polySelection=new IPoly();
 // 		public static Color colorBack=SystemColors.Window;
-// 		public static Color colorActive=RConvert.RgbRatioToColor(.7,.6,0.0);
-// 		public SolidBrush brushBack=new SolidBrush(SystemColors.Window);
+// 		public SolidBrush rpaintBack=new SolidBrush(SystemColors.Window);
 // 		public System.Drawing.Pen penBack=new System.Drawing.Pen(SystemColors.Window);
 // 		public static Color colorTextNow=Color.Black;
-// 		public static SolidBrush brushTextNow=new SolidBrush(Color.Black);
+// 		public static SolidBrush rpaintTextNow=new SolidBrush(Color.Black);
 		//public static System.Drawing.Pen penTextNow=new System.Drawing.Pen(Color.Black);
 		//public static System.Drawing.Font fontMonospaced=new Font("Andale Mono",9);//default monospaced font
 		//FontFamily fontfamilyMonospaced = new FontFamily("Andale Mono");
@@ -63,6 +115,8 @@ namespace ExpertMultimedia {
 		public static MainForm mainformNow=null;
 		//TODO: bCapitalize {get {return bShift!=bCapsLock; } }
 		#endregion framework mode vars (when fastpanelTarget!=null)
+		
+		#region lower variables
 		private static RForms[] tabs=null;
 		public static int Maximum {
 			get { return tabs!=null?tabs.Length:0; }
@@ -71,30 +125,29 @@ namespace ExpertMultimedia {
 		private static int iHeight=32;
 		public static int Width {
 			get { return iWidth; }
+			set { if (value>0) iWidth=value; else RReporting.ShowErr("Width was less than 1","setting RApplication width","RApplication set Width"); }
 		}
 		public static int Height {
 			get { return iHeight; }
+			set { if (value>0) iHeight=value; else RReporting.ShowErr("Height was less than 1","setting RApplication height","RApplication set Height"); }
 		}
-		private static string sStatus="";
-		///<summary>
-		///Sets the statusbar text
-		///Returns false if bStatusBar=false.
-		/// -Set RApplication.bStatusBar=true to turn the status bar on before using this.
-		///</summary>
-		public static bool SetStatus(string sMsg) {
-			sStatus=sMsg;
-			if (fastpanelTarget!=null) InvalidatePanelIfExists();
-			return bStatusBar;
+		//private static RForm ActiveTab_ActiveNode {//replaced by ActiveNode
+		//	get {
+		//		return ActiveTab!=null?ActiveTab.ActiveNode:null;
+		//	}
+		//}
+		private static int ActiveTab_iActiveNode {
+			get { return (ActiveTab!=null)?ActiveTab.iActiveNode:-1;}
+			set { if (ActiveTab!=null) ActiveTab.iActiveNode=value;}
 		}
-		public static void InvalidatePanelIfExists() {
-			if (fastpanelTarget!=null) fastpanelTarget.Invalidate();
+		private static string ActiveTab_sDebugLastAction {
+			set {
+				if (ActiveTab!=null) {
+					ActiveTab.sDebugLastAction=value;
+				}
+			}
 		}
-		///<summary>
-		///Returns the status bar text.
-		///</summary>
-		public static string GetStatus() {
-			return sStatus;
-		}
+		private static string sStatus="";//TODO: for HTML compatibility, this should be stored in the rforms object (browser tab)
 		public static bool bStatusBar=true;
 		public static Percent percStatusBarHeight=new Percent();
 		public static int iStatusBarHeight=18;//TODO: adjust based on percStatusBarHeight&&bStatusBar
@@ -116,15 +169,187 @@ namespace ExpertMultimedia {
 		public static int ClientHeight {
 			get { return Height-iTabsAreaHeight-(bStatusBar?iStatusBarHeight:0); }
 		}
-		private static RForms ActiveTab {
+		public static RForms ActiveTab {
 			get { return (tabs!=null&&iActiveTab>=0&&iActiveTab<tabs.Length)
 						? tabs[iActiveTab] : null ; }
-			set {
-				if (tabs!=null&&iActiveTab<tabs.Length) tabs[iActiveTab]=value;
-				else RReporting.ShowErr("Tab out of range","creating tab","set ActiveTab value");
-			}
+			//set {
+			//	if (tabs!=null&&iActiveTab<tabs.Length) tabs[iActiveTab]=value;
+			//	else RReporting.ShowErr("Tab out of range","creating tab","set ActiveTab value");
+			//}
 		}
 		private static StringQ sqEvents=new StringQ();
+		private static string[] sarrNameTemp=new string[40*2];
+		private static string[] sarrValueTemp=new string[40*2];
+		public static RForm DefaultNode {
+			get { 
+				if (ActiveTab==null) RReporting.ShowErr("ActiveTab was null","getting DefaultNode in active tab","RApplication get DefaultNode");
+				return (ActiveTab!=null)?ActiveTab.DefaultNode:null; }
+			//set { if (ActiveTab!=null) tabs[iActiveTab].DefaultNode=value; }
+		}
+		public static RForm ActiveNode {
+			get { if (ActiveTab==null) RReporting.ShowErr("ActiveTab was null","getting ActiveNode","RApplication ActiveNode");
+				return ActiveTab!=null?ActiveTab.ActiveNode:null; }
+			//set { if (ActiveTab!=null) ActiveTab.ActiveNode=value; }
+		}
+		public static RForm RootNode {
+			get { 
+				RForm rformReturn=null;
+				if (ActiveTab!=null) {
+					rformReturn=ActiveTab.RootNode;
+					if (rformReturn==null) RReporting.ShowErr("RootNode is null!","getting root node via RApplication ActiveTab","RApplication get RootNode {iActiveTab:"+iActiveTab.ToString()+"; ActiveTab:"+((ActiveTab!=null)?"non-null":"null")+"}");
+				}
+				else RReporting.ShowErr("ActiveTab is null!","getting root node via RApplication ActiveTab","RApplication get RootNode {iActiveTab:"+iActiveTab.ToString()+"}");
+				return rformReturn;
+			}
+			//set { if (ActiveTab!=null) ActiveTab.RootNode=value; }
+		}
+		//private static RForm[] rformarr {
+		//	get { return (ActiveTab!=null)?ActiveTab.rformarr:null; }
+		//}
+		private static RApplicationNode nodeLastCreated=null;
+		public static RApplicationNode LastCreatedNode { get {return nodeLastCreated;} }
+		private static string ShiftMessage() {
+			return bShift?"[shift]+":"";
+		}
+		public static int Mode {
+			get { return modes.Element(iMode).Value; }
+		}
+		public static int Workspace {
+			get { return iWorkspace; }
+		}
+		private static int iLastCreatedTabIndex=0;
+		public static int LastCreatedTabIndex {
+			get { return iLastCreatedTabIndex; }
+		}
+		public static RForms LastCreatedTab {
+			get { return (tabs!=null&&iLastCreatedTabIndex>=0&&iLastCreatedTabIndex<tabs.Length) ? tabs[iLastCreatedTabIndex] : null; }
+			set { if (tabs!=null&&iLastCreatedTabIndex>=0&&iLastCreatedTabIndex<tabs.Length) tabs[iLastCreatedTabIndex]=value; }
+		}
+		#endregion lower variables
+
+		#region constructors
+		public RApplication() {
+			MessageBox.Show("The program should not have instanciated an RApplication object (RApplication should only be used statically)");//Init();
+		}
+		static RApplication() {//formerly public bool Init()
+			iMode=0;
+			workspaces=new RApplicationNodeStack();
+			modes=new RApplicationNodeStack();
+			tools=new RApplicationNodeStack();
+			options=new RApplicationNodeStack();
+		}
+		///<summary>
+		///Initializes the RApplication in sdl mode
+		///</summary>
+		public static void Init(int iSetWidth, int iSetHeight, string sHtml) {
+			try {
+				if (iSetWidth<1||iSetHeight<1) {
+					RReporting.ShowErr("Window dimensions sent to RApplication Init were incorrect--defaulting to 640x480","checking window size","RApplication Init(iSetWidth:"+iSetWidth+", iSetHeight:"+iSetHeight+")");
+					iSetWidth=640;
+					iSetHeight=480;
+				}
+				iWidth=iSetWidth;
+				iHeight=iSetHeight;
+				tabs=new RForms[3];
+				for (int i=0; i<3; i++) {
+					tabs[i]=null;
+				}
+				iActiveTab=0;
+				tabs[iActiveTab]=new RForms();
+				
+				if (ActiveTab!=null) {
+					if (sHtml!=null) ActiveTab.SetHtml(sHtml);
+					if (!ActiveTab.ConvertMonochromeFontToAlphaFont()) {
+						RReporting.ShowErr("Load alpha font failed","converting monochrome font to alpha","RApplication Init");
+					}
+				}
+				else RReporting.ShowErr("NULL ActiveTab","initializing","RApplication Init");
+				RReporting.Debug("RApplication was initialized at "+iSetWidth.ToString()+"x"+iSetHeight.ToString()+" {ActiveTab:"+((ActiveTab!=null)?"non-null":"null")+"; ActiveTab.iUsedNodes:"+((ActiveTab!=null)?(ActiveTab.Count.ToString()):"N/A")+"}");
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"initializing RApplication","RApplication Init");
+			}
+		}//end Init
+		///<summary>
+		///Initializes the RApplication in Framework mode
+		///-The program using RApplication should add these settings to the FastPanel first:
+		///	panelDestX.SetStyle(ControlStyles.DoubleBuffer, true);
+		///	panelDestX.SetStyle(ControlStyles.AllPaintingInWmPaint , true);
+		///	panelDestX.SetStyle(ControlStyles.UserPaint, true);			
+		///-The program using RApplication must also set FrameworkPanelBufferOnPaint as the 
+		///OnPaint event handler for the panelDestX
+		///</summary>
+		public static void Init(FastPanel panelDestX, string sHtml) {
+			try {
+				RApplication.fastpanelTarget=panelDestX;
+				Init(panelDestX.Width, panelDestX.Height, sHtml);
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"accessing panel during RApplication init");
+			}
+		}//end Init(FastPanel,sHtml)
+		public static void Init(FastPanel panelDestX) {
+			Init(panelDestX,null);
+		}//end Init(FastPanel)
+		#endregion constructors
+
+		#region safe active tab wrapper methods
+		public static void Push(RForm rformAdd) {
+			if (ActiveTab!=null) ActiveTab.Push(rformAdd);
+			else RReporting.ShowErr("No tab open for adding form!","adding form to tab","RApplication push");
+		}
+		public static int GetNewTabIndex() {
+			for (int iNow=0; iNow<Maximum; iNow++) {
+				if (tabs[iNow]==null) return iNow;
+			}
+			return -1;
+		}
+		private static int NodeAt(int X, int Y) {
+			return (ActiveTab!=null)?ActiveTab.NodeAt(X,Y):-1;
+		}
+		private static int GetNearestAncestor(int ChildIndex, string TagwordOfParent) {
+			return (ActiveTab!=null)?ActiveTab.GetNearestAncestor(ChildIndex,TagwordOfParent):-1;
+		}
+		private static RForm Node(int NodeIndex) {
+			RForm rformReturn=null;
+			if (ActiveTab!=null) {
+				rformReturn=ActiveTab.Node(NodeIndex);
+				if (rformReturn==null) {
+					RReporting.ShowErr("ActiveTab Node at this index is null!","getting ActiveTab node via RApplication","RApplication Node("+NodeIndex.ToString()+") {ActiveTab:"+iActiveTab.ToString()+"}");
+				}
+			}
+			else {
+				RReporting.ShowErr("ActiveTab is null!","getting ActiveTab node via RApplication","RApplication Node(NodeIndex="+NodeIndex.ToString()+") {ActiveTab:"+iActiveTab.ToString()+"}");
+			}
+			return rformReturn;
+		}
+		private static bool ActiveTab_AddEvents(string sScript) {
+			return (ActiveTab!=null)?ActiveTab.AddEvents(sScript):false;
+		}
+		private static string ActiveTab_GetFormAssignmentsCSV(int FormNodeIndex) {
+			return (ActiveTab!=null)?ActiveTab.GetFormAssignmentsCSV(FormNodeIndex):null;
+		}
+		#endregion safe active tab wrapper methods
+		
+		///<summary>
+		///Sets the statusbar text
+		///Returns false if bStatusBar=false.
+		/// -Set RApplication.bStatusBar=true to turn the status bar on before using this.
+		///</summary>
+		public static bool SetStatus(string sMsg) {
+			sStatus=sMsg;
+			if (fastpanelTarget!=null) InvalidatePanelIfExists();
+			return bStatusBar;
+		}
+		public static void InvalidatePanelIfExists() {
+			if (fastpanelTarget!=null) fastpanelTarget.Invalidate();
+		}
+		///<summary>
+		///Returns the status bar text.
+		///</summary>
+		public static string GetStatus() {
+			return sStatus;
+		}
 		public static int EventCount() {
 			return sqEvents!=null?sqEvents.Count:0;
 		}
@@ -141,13 +366,13 @@ namespace ExpertMultimedia {
 			return sqEvents!=null&&!sqEvents.IsEmpty;
 		}
 		private static bool SetHtml(string sData) {
-			bool bGood=false;
+			int iNodes=-1;
 			if (ActiveTab!=null) {
+				iNodes=ActiveTab.SetHtml(sData);
 			}
-			return bGood;
+			return iNodes>0;//TODO: return int, or warn if zero?
 		}
-		private static string[] sarrNameTemp=new string[40*2];
-		private static string[] sarrValueTemp=new string[40*2];
+
 		public static bool DoEvent(string sEvent) {
 			bool bHandled=true;//changed to false below if command not native to this class
 			int iParams=0;
@@ -179,6 +404,9 @@ namespace ExpertMultimedia {
 						FixPreviousTab();
 						iActiveTab=iPreviousTab;
 					}
+					if (ActiveTab==null) {
+						RReporting.ShowErr("ActiveTab has become null!","closing tab","RApplication CloseTab");
+					}
 				}
 				else if (iTabX==0) RReporting.Warning("Cannot close the root tab","","CloseTab("+iTabX.ToString()+")");
 				else RReporting.Warning("Tried to close out-of-range tab","","CloseTab("+iTabX.ToString()+")");
@@ -205,141 +433,56 @@ namespace ExpertMultimedia {
 			if (sqEvents!=null) return sqEvents.Poke(iEvent,null);
 			return false;
 		}
-		private static RForm DefaultNode {
-			get { return ActiveTab!=null?ActiveTab.DefaultNode:null; }
-			set { if (ActiveTab!=null) ActiveTab.DefaultNode=value; }
-		}
-		private static RForm ActiveNode {
-			get { return ActiveTab!=null?ActiveTab.ActiveNode:null; }
-			//set { if (ActiveTab!=null) ActiveTab.ActiveNode=value; }
-		}
-		private static RForm RootNode {
-			get { return ActiveTab!=null?ActiveTab.RootNode:null; }
-			set { if (ActiveTab!=null) ActiveTab.RootNode=value; }
-		}
-		private static RApplicationNode nodeLastCreated=null;
-		public static RApplicationNode LastCreatedNode { get {return nodeLastCreated;} }
-		private static string ShiftMessage() {
-			return bShift?"[shift]+":"";
-		}
-		public static int Mode {
-			get {
-				return modes.Element(iMode).Value; 
-			}
-		}
-		public static int Workspace {
-			get { return iWorkspace; }
-		}
-
-		#region constructors
-		public RApplication() {
-			MessageBox.Show("The program should not have instanciated an RApplication object (RApplication should only be used statically)");//Init();
-		}
-		static RApplication() {//formerly public bool Init()
-			iMode=0;
-			workspaces=new RApplicationNodeStack();
-			modes=new RApplicationNodeStack();
-			tools=new RApplicationNodeStack();
-			options=new RApplicationNodeStack();
-		}
+		
 		///<summary>
-		///Initializes the RApplication in sdl mode
-		///</summary>
-		public static void Init(int iSetWidth, int iSetHeight, string sHtml) {
-			try {
-				if (iSetWidth<1||iSetHeight<1) {
-					RReporting.ShowErr("Window dimensions are needed for RApplication Init","checking window size","RApplication Init(iSetWidth:"+iSetWidth+", iSetHeight:"+iSetHeight+")");
-					iSetWidth=800;
-					iSetHeight=600;
-				}
-				iWidth=iSetWidth;
-				iHeight=iSetHeight;
-				tabs=new RForms[3];
-				iActiveTab=0;
-				ActiveTab=new RForms();
-				if (sHtml!=null) ActiveTab.SetHtml(sHtml);
-				ActiveTab.LoadMonochromeFont();
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
-			}
-		}
-		///<summary>
-		///Initializes the RApplication in Framework mode
-		///-The program using RApplication should add these settings to the FastPanel first:
-		///	panelDestX.SetStyle(ControlStyles.DoubleBuffer, true);
-		///	panelDestX.SetStyle(ControlStyles.AllPaintingInWmPaint , true);
-		///	panelDestX.SetStyle(ControlStyles.UserPaint, true);			
-		///-The program using RApplication must also set FrameworkPanelBufferOnPaint as the 
-		///OnPaint event handler for the panelDestX
-		///</summary
-		public static void Init(FastPanel panelDestX, string sHtml) {
-			try {
-				RApplication.fastpanelTarget=panelDestX;
-				Init(panelDestX.Width, panelDestX.Height, sHtml);
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"accessing panel during RApplication init");
-			}
-		}
-		public static void Init(FastPanel panelDestX) {
-			Init(panelDestX,null);
-		}
-		#endregion constructors
-
-		public static void Push(RForm rformAdd) {
-			if (ActiveTab!=null) ActiveTab.Push(rformAdd);
-		}
-		public static int GetNewTabIndex() {
-			for (int iNow=0; iNow<Maximum; iNow++) {
-				if (tabs[iNow]==null) return iNow;
-			}
-			return -1;
-		}
-		private static int iLastCreatedTabIndex=0;
-		public static int LastCreatedTabIndex {
-			get { return iLastCreatedTabIndex; }
-		}
-		public static RForms LastCreatedTab {
-			get { return (tabs!=null&&iLastCreatedTabIndex>=0&&iLastCreatedTabIndex<tabs.Length) ? tabs[iLastCreatedTabIndex] : null; }
-			set { if (tabs!=null&&iLastCreatedTabIndex>=0&&iLastCreatedTabIndex<tabs.Length) tabs[iLastCreatedTabIndex]=value; }
-		}
-		///<summary>
-		///Generates a form based on the c-style variable declarations in sarrCDecl.
+		///Generates a form based on the c-style variable declarations in sarrCSharpDecl.
 		/// sarrButtons is an array of buttons that define what the callback in the
-		/// RApplication event queue will look like.  If sFunctionToEnqueue=="login"
+		/// RApplication event queue will look like.  If sFunctionToEnqueueUponSubmit=="login"
 		/// and sarrButtons=={"OK","Cancel"} then the resulting fuction added to the
 		/// RApplication event queue will start with either login.OK(...) or login.Cancel(...)
 		/// where "..." is the parameter list is a list of assignments that corresponds
-		/// to sarrCDecl. For example, the function could be
+		/// to sarrCSharpDecl. For example, the function could be
 		/// login.OK(user=myuser,password=passwordx)
 		/// (the ".OK", variable name, and equal sign are included by the native 
 		/// RApplication form method, which is specified in the form generated by this method)
-		///sarrCDecl can be simply a variable name if you want a one-line edit box displayed 
+		///sarrCSharpDecl can be simply a variable name if you want a one-line edit box displayed 
 		/// to the user--to change the type and display method, use a C Delaration, i.e. 
 		/// string var={"a","b"} to select a single value from drop-down list, or
 		/// string[] var={"a","b"} to select multiple from a list.
 		///s2dParamHtmlTagPropertyAssignments is an optional 2D array where the first dimension
-		/// corresponds to sarrCDecl, describing additional html tag properties for the html form
-		/// element that will be generated for each index of sarrCDecl.
+		/// corresponds to sarrCSharpDecl, describing additional html tag properties for the html form
+		/// element that will be generated for each index of sarrCSharpDecl.
 		///s2dParamStyleAttribAssignments is an optional 2D array where the first dimension
-		/// corresponds to sarrCDecl, describing additional style attributes for the html form
-		/// element that will be generated for each index of sarrCDecl.
+		/// corresponds to sarrCSharpDecl, describing additional style attributes for the html form
+		/// element that will be generated for each index of sarrCSharpDecl.
 		///</summary>
-		public static void GenerateForm(string sTitle, string sFunctionToEnqueue, string[] sarrButtons, string[] sarrCDecl, string[][] s2dParamHtmlTagPropertyAssignments, string[][] s2dParamStyleAttribAssignments) {
+		public static void GenerateForm(string sTitle, string sFunctionToEnqueueUponSubmit, string[] sarrButtons, string[] sarrCSharpDecl, string[][] s2dParamHtmlTagPropertyAssignments, string[][] s2dParamStyleAttribAssignments) {
+			RReporting.Debug("RApplication GenerateForm from C declarations (with html params)...");//debug only
 			int iNewTab=GetNewTabIndex();
-			if (iNewTab>=0) {
-				iLastCreatedTabIndex=iNewTab;
-				LastCreatedTab=new RForms();
-				iActiveTab=LastCreatedTabIndex;
-				string sForm=LastCreatedTab.GenerateForm(sTitle, sFunctionToEnqueue, sarrButtons, sarrCDecl,s2dParamHtmlTagPropertyAssignments,s2dParamStyleAttribAssignments);
-				RString.StringToFile("1.Debug GenerateForms.html",sForm); ///debug only
-				int iTestCount=ActiveTab.SetHtml(sForm);
+			try {
+				if (iNewTab>=0) {
+					iLastCreatedTabIndex=iNewTab;
+					LastCreatedTab=new RForms();
+					iActiveTab=LastCreatedTabIndex;
+					string sForm=LastCreatedTab.GenerateForm(sTitle, sFunctionToEnqueueUponSubmit, sarrButtons, sarrCSharpDecl,s2dParamHtmlTagPropertyAssignments,s2dParamStyleAttribAssignments);
+					RString.StringToFile("1.Debug GenerateForms.html",sForm); ///debug only
+					if (mainformNow!=null) ((MainForm)mainformNow).SetStatus("Setting form code...");//debug only
+					RReporting.iDebugLevel+=RReporting.DebugLevel_Mega;//debug only
+					int iTestCount=ActiveTab.SetHtml(sForm);
+					RReporting.iDebugLevel-=RReporting.DebugLevel_Mega;//debug only
+					if (mainformNow!=null) ((MainForm)mainformNow).SetStatus("Drawing form...");//debug only
+					RReporting.sParticiple="invalidating form";
+					RApplication.InvalidatePanelIfExists();
+					if (mainformNow!=null) ((MainForm)mainformNow).SetStatus("");
+				}
+				else RReporting.ShowErr("Could not allocate new tab for input form","creating new tab","RApplication GenerateForm");
 			}
-			else RReporting.ShowErr("Could not allocate new tab for input form");
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"generating form from CSharp declaration set (with html params)","RApplication GenerateForm(...) {properties:"+(s2dParamHtmlTagPropertyAssignments!=null?"non-null":"null")+"; style-attributes:"+(s2dParamStyleAttribAssignments!=null?"non-null":"null")+"}");
+			}
 		}//end GenerateForm primary overload
 		///<summary>
-		/// sarrCDecl can be simply a variable name if you want a one-line edit box displayed 
+		/// sarrCSharpDecl can be simply a variable name if you want a one-line edit box displayed 
 		/// to the user--to change the type and display method, use a C Delaration, i.e. 
 		/// string var={"a","b"} to select a single value from drop-down list, or
 		/// string[] var={"a","b"} to select multiple from a list.
@@ -352,40 +495,46 @@ namespace ExpertMultimedia {
 		/// After the value (which is not required, you can put extra html tag properties 
 		/// i.e. the disabled property in a '<' and '>' enclosure, and extra style assignments
 		/// in a '{' and '}' enclosure.
-		/// 
 		///</summary>
-		public static void GenerateForm(string sTitle, string sFunctionToEnqueue, string[] sarrButtons, string[] sarrCDecl) {
+		public static void GenerateForm(string sTitle, string sFunctionToEnqueueUponSubmit, string[] sarrButtons, string[] sarrCSharpDecl) {
+			RReporting.Debug("RApplication GenerateForm by CDecl (without html params)...");//debug only
 			//splits the "<>" and "{}" enclosed assignments and calls the primary overload.
 			string[][] s2dPropAssignments=null;
 			string[][] s2dStyleAttribAssignments=null;
-			if (RReporting.AnyNotBlank(sarrCDecl)) {
-				s2dPropAssignments=new string[sarrCDecl.Length][];
-				s2dStyleAttribAssignments=new string[sarrCDecl.Length][];
-				for (int iNow=0; iNow<sarrCDecl.Length; iNow++) {
-					if (RReporting.IsNotBlank(sarrCDecl[iNow])) {
-						string sToLower=sarrCDecl[iNow].ToLower();
-						int iSpace=sarrCDecl[iNow].IndexOf(" ");
-						int iPropertiesOpener=sarrCDecl[iNow].IndexOf("<");
-						int iPropertiesCloser=sarrCDecl[iNow].IndexOf(">");
-						int iStyleAttribsOpener=sarrCDecl[iNow].IndexOf("{");
-						int iStyleAttribsCloser=sarrCDecl[iNow].IndexOf("}");
-						int iMinCut=iPropertiesOpener<iStyleAttribsOpener?iPropertiesOpener:iStyleAttribsOpener;
-						if (iPropertiesOpener>0&&iPropertiesCloser>iPropertiesOpener) {
-							s2dPropAssignments[iNow]=RString.SplitScopes(sarrCDecl[iNow].Substring(iPropertiesOpener,iPropertiesCloser-iPropertiesOpener),' '); //RString.SplitAssignmentsSgml(out sarrPropName, out sarrPropVal, sarrCDecl[iNow]);
-						}
-						else s2dPropAssignments[iNow]=null;
-						if (iStyleAttribsOpener>0&&iStyleAttribsCloser>iStyleAttribsOpener) {
-							s2dStyleAttribAssignments[iNow]=RString.SplitScopes(sarrCDecl[iNow].Substring(iStyleAttribsOpener,iStyleAttribsCloser-iStyleAttribsOpener),';'); //RString.SplitAssignmentsSgml(out sarrPropName, out sarrPropVal, sarrCDecl[iNow]);
-						}
-						else s2dStyleAttribAssignments[iNow]=null;
-						if (iMinCut>-1) {
-							sarrCDecl[iNow]=RString.RemoveEndsWhiteSpace( RString.SafeSubstring(sarrCDecl[iNow],0,iMinCut) );
-							//now it is a CSharp Declaration
-						}
-					}//end if param not blank
-				}//end for params
-				GenerateForm(sTitle, sFunctionToEnqueue, sarrButtons, sarrCDecl, s2dPropAssignments, s2dStyleAttribAssignments);
-			}//end if any sarrCDecl not blank
+			try {
+				if (RReporting.AnyNotBlank(sarrCSharpDecl)) {
+					s2dPropAssignments=new string[sarrCSharpDecl.Length][];
+					s2dStyleAttribAssignments=new string[sarrCSharpDecl.Length][];
+					for (int iNow=0; iNow<sarrCSharpDecl.Length; iNow++) {
+						if (RReporting.IsNotBlank(sarrCSharpDecl[iNow])) {
+							string sToLower=sarrCSharpDecl[iNow].ToLower();
+							int iSpace=sarrCSharpDecl[iNow].IndexOf(" ");
+							int iPropertiesOpener=sarrCSharpDecl[iNow].IndexOf("<");
+							int iPropertiesCloser=sarrCSharpDecl[iNow].IndexOf(">");
+							int iStyleAttribsOpener=sarrCSharpDecl[iNow].IndexOf("{");
+							int iStyleAttribsCloser=sarrCSharpDecl[iNow].IndexOf("}");
+							int iMinCut=iPropertiesOpener<iStyleAttribsOpener?iPropertiesOpener:iStyleAttribsOpener;
+							if (iPropertiesOpener>0&&iPropertiesCloser>iPropertiesOpener) {
+								s2dPropAssignments[iNow]=RString.SplitScopes(sarrCSharpDecl[iNow].Substring(iPropertiesOpener,iPropertiesCloser-iPropertiesOpener),' '); //RString.SplitAssignmentsSgml(out sarrPropName, out sarrPropVal, sarrCSharpDecl[iNow]);
+							}
+							else s2dPropAssignments[iNow]=null;
+							if (iStyleAttribsOpener>0&&iStyleAttribsCloser>iStyleAttribsOpener) {
+								s2dStyleAttribAssignments[iNow]=RString.SplitScopes(sarrCSharpDecl[iNow].Substring(iStyleAttribsOpener,iStyleAttribsCloser-iStyleAttribsOpener),';'); //RString.SplitAssignmentsSgml(out sarrPropName, out sarrPropVal, sarrCSharpDecl[iNow]);
+							}
+							else s2dStyleAttribAssignments[iNow]=null;
+							if (iMinCut>-1) {
+								sarrCSharpDecl[iNow]=RString.RemoveEndsWhiteSpace( RString.SafeSubstring(sarrCSharpDecl[iNow],0,iMinCut) );
+								//now it is a CSharp Declaration
+							}
+						}//end if param not blank
+					}//end for params
+				}//end split off html params if has any CDeclarations
+				else sarrCSharpDecl=null;
+				GenerateForm(sTitle, sFunctionToEnqueueUponSubmit, sarrButtons, sarrCSharpDecl, s2dPropAssignments, s2dStyleAttribAssignments);
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"generating form from C declaration set (without html params)","RApplication GenerateForm");
+			}
 		}//end GenerateForm
 		public static int LastCreatedNodeIndex {
 			get { return ActiveNode!=null?ActiveTab.LastCreatedNodeIndex:-1; }
@@ -398,27 +547,50 @@ namespace ExpertMultimedia {
 		}
 		public static void Refresh() {
 			if (ActiveTab!=null) {//&&bFormActive) {
-				fastpanelTarget.Invalidate();//causes OnPaint event
+				InvalidatePanelIfExists();//fastpanelTarget.Invalidate();//causes OnPaint event
 			}
 		}
 
 		#region framework mode drawing
+		public static int iOnPaintCount=0;
 		///<summary>
 		///The program using RApplication must set this as the OnPaint event handler for the FastPanel
 		///</summary>
 		public static void FrameworkPanelBufferOnPaint(object sender, PaintEventArgs e) {
-			
 			if (ActiveTab!=null) {
-				Render(e.Graphics, fastpanelTarget.Left, fastpanelTarget.Top, fastpanelTarget.Width, fastpanelTarget.Height);
+				if (fastpanelTarget!=null) {
+					if (RApplication.RootNode==null) {
+						RReporting.ShowErr("RootNode is null!","painting panel","RApplication FrameworkPanelBufferOnPaint {iActiveTab:"+iActiveTab.ToString()+"; UsedNodes:"+ActiveTab.Count.ToString()+"}");
+					}
+					else {
+						Render(e.Graphics, fastpanelTarget.Left, fastpanelTarget.Top, fastpanelTarget.Width, fastpanelTarget.Height);
+						iOnPaintCount++;
+						if (RReporting.bDebug) RReporting.sParticiple="finishing panel render ("+iOnPaintCount+" frames)";
+						if (MainForm.mainformNow!=null) {
+							if (RReporting.bDebug) MainForm.mainformNow.SetStatus("Done rendering {Count:"+iOnPaintCount+"}.");
+							else MainForm.mainformNow.SetStatus("Done rendering.");
+						}
+					}
+				}
+				else RReporting.sParticiple="skipping null fastpanel";
 			}
+			else RReporting.sParticiple="skipping onpaint";
 			//iLimiter++;
 		}
 		public static bool bWarnOnNextNoActiveTab=true;
+		public static int Render_Primary_Runs=0;
 		///<summary>
 		///Primary Renderer
 		///</summary>
 		private static bool Render(Graphics gDest, int TargetLeft, int TargetTop, int TargetWidth, int TargetHeight) {
 			//TODO: combine this with primary renderer by using riDest and gDest and checking which is null (overloads pass null for nonpresent parameter)
+			Render_Primary_Runs++;
+			if (RReporting.bMegaDebug) {
+				string sActiveTab_TempHtml=ActiveTab.ToHtml();
+				if (sActiveTab_TempHtml==null) sActiveTab_TempHtml="<!--ActiveTab.ToHtml()==null-->";
+				else if (sActiveTab_TempHtml=="") sActiveTab_TempHtml="<!--ActiveTab.ToHtml()==\"\"-->";
+				RString.StringToFile("1.RApplication.ActiveTab.Render.html",sActiveTab_TempHtml);
+			}
 			try {
 				bool bCreate=false;
 				if (riOffscreen==null||riOffscreen.Width!=TargetWidth||riOffscreen.Height!=TargetHeight) bCreate=true;
@@ -430,11 +602,16 @@ namespace ExpertMultimedia {
 					bmpOffscreen=new Bitmap(TargetWidth,TargetHeight);
 					gOffscreen=Graphics.FromImage(bmpOffscreen);
 					gTarget=gDest;//panelAccessedForDimensionsOnly.CreateGraphics();
-					RootNode.rectAbs.X=TargetLeft;
-					RootNode.rectAbs.Y=TargetTop;
-					RootNode.rectAbs.Width=TargetWidth;
-					RootNode.rectAbs.Height=TargetHeight;
-					Console.WriteLine("Created backbuffer");
+					if (RootNode!=null) {
+						RootNode.rectAbs.X=TargetLeft;
+						RootNode.rectAbs.Y=TargetTop;
+						RootNode.rectAbs.Width=TargetWidth;
+						RootNode.rectAbs.Height=TargetHeight;
+					}
+					else {
+						RReporting.ShowErr("Failed to set RootNode boundaries because RootNode is null!","rendering tab to gDest","RApplication Render(gDest,...)");
+					}
+					Console.Error.WriteLine("Created backbuffer");
 				}	
 			}
 			catch (Exception exn) {
@@ -446,10 +623,11 @@ namespace ExpertMultimedia {
 				int iNow=0;
 				bGood=false;
 				if (ActiveTab!=null) {
+					riOffscreen.Clear(Color.White);//TODO: debug performance!
 					bGood=ActiveTab.Render(riOffscreen,ClientX,ClientY,ClientWidth,ClientHeight);
-					rfontDefault.Render(ref riOffscreen, 3, ClientY+ClientHeight+3, sStatus);
+					rfontDefault.Render(ref riOffscreen, 3, ClientY+ClientHeight+3, sStatus);//TODO: is this right?? render sStatus to riOffscreen
 					//TODO: debug performance -- drawing to bmp then to graphics
-					riOffscreen.DrawTo(bmpOffscreen);//riOffscreen.DrawTo(gOffscreen);
+					riOffscreen.DrawAs(bmpOffscreen,PixelFormat.Format32bppArgb);//riOffscreen.DrawTo(gOffscreen);
 					gDest.DrawImage(bmpOffscreen,0,0);
 				}
 				else {
@@ -459,8 +637,8 @@ namespace ExpertMultimedia {
 					}
 					bGood=false;
 				}
-				riOffscreen.DrawTo(bmpOffscreen);//, gOffscreen);//riOffscreen.DrawTo(gOffscreen);
-				gDest.DrawImage(bmpOffscreen,0,0);//debug performance*/
+				//riOffscreen.DrawAs(bmpOffscreen, PixelFormat.Format32bppArgb);//, gOffscreen);//riOffscreen.DrawTo(gOffscreen);
+				//gDest.DrawImage(bmpOffscreen,0,0);
 			}
 			catch (Exception exn) {
 				bGood=false;
@@ -517,31 +695,38 @@ namespace ExpertMultimedia {
 
 
 		#region framework mouse input
+		/// <summary>
+		/// Must be used as the MainForm's MouseDown method
+		/// </summary>
+		/// <param name="sender"></param>
+		/// <param name="e"></param>
 		public static void FrameworkMouseDown(object sender, System.Windows.Forms.MouseEventArgs e) {
 			if (ActiveTab!=null) {
-				if (e.Button==MouseButtons.Left) ActiveTab.RMouseUpdate(true,1);
-				else if (e.Button==MouseButtons.Right) ActiveTab.RMouseUpdate(true,2);
+				if (e.Button==MouseButtons.Left) RMouseUpdate(true,1);
+				else if (e.Button==MouseButtons.Right) RMouseUpdate(true,2);
 				InvalidatePanelIfExists();
 			}
+			else RReporting.Debug("ActiveTab is null","responding to mousedown event","FrameworkMouseDown");
 			if (mainformNow!=null) mainformNow.HandleScriptableMethods();
 			else RReporting.Debug("FrameworkMouseDown: RApplication.mainformNow is null");
 		}
 		public static void FrameworkMouseUp(object sender, System.Windows.Forms.MouseEventArgs e) {
 			if (ActiveTab!=null) {
-				if (e.Button==MouseButtons.Left) ActiveTab.RMouseUpdate(false,1);
-				else if (e.Button==MouseButtons.Right) ActiveTab.RMouseUpdate(false,2);
-				InvalidatePanelIfExists();
+				if (e.Button==MouseButtons.Left) RMouseUpdate(false,1);
+				else if (e.Button==MouseButtons.Right) RMouseUpdate(false,2);
 			}
 			if (mainformNow!=null) mainformNow.HandleScriptableMethods();
 			else RReporting.Debug("FrameworkMouseUp: RApplication.mainformNow is null");
+			InvalidatePanelIfExists();
 		}
 		public static void FrameworkMouseMove(object sender, System.Windows.Forms.MouseEventArgs e) {
 			if (ActiveTab!=null) {
-				ActiveTab.RMouseUpdate(e.X, e.Y,fastpanelTarget.Left,fastpanelTarget.Top);
-				InvalidatePanelIfExists();
+				RMouseUpdate(e.X, e.Y,fastpanelTarget.Left,fastpanelTarget.Top);
 			}
+			else RReporting.Debug("ActiveTab is null","responding to mousemove event","FrameworkMouseMove");
 			if (mainformNow!=null) mainformNow.HandleScriptableMethods();
 			else RReporting.Debug("FrameworkMouseMove: RApplication.mainformNow is null");
+			InvalidatePanelIfExists();
 		}
 		#endregion framework mouse input
 
@@ -552,9 +737,12 @@ namespace ExpertMultimedia {
 			if (KeyUp_KeyEventArgs_KeyCodeStringLowerWas=="shiftkey") { //e.KeyChar=='\t') {//else if (KeyEventArgs_KeyCodeWas==Keys.Tab) {//tab
 				bShift=false;
 			}
+			InvalidatePanelIfExists();
 		}
 		public static void FrameworkKeyDown(object sender, System.Windows.Forms.KeyEventArgs e) {
+			LastSender=sender;
 			bool bGood=false;
+			string sTest="";
 			RForm InputTargetNow=null;
 			if (ActiveNode!=null&&ActiveNode.Visible==true) InputTargetNow=ActiveNode;//if (ActiveTab!=null&&ActiveTab.ActiveNode!=null&&ActiveTab.ActiveNode.Visible==true) InputTargetNow=ActiveNode;
 			else InputTargetNow=DefaultNode;
@@ -572,7 +760,7 @@ namespace ExpertMultimedia {
 				KeyEventArgs_KeyCodeStringWas=e.KeyCode.ToString();
 				KeyEventArgs_KeyCodeStringLowerWas=KeyEventArgs_KeyCodeStringWas.ToLower();
 				if (fastpanelTarget!=null) fastpanelTarget.Focus();
-				string sTest="";
+				
 				if (!bLastKeyIsNumber) {
 					//e.Handled = true; //Stop the character from being entered into the control if it is non-numerical.
 				}
@@ -587,7 +775,7 @@ namespace ExpertMultimedia {
 					else if (KeyEventArgs_KeyCodeStringLowerWas=="left") bGood=InputTargetNow.ShiftSelection(0,-1,bShift); //KeyEventArgs_KeyCodeWas==Keys.Left) {//left
 					else if (KeyEventArgs_KeyCodeStringLowerWas=="right") bGood=InputTargetNow.ShiftSelection(0,1,bShift); //KeyEventArgs_KeyCodeWas==Keys.Right) {//right
 					else if (KeyEventArgs_KeyCodeStringLowerWas=="tab") { //e.KeyChar=='\t') {//else if (KeyEventArgs_KeyCodeWas==Keys.Tab) {//tab
-						//TODO: bGood=InputTargetNow.Tab();//InputTargetNow.Insert("\t");//commented for debug only
+						bGood=InputTargetNow.Tab();//InputTargetNow.Insert("\t");
 					}
 					else if (KeyEventArgs_KeyCodeStringLowerWas=="space") bGood=InputTargetNow.Insert(" "); //e.KeyChar=='\t') {//else if (KeyEventArgs_KeyCodeWas==Keys.Tab) {//tab
 					else if (KeyEventArgs_KeyCodeStringLowerWas=="home") bGood=InputTargetNow.Home(bShift);
@@ -605,36 +793,344 @@ namespace ExpertMultimedia {
 					else sTest=ShiftMessage()+"?[\""+KeyEventArgs_KeyCodeStringLowerWas+"\"]";
 				}//end if KeyEventArgs_KeyCodeStringLowerWas.Length>1
 				else if (KeyEventArgs_KeyCodeStringLowerWas.Length==1) bLastKeyWasTypable=true; //if ((int)e.KeyChar>=32) {
-				else sTest=ShiftMessage()+"[]";//if (KeyEventArgs_KeyCodeStringLowerWas.Length<1) {
+				else sTest=ShiftMessage()+"[]";//if (KeyEventArgs_KeyCodeStringLowerWas.Length<1) 
 			}//end if found a non-null InputTargetNow
 			else {
+				RReporting.Debug("A KeyDown was ignored since there was no active node","receiving framework keydown","FrameworkKeyDown(...){ActiveNode:"+(ActiveNode!=null?"non-null":"null")+"; DefaultNode:"+(DefaultNode!=null?"non-null":"null")+"; ActiveTab.DefaultNodeIndex:"+((ActiveTab!=null)?ActiveTab.DefaultNodeIndex.ToString():"N/A")+"; ActiveTabIndex:"+ActiveTabIndex+"; ActiveTab_iActiveNode:"+ActiveTab_iActiveNode+"}");
+			}
+			RReporting.Debug("FrameworkKeyDown: "+sTest+(bGood?"...OK":"...FAILED"));
+			//if (!bGood) {
 				
-			}
-			if (!bGood) {
-				RReporting.Debug("A KeyDown was ignored since there was no active tab.");
-			}
+			//}
+			//InvalidatePanelIfExists();//DON'T do this--this will be done by FrameworkKeyPress (always happens after FrameworkKeyDown)
 		}//end FrameworkKeyDown
+		public static void InvalidateDest() {
+			if (mainformNow!=null&&LastSender!=null&&LastSender.GetType()==mainformNow.GetType()) ((MainForm)LastSender).Invalidate();
+			else if (RApplication.fastpanelTarget!=null&&LastSender!=null&&LastSender.GetType()==RApplication.fastpanelTarget.GetType()) ((ExpertMultimedia.FastPanel)LastSender).Invalidate();
+		}
 		///<summary>
 		///Must be called after RKeyDown (remember to call RKeyUp on key up events too).
 		///</summary>
 		public static void FrameworkKeyPress(object sender, System.Windows.Forms.KeyPressEventArgs e) {
 			bool bGood=true;
-			if (ActiveTab!=null) bGood=ActiveTab.RKeyPress(e.KeyChar);
+			if (ActiveTab!=null) bGood=RApplication.RKeyPress(e.KeyChar);//ActiveTab.RKeyPress(e.KeyChar);
 			else {
-				RReporting.Debug("A KeyPress was ignored since there was no active tab.");
+				RReporting.Debug("A KeyPress was ignored since there was no active tab","receiving framework keypress","FrameworkKeyPress");
 				bGood=false;
 			}
+			InvalidatePanelIfExists();
 		}
 		#endregion framework keyboard input
 
+		#region alternative game-style (bypassing framework) modal (gameplay vs text entry mode) keyboard input (moved from rforms [all of these methods were formerly non-static])
+		/// <summary>
+		/// Non-framework (i.e. Sdl) gamepad update using hardware gamepad button number
+		/// </summary>
+		/// <param name="iLiteralGamePadButton"></param>
+		/// <param name="bDown"></param>
+		public static void RButtonUpdate(int iLiteralGamePadButton, bool bDown) {
+			int iButtonMapped=MapPadButton(iLiteralGamePadButton);
+			if (iButtonMapped>-1) SetButton(iButtonMapped,bDown);
+		}
+		/// <summary>
+		/// Non-framework (i.e. Sdl) keydown method (does enter text)
+		/// </summary>
+		/// <param name="sym"></param>
+		/// <param name="unicode"></param>
+		/// <param name="bAsText"></param>
+		public static void RKeyUpdateDown(int sym, char unicode, bool bAsText) {
+			ActiveTab_sDebugLastAction="KeyUpdateDown("+sym.ToString()+","+char.ToString(unicode)+","+(bAsText?"textkey":"commandkey")+")";
+			if (bAsText) {
+				keyboard.Push(sym, unicode);
+				KeyboardTextEntry(keyboard.TypingBuffer(true));
+			}
+			else keyboard.PushCommand(sym,unicode);
+		}
+		/// <summary>
+		/// Non-framework (i.e. Sdl) keyup method
+		/// </summary>
+		/// <param name="sym"></param>
+		/// <param name="bAsText"></param>
+		public static void RKeyUpdateUp(int sym, bool bAsText) {
+			ActiveTab_sDebugLastAction="KeyUpdateUp("+sym.ToString()+","+(bAsText?"textkey":"commandkey")+")";
+			keyboard.Release(sym);
+		}
+		/// <summary>
+		/// Non-framework (i.e. Sdl) keydown method (does enter text)
+		/// </summary>
+		/// <param name="KeyPressEvent_KeyChar"></param>
+		/// <returns></returns>
+		public static bool RKeyPress(char KeyPressEvent_KeyChar) {
+			bool bReturn=false;
+			if (ActiveTab!=null) {//check so that correct debug message can be shown
+				if (ActiveNode!=null) {
+					if (ActiveNode.Visible) {
+						if (bLastKeyWasTypable) {
+							ActiveNode.Insert(KeyPressEvent_KeyChar);
+							bReturn=true;
+						}
+					}
+					else RReporting.Debug("Cannot type--active node is not Visible");
+				}
+				else RReporting.Debug("Cannot type--no active node");
+			}
+			else RReporting.ShowErr("Cannot type--no active tab");
+			return bReturn;
+		}//end RKeyPress
+		private static void KeyboardTextEntry(string sInput) { //formerly KeyboardEntry//formerly CommandType
+			for (int iNow=0; iNow<sInput.Length; iNow++) {
+				KeyboardTextEntry(sInput[iNow]);
+			}
+		}
+		/// <summary>
+		/// This is done in tandem with key mapping, to allow typing in parallel to the mapping system.
+		/// </summary>
+		private static void KeyboardTextEntry(char cAsciiCommandOrText) {
+			if (ActiveNode!=null) ActiveNode.Insert(cAsciiCommandOrText);//KeyPressEvent_KeyChar);
+		}
+		private static int MapKey(int sym, char unicode) {
+			RReporting.Warning("MapKey(keysym,unicode) is not yet implemented.");
+			return -1;
+		}
+		private static int MapKey(string sKeyName) {//formerly KeyToButton
+			RReporting.Warning("MapKey(sKeyName) is not yet implemented.");
+			sKeyName=sKeyName.ToLower();
+			return -1;
+		}
+		private static int MapPadButton(int iLiteralGamePadButton) {
+			RReporting.Warning("MapPadButton(iLiteralGamePadButton) is not yet implemented {iLiteralGamePadButton:"+iLiteralGamePadButton.ToString()+"}");
+			return -1;
+		}
+		private static void ButtonUpdate(int sym, char unicode, bool bDown) {
+			int iButtonMapped=MapKey(sym,unicode);
+			if (iButtonMapped>-1) SetButton(iButtonMapped,bDown);
+		}
+		private static void ButtonUpdate(string sKeyName, bool bDown) {
+			int iButtonMapped=MapKey(sKeyName);
+			if (iButtonMapped>-1) SetButton(iButtonMapped,bDown);
+		}
+		#endregion alternative game-style modal keyboard input
+		
+		#region alternate game-style modal (gameplay vs text-entry) mouse input (formerly non-static methods under rforms object)
+		public static void RMouseUpdate(bool bSetMouseDown, int iButton) { //calls OnMouseUp, OnClick, etc
+			ActiveTab_sDebugLastAction="RMouseUpdate("+(bSetMouseDown?"down":"up")+","+iButton.ToString()+")";
+			bool bSetMouseDownPrimary=false;
+			if (iButton==1) bSetMouseDownPrimary=bSetMouseDown;
+			if (bSetMouseDownPrimary&&!MouseIsDownPrimary) ActiveTab_iActiveNode=iNodeUnderMouse;
+			if (bSetMouseDownPrimary) {
+				if (!MouseIsDownPrimary) {
+					xDragStart=xMouse;
+					yDragStart=yMouse;
+					OnMouseDown();
+				}
+			}//end if down
+			else {//else up
+				if (bDragging) { //xDragStart!=xDragEnd||yDragStart!=yDragEnd&&bDragging) {
+					xDragEnd=xMouse;
+					yDragEnd=yMouse;
+					OnDragEnd();
+					bDragging=false;
+				}
+				if (MouseIsDownPrimary) OnMouseUp(); //TODO: allow any button to drag??--change other drag calls and drag variable assignments too
+			}
+			MouseIsDownPrimary=bSetMouseDownPrimary;
+		} //end RMouseUpdate
+		private static int ActiveTab_rectWhereIAm_X {
+			get { return (ActiveTab!=null) ? (ActiveTab.rectWhereIAm!=null?ActiveTab.rectWhereIAm.X:-2) : -1; }
+			set { if (ActiveTab!=null&&ActiveTab.rectWhereIAm!=null) ActiveTab.rectWhereIAm.X=value;}
+		}
+		private static int ActiveTab_rectWhereIAm_Y {
+			get { return (ActiveTab!=null) ? (ActiveTab.rectWhereIAm!=null?ActiveTab.rectWhereIAm.Y:-2) : -1; }
+			set { if (ActiveTab!=null&&ActiveTab.rectWhereIAm!=null) ActiveTab.rectWhereIAm.Y=value;}
+		}
+		public static void RMouseUpdate(int xSetAbs, int ySetAbs, int xSetParentLocation, int ySetParentLocation) {
+			ActiveTab_rectWhereIAm_X=xSetParentLocation;
+			ActiveTab_rectWhereIAm_Y=ySetParentLocation;
+			RMouseUpdate(xSetAbs,ySetAbs);
+		} //end RMouseUpdate
+		public static void RMouseUpdate(int xSetAbs, int ySetAbs, Rectangle rectSetWhereIAm) {
+			ActiveTab_rectWhereIAm_X=rectSetWhereIAm.X;
+			ActiveTab_rectWhereIAm_Y=rectSetWhereIAm.Y;
+			RMouseUpdate(xSetAbs,ySetAbs);
+		} //end RMouseUpdate
+		public static void RMouseUpdate(int xSetAbs, int ySetAbs) {
+			ActiveTab_sDebugLastAction="RMouseUpdate("+xSetAbs.ToString()+","+ySetAbs.ToString()+")";
+			//TODO: if not handled, pass to parent (or item underneath)
+			xSetAbs-=ActiveTab_rectWhereIAm_X;
+			ySetAbs-=ActiveTab_rectWhereIAm_Y;
+			if (xSetAbs!=xMouse||ySetAbs!=yMouse) {
+				iNodeUnderMouse=NodeAt(xSetAbs,ySetAbs);
+				xMousePrev=xMouse;
+				yMousePrev=yMouse;
+				xMouse=xSetAbs;
+				yMouse=ySetAbs;
+				OnMouseMove();
+				//TODO:?? if (MouseIsDownPrimary) OnDragging();
+				if (RApplication.GetMouseButtonDown(1)) { //else //was already down
+					//if (xMouse!=xMousePrev||yMouse!=yMousePrev) {
+						if (!bDragging) {
+							OnDragStart();//this is right since only now do we know that the cursor is dragging
+							iDragStartTab=iActiveTab;
+							iDragStartNode=NodeAt(xSetAbs,ySetAbs);
+							bDragging=true;
+						}
+						else OnDragging();
+					//}
+				}//if button 1 is down
+			}//end if moved
+		} //end RMouseUpdate
+		#endregion alternate game-style modal mouse input
+		
+
+
+		#region secondary mouse events
+//TODO: native html 4.01 events (as properties) for INPUT tag:
+//ONFOCUS (becomes active node)
+//ONBLUR (loses focus)
+//ONSELECT (text selected, when type=text or type=password)
+//ONCHANGE (loses focus and changed since focus)
+		private static void OnMouseDown() {
+			//TODO: check for javascript
+			//utilize: xMouse, yMouse
+			xInfiniteScroll+=(xMouse-Width/2);
+			yInfiniteScroll+=(yMouse-Height/2);
+			//int iCharW=7, iCharH=15;//iCharH=11, iCharDescent=4;
+			int xOff=0;
+			int yOff=0;
+			//Console.Error.WriteLine("OnMouseDown() {("+xMouse.ToString()+","+yMouse.ToString()+")}");
+			string sEvents="";
+			try {
+				if (Node(iNodeUnderMouse)!=null) {
+					sEvents=Node(iNodeUnderMouse).GetProperty("onmousedown");
+					if (sEvents!="") ActiveTab_AddEvents(sEvents);
+				}
+				else RReporting.Warning("OnMouseDown could not access node under mouse.");
+			}
+			catch (Exception exn) {	
+				RReporting.ShowExn(exn,"","OnMouseDown");
+			}
+			//int iSetRow=(int)(yMouse-ActiveNode.YInner)/iCharH;
+			//int iSetCol=(int)(xMouse-ActiveNode.XInner)/;
+			if (ActiveNode!=null) ActiveNode.SetSelectionFromPixels(xMouse-ActiveNode.XInner,yMouse-ActiveNode.YInner,xMouse-ActiveNode.XInner,yMouse-ActiveNode.YInner);
+			//if (ActiveNode!=null) ActiveNode.SetSelection(iSetRow, iSetCol, iSetRow, iSetCol);//if (rformarr[iActiveNode].textbox!=null) rformarr[iActiveNode].textbox.SetSelection(iSetRow, iSetCol, iSetRow, iSetCol);
+		} //end OnMouseDown
+		private static void OnMouseUp() { //IS called if end of drag (only calls OnClick if same tab and node as OnMouseDown)
+			//TODO: check for javascript
+			//utilize: xMouse, yMouse
+			//Console.Error.WriteLine("OnMouseUp() {("+xMouse.ToString()+","+yMouse.ToString()+")}");
+			if (iDragStartNode==iNodeUnderMouse && iDragStartTab==iActiveTab) OnClick();
+		}//end OnMouseUp
+		private static void OnClick() {
+			string sOnClick=null;
+			string sButtonType=null;
+			string sParamList=null;
+			try {
+				if (ActiveNode!=null) {
+					sOnClick=ActiveNode.GetProperty("onclick");
+					if (RString.IsNotBlank(sOnClick)) {
+						string sSyntaxErr=null;
+						string[] sarrEvents=RString.SplitScopes(sOnClick,';',false,out sSyntaxErr);
+						if (sSyntaxErr!=null) RReporting.SourceErr("onclick:"+sSyntaxErr,"",sOnClick);
+						if (sarrEvents!=null) {
+							for (int iNow=0; iNow<sarrEvents.Length; iNow++) {
+								RApplication.AddEvent(sarrEvents[iNow]);
+							}
+						}
+					}
+					sButtonType=ActiveNode.GetProperty("type");
+					if (sButtonType.ToLower()=="submit"||(ActiveNode.TagwordLower=="")) { //tagword can be input OR button
+					///NOTE: button tagword can be type submit, reset, or button
+						ActiveNode.SetProperty("disabled",null);
+						int iForm=GetNearestAncestor(ActiveTab_iActiveNode,"form");
+						string[] sarrParams=null;
+						string sMETHOD=null;
+						if (Node(iForm)==null) {
+							RReporting.ShowErr("Could not find non-null parent form for submit button!","processing click in RApplication","RApplication OnClick(){ancestor-form:"+iForm.ToString()+"; ActiveTab_iActiveNode-submit-button:"+ActiveTab_iActiveNode.ToString()+"}");
+						}
+						if (Node(iForm)!=null) sMETHOD=Node(iForm).GetProperty("method");
+						if (sMETHOD==null) sMETHOD="";
+						string sAction=null;
+						if (Node(iForm)!=null) sAction=Node(iForm).GetProperty("action");
+						if (sAction==null) sAction="";
+						string sNativeResultValue=ActiveNode.GetProperty("value");
+						if (sNativeResultValue==null) sNativeResultValue="";
+						if (sMETHOD==sNativeFormMethod) {
+							//string[] sarrParam
+							sParamList=ActiveTab_GetFormAssignmentsCSV(iForm);
+							sParamList+=(RString.IsBlank(sParamList)?"":",")+sNativeResult+"="+sNativeResultValue;
+							sParamList+=(RString.IsBlank(sParamList)?"":",")+sNativeActionName+"="+sAction;
+							RApplication.AddEvent(sNativeFormMethod+"("+RString.SafeString(sParamList)+")");
+						}
+						else {
+							RReporting.ShowErr("Only ExpertMultimedia form method "+sNativeFormMethod+" can be used -- regular HTML forms are not yet implemented.","processing form submit click");
+						}
+					}//end if type=="submit"
+				}//end if ActiveNode!=null
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn);
+			}
+		}//end OnClick
+		private static void OnDragStart() {
+			//TODO: check for javascript
+			//utilize: xDragStart, yDragStart, iDragStartNode, iDragStartTab
+			int iCharW=7, iCharH=15;//TODO: get from font!
+			int xOff=0;
+			int yOff=0;
+			xDragStart=xMouse;
+			yDragStart=yMouse;
+			//int iSetRow=(int)(yDragStart-ActiveNode.YInner)/iCharH;
+			//int iSetCol=(int)(xDragStart-ActiveNode.XInner)/iCharW;
+			//int iSetRowEnd=(int)(yMouse-ActiveNode.YInner)/iCharH;
+			//int iSetColEnd=(int)(xMouse-ActiveNode.XInner)/iCharW;
+			if (ActiveNode!=null) ActiveNode.SetSelectionFromPixels(xDragStart-ActiveNode.XInner,yDragStart-ActiveNode.YInner,xMouse-ActiveNode.XInner,yMouse-ActiveNode.YInner);//ActiveNode.SetSelection(iSetRow, iSetCol, iSetRowEnd, iSetColEnd);//if (rformarr[ActiveTab_iActiveNode].textbox!=null) rformarr[ActiveTab_iActiveNode].textbox.SetSelection(iSetRow, iSetCol, iSetRowEnd, iSetColEnd);
+		}//end OnDragStart
+		private static void OnDragging() {
+			//utilize: xDragStart, yDragStart, iDragStartNode, iDragStartTab
+			int iCharW=7, iCharH=15;//iCharH=11, iCharDescent=4;//TODO: finish this -- get from font 
+			int xOff=0;
+			int yOff=0;
+			//int iSetRow=(int)(yDragStart-ActiveNode.YInner)/iCharH;
+			//int iSetCol=(int)(xDragStart-ActiveNode.XInner)/iCharW;
+			//int iSetRowEnd=(int)(yMouse-ActiveNode.YInner)/iCharH;
+			//int iSetColEnd=(int)(xMouse-ActiveNode.XInner)/iCharW;
+			if (ActiveNode!=null) ActiveNode.SetSelectionFromPixels(xDragStart-ActiveNode.XInner,yDragStart-ActiveNode.YInner,xMouse-ActiveNode.XInner,yMouse-ActiveNode.YInner);//ActiveNode.SetSelection(iSetRow, iSetCol, iSetRowEnd, iSetColEnd);//if (rformarr[ActiveTab_iActiveNode].textbox!=null) rformarr[ActiveTab_iActiveNode].textbox.SetSelection(iSetRow, iSetCol, iSetRowEnd, iSetColEnd);
+		}//end OnDragging
+		private static void OnDragEnd() {
+			
+			//utilize: xDragStart, yDragStart, xDragEnd, yDragEnd
+			//utilize: xMouse, yMouse
+			int iCharW=7, iCharH=15;//iCharH=11, iCharDescent=4;//TODO: finish this -- get from font 
+			int xOff=0;
+			int yOff=0;
+			//int iSetRow=(int)(yDragStart-ActiveNode.YInner)/iCharH;
+			//int iSetCol=(int)(xDragStart-ActiveNode.XInner)/iCharW;
+			//int iSetRowEnd=(int)(yDragEnd-ActiveNode.YInner)/iCharH;
+			//int iSetColEnd=(int)(xDragEnd-ActiveNode.XInner)/iCharW;
+			if (ActiveNode!=null) ActiveNode.SetSelectionFromPixels(xDragStart-ActiveNode.XInner,yDragStart-ActiveNode.YInner,xDragEnd-ActiveNode.XInner,yDragEnd-ActiveNode.YInner);//ActiveNode.SetSelection(iSetRow, iSetCol, iSetRowEnd, iSetColEnd);//if (rformarr[iActiveNode].textbox!=null) rformarr[iActiveNode].textbox.SetSelection(iSetRow, iSetCol, iSetRowEnd, iSetColEnd);
+			if (RReporting.bDebug) Console.Error.WriteLine("OnDragEnd() {line:("+xDragStart.ToString()+","+yDragStart.ToString()+")-("+xMouse.ToString()+","+yMouse.ToString()+")}");
+		}//end OnDragging
+		private static void OnMouseMove() {
+			//utilize: xMousePrev, yMousePrev, xMouse, yMouse
+		}
+		public static bool MouseIsDownPrimary {
+			get { return GetMouseButtonDown(1); }
+			set { SetMouseButton(1,value); }
+		}
+		public static void CancelDrag() {
+			bDragging=false;
+		}
+		#endregion  secondary mouse events
+		
+		
 		#region abstract gamepad i/o
 		public static bool GetMappedButtonDown(int iButton) {
 			return (dwButtons&RMath.Bit(iButton))!=0;
 		}
-		private static void SetButton(int iButton, bool bDown) {
+		private static void SetButton(int Button_AlreadyMapped, bool bDown) {
 			//TODO: map from Framework AND sdl keyboard input to here
-			if (bDown) dwButtons|=RMath.Bit(iButton);
-			else dwButtons&=(RMath.Bit(iButton)^RMemory.dwMask);
+			if (bDown) dwButtons|=RMath.Bit(Button_AlreadyMapped);
+			else dwButtons&=(RMath.Bit(Button_AlreadyMapped)^RMemory.dwMask);
 		}
 		public static string GetMappedButtonMessage() {
 			string sButtonMessage="";
@@ -666,12 +1162,12 @@ namespace ExpertMultimedia {
 		#endregion abstract mouse i/o
 
 		public static void SetMode(int iMode_Proper) {
-			Console.Write("finding index for mode "+iMode_Proper.ToString()+":[");//debug only
+			Console.Error.Write("finding index for mode "+iMode_Proper.ToString()+":[");//debug only
 			try {
 				for (int iNow=0; iNow<modes.Count; iNow++) {
 					if (modes.Element(iNow).Value==iMode_Proper) {
 						SetModeByIndex(iNow);
-						Console.Write(iNow);//debug only
+						Console.Error.Write(iNow);//debug only
 						break;
 					}
 				}
@@ -679,7 +1175,7 @@ namespace ExpertMultimedia {
 			catch (Exception exn) {
 				RReporting.ShowExn(exn,"","SetMode");
 			}
-			Console.WriteLine("]");//debug only
+			Console.Error.WriteLine("]");//debug only
 		}
 		public static void SetModeByIndex(int iSetModeIndex) {
 			if (iMode>=0&&iSetModeIndex!=iMode) {
@@ -909,7 +1405,7 @@ namespace ExpertMultimedia {
 				nodeLastCreated=nodeNew;
 				nodeNew.MaxValue=iSetModeNumber;
 				nodeNew.Value=iSetModeNumber;
-				Console.WriteLine("Created mode "+nodeNew.Value+" at index "+modes.Count.ToString());
+				Console.Error.WriteLine("Created mode "+nodeNew.Value+" at index "+modes.Count.ToString());
 				PushMode(nodeNew);
 				IncrementWorkspaceChildCount(iParent);
 			}
@@ -1140,7 +1636,6 @@ namespace ExpertMultimedia {
 			//int iDefaultSize=100;
 			//TODO: settings.GetOrCreate(ref iDefaultSize,"StringStackDefaultStartSize");
 			//Init(iDefaultSize);
-			RReporting.ShowErr("Program should not have instantiated an RApplication object.  The object should only be used statically.");
 		}
 		//public RApplicationNodeStack(int iSetMax) { //Constructor
 		//	Init(iSetMax);

@@ -2,16 +2,16 @@ using System;
 using System.Net;
 using System.IO;
 using System.Globalization;
+using System.Collections;
 
 //TODO: have option to cut out, mark, or otherwise set aside items with
 // "/" or "area" in location or other specified characteristics.
 //--have a way to click once (quick click on items in list) to push items into a low-priority or "Junk" folder 
-//TODO: rename HyperText to MarkupScrape
 
-namespace classifoo {
-	public class HyperText {
+namespace ExpertMultimedia {
+	public class RHyperText {//aka MarkupScrape formerly HyperText
 		public static readonly string[] sarrMo=new string[] {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
-		private static readonly int[] iarrMoLenUSEDaysInMonthTOACCOUNTFORLEAP=new int[]    {31,28,31,30,31,30, 31,31,30,31,30,31};
+		private static readonly int[] iarrMoLenUSEDaysInMonthTOACCOUNTFORLEAP=new int[]	{31,28,31,30,31,30, 31,31,30,31,30,31};
 		public int iSelLoc=0;
 		public int iSelLen=0;
 		public int iSearchLoc=0;
@@ -19,26 +19,49 @@ namespace classifoo {
 		public static CultureInfo cultureinfo=new CultureInfo("en-us");//public static bool CompareOptions_IgnoreCase=true;
 		public static int iTimeOut=45000;
 		public static int iForcedRenames=0;
+		public static bool bAddNewLines=true;
 		string sData="";
-		string sFile="";
-		private string sNewLine="\n";//DetectNewLine() to set.
+		string sFile="1.unnamed-RHyperText-file.txt";
+		public string FileName {
+			get { return sFile!=null?sFile:""; }
+		}
+		public override string ToString() {
+			return sData;
+		}
+		private string sHyperTextNewLine="\n";//DetectNewLine() to set. //formerly sNewLine
 		private static readonly string sPossibleNewLineChars="\r\n"; //(CR+LF, 0x0D 0x0A, {13,10})
 		private static readonly string sPossibleSpacingChars=" \t\0";
 		public int Length {
 			get { return (sData==null) ? 0 : sData.Length; }
 		}
-		public HyperText() {
+		public RHyperText() {
 		}
-		public HyperText(string sSourceName, string sSourceData) {
+		public RHyperText(string sSourceName, string sSourceData) {
 			sFile=sSourceName;
 			sData=sSourceData;
 		}
+		public void SetAll(string AllDataNew, bool DoCodeCleanup_Deprecated) {
+			sData=AllDataNew;
+		}
 		public bool FromUrl(string sUrl) {
 			sFile=sUrl;
-			sData=UrlToData(sUrl);
+			return FromString(UrlToData(sUrl))&&sData!=""&&sData!=null;
+		}
+		public bool Load(string file) {
+			sFile=file;
+			return FromString(RString.FileToString(file))&&sData!=""&&sData!=null;
+		}
+		public bool FromString(string data) {
+			sData=data;
 			ResetSearch();
-			DetectNewLine();
-			return sData!="";
+			DetectNewLine();//DOES set sHyperTextNewLine
+			return sData!=""&&sData!=null;
+		}
+		public int ReplaceAll(string Needle, string NewNeedle) {
+			int iReturn=RString.ReplaceAll(ref this.sData, Needle, NewNeedle);
+			ResetSearch();
+			DetectNewLine();//DOES set sHyperTextNewLine
+			return iReturn;
 		}
 		public static bool IsLeapYear(int iYr) {
 			return (  ((iYr%4==0) && (iYr%100!=0))  ||  (iYr%400==0)  );
@@ -76,6 +99,9 @@ namespace classifoo {
 			}
 			return sReturn;
 		}//end UrlToShortName(sUrl,bToHtmlFilename)
+		public bool Save() {
+			return Save(sFile);
+		}
 		public bool Save(string sToFile) {
 			StreamWriter swX=null;
 			bool bGood=false;
@@ -86,8 +112,7 @@ namespace classifoo {
 				bGood=true;
 			}
 			catch (Exception exn) {
-				Console.Error.WriteLine("Error saving HyperText: ");
-				Console.Error.WriteLine(exn.ToString());
+				RReporting.ShowExn(exn,"saving hypertext");
 				bGood=false;
 			}
 			return bGood;
@@ -105,9 +130,7 @@ namespace classifoo {
 				sReturn=srResponse.ReadToEnd();
 			}
 			catch (Exception exn) {
-				Console.Error.WriteLine("Error in UrlToData(\""+sUrl+"\"):");
-				Console.Error.WriteLine(exn.ToString());
-				Console.Error.WriteLine();
+				RReporting.ShowExn(exn,"downloading file","UrlToData(\""+sUrl+"\"):");
 			}
 			return sReturn;
 		}//end UrlToData
@@ -127,7 +150,7 @@ namespace classifoo {
 				if (iMo<=12&&iMo>0) sReturn=sarrMo[iMo-1];
 			}
 			catch (Exception exn) {
-				Console.Error.WriteLine(exn.ToString());
+				RReporting.ShowExn(exn);
 			}
 			return sReturn;
 		}//end NumToMonth
@@ -159,9 +182,7 @@ namespace classifoo {
 				}
 			}
 			catch (Exception exn) {
-				Console.Error.WriteLine("Error grabbing date:");
-				Console.Error.WriteLine(exn.ToString());
-				Console.Error.WriteLine();
+				RReporting.ShowExn(exn,"grabbing date");
 			}
 			return bFound;
 		}//end GetDateCL
@@ -215,9 +236,7 @@ namespace classifoo {
 				}//end while no url found
 			}//end try
 			catch (Exception exn) {
-				Console.Error.WriteLine("HyperText reader failed while "+sVerb+": ");
-				Console.Error.WriteLine(exn.ToString());
-				Console.Error.WriteLine();
+				RReporting.ShowExn(exn,sVerb,"Hypertext reader");
 			}
 			if (sReturn==null) {
 				iSearchLoc=sData.Length;
@@ -226,48 +245,15 @@ namespace classifoo {
 			return sReturn;
 		}//end GetNextUrl
 #region text manipulation
+		public string FindBetweenI(out int iFoundStart, out int iFoundLength, string sOpener, string sCloser, int iStartFrom) {//case-insensitive //aka GetBetween
+			return RString.FindBetweenI(out iFoundStart, out iFoundLength, this.sData, sOpener, sCloser, iStartFrom);
+		}
 		public string FindBetweenI(string sOpener, string sCloser) {
-			return FindBetweenI(sData,sOpener,sCloser,0); 
+			return RString.FindBetweenI(sData,sOpener,sCloser,0); 
 		}
 		public string FindBetweenI(string sOpener, string sCloser, int iStartFrom) {//case-insensitive
-			return FindBetweenI(sData,sOpener,sCloser,iStartFrom);
+			return RString.FindBetweenI(sData,sOpener,sCloser,iStartFrom);
 		}
-		public static string FindBetweenI(string sDataX, string sOpener, string sCloser, int iStartFrom) {//case-insensitive
-			string sReturn="";
-			string sVerb="starting";
-			try { //string.Compare(sDataX,sOpener,true/*ignore case*/)
-				sVerb="checking whether any data";
-				if (sDataX!=null&&sDataX.Length>0) {
-					sVerb="checking whether beyond range";
-					if (iStartFrom+sOpener.Length<sDataX.Length) {
-						sVerb="looking for opener at "+iStartFrom.ToString();
-						int iOpener=cultureinfo.CompareInfo.IndexOf(sDataX,sOpener,iStartFrom,System.Globalization.CompareOptions.IgnoreCase);
-						if (sOpener!=null) sVerb="looking for closer at "+(iOpener+sOpener.Length).ToString();
-						else sVerb="looking for closer (opener is null!)";
-						int iCloser=cultureinfo.CompareInfo.IndexOf(sDataX,sCloser,iOpener+sOpener.Length,System.Globalization.CompareOptions.IgnoreCase); //sDataX.IndexOf(sCloser,iOpener+sOpener.Length);
-						if (iOpener>-1&&iCloser>iOpener) {
-							sVerb="getting opener length";
-							iOpener+=sOpener.Length;
-							sVerb="getting substring between closer and opener";
-							sReturn=sDataX.Substring(iOpener,iCloser-iOpener);
-							sVerb="finishing";
-						}
-					}
-					else {
-						Console.WriteLine("Warning: result of search would start beyond data (looking for data after \""+sOpener+"\" at index "+iStartFrom.ToString()+" where data length is "+sDataX.Length.ToString()+")");
-					}
-				}//end if any data
-				else {
-					Console.WriteLine("Warning: no data to search (looking for data after \""+sOpener+"\")");
-				}
-			}
-			catch (Exception exn) {
-				Console.Error.WriteLine("Error scraping value while "+sVerb+" {"+StringToDebugProperty("sDataX",sDataX)+"; "+StringToDebugProperty("sOpener",sOpener)+";"+StringToDebugProperty("sCloser",sCloser)+"; iStartFrom:"+iStartFrom.ToString()+"}:");
-				Console.Error.WriteLine(exn.ToString());
-				Console.Error.WriteLine();
-			}
-			return sReturn;
-		}//end FindBetweenI
 		//DateTime dtAd=DateTime.Parse(sDate);//later version of C# also has TryParse
 		public string FindTitleCL() {
 			string sReturn="";
@@ -275,8 +261,7 @@ namespace classifoo {
 				sReturn=FindBetweenI("<title>","</title>");
 			}
 			catch (Exception exn) {
-				Console.Error.WriteLine("Error scraping value:");
-				Console.Error.WriteLine(exn.ToString());
+				RReporting.ShowExn(exn,"finding title","scraping value");
 			}
 			return sReturn;
 		}//end FindTitleCL
@@ -294,11 +279,10 @@ namespace classifoo {
 				}
 			}
 			catch (Exception exn) {
-				Console.Error.WriteLine("Error scraping value:");
-				Console.Error.WriteLine(exn.ToString());
+				RReporting.ShowExn(exn,"scraping value");
 			}
 			return sReturn;
-		}//end 
+		}//end FindCostCL
 		public string FindEmailCL() {
 			string sReturn="";
 			try {
@@ -312,7 +296,7 @@ namespace classifoo {
 				Console.Error.WriteLine(exn.ToString());
 			}
 			return sReturn;
-		}//end 
+		}//end FindEmailCL
 		public string FindDateCL() {
 			string sReturn="";
 			try {
@@ -336,7 +320,7 @@ namespace classifoo {
 				Console.Error.WriteLine(exn.ToString());
 			}
 			return sReturn;
-		}//end 
+		}//end FindDescriptionCL
 		
 		public string FindPostingIDCL() {
 			string sReturn="";
@@ -349,7 +333,7 @@ namespace classifoo {
 				Console.Error.WriteLine(exn.ToString());
 			}
 			return sReturn;
-		}//end 
+		}//end FindPostingIDCL
 		//extract (<li> text)
 		/*
 		public string FindLocationCL() {
@@ -380,7 +364,7 @@ namespace classifoo {
 				Console.Error.WriteLine(exn.ToString());
 			}
 			return sReturn;
-		}//end 
+		}//end FindLocationCL
 		public string FindCompensationCL() {//"<li> Compensation: " list item OR check title for "$"
 			string sReturn="";
 			try {
@@ -392,7 +376,7 @@ namespace classifoo {
 				Console.Error.WriteLine(exn.ToString());
 			}
 			return sReturn;
-		}//end 
+		}//end FindCompensationCL
 		public bool FindIfIsContractCL() {//"This is a contract job" OR category=~"gig"
 			bool bReturn=false;
 			try {
@@ -418,16 +402,8 @@ namespace classifoo {
 				Console.Error.WriteLine(exn.ToString());
 			}
 			return bReturn;
-		}//end
-		public static readonly char[] carrDigit=new char[] {'0','1','2','3','4','5','6','7','8','9'};
-		public static bool IsDigit(char cNow) {
-			for (int iNow=0; iNow<carrDigit.Length; iNow++) {
-				if (carrDigit[iNow]==cNow) return true;
-			}
-			return false;
-		}
+		}//end FindIfIsNoCallsCL
 		public string FindPhone() {
-			
 			string sReturn="";
 			int iFound=-1;
 			int iLen=0;
@@ -457,11 +433,11 @@ namespace classifoo {
 					else if (Char.IsLetterOrDigit(sData[iStart])) {
 						if ( Char.IsLetterOrDigit(sData[iStart+1])
 						  && Char.IsLetterOrDigit(sData[iStart+2])
-						  &&        (sData[iStart+3]=='-'||sData[iStart+3]=='.'||sData[iStart+3]==' ')
+						  &&		(sData[iStart+3]=='-'||sData[iStart+3]=='.'||sData[iStart+3]==' ')
 						  && Char.IsLetterOrDigit(sData[iStart+4])
 						  && Char.IsLetterOrDigit(sData[iStart+5])
 						  && Char.IsLetterOrDigit(sData[iStart+6])
-						  &&        (sData[iStart+7]=='-'||sData[iStart+7]=='.'||sData[iStart+7]==' ')
+						  &&		(sData[iStart+7]=='-'||sData[iStart+7]=='.'||sData[iStart+7]==' ')
 						  && Char.IsLetterOrDigit(sData[iStart+8])
 						  && Char.IsLetterOrDigit(sData[iStart+9])
 						  && Char.IsLetterOrDigit(sData[iStart+10])
@@ -500,9 +476,9 @@ namespace classifoo {
 					if (iEx>0) {
 						//if found text indicating that there is an extension, find the additional numbers:
 						int iExLen=0;
-						while ( IsDigit(sData[iEx+iExLen])
-						     || sData[iEx+iExLen]==' '
-						     || sData[iEx+iExLen]=='.'
+						while ( char.IsDigit(sData[iEx+iExLen])
+							 || sData[iEx+iExLen]==' '
+							 || sData[iEx+iExLen]=='.'
 								) {
 							iExLen++;
 							if (iEx+iExLen>=sData.Length) break;
@@ -512,11 +488,10 @@ namespace classifoo {
 				}//end if found phone number
 			}//end try
 			catch (Exception exn) {
-				Console.Error.WriteLine("Error scraping value:");
-				Console.Error.WriteLine(exn.ToString());
+				RReporting.ShowExn(exn,"scraping value");
 			}
 			return sReturn;
-		}//end 
+		}//end FindPhone
 		//extract extra:
 		public static readonly char[] carrValidEmailSymbolsExceptAtSign=new char[] {'!','#','$','%','*','/','?','|','^','{','}','`','~','&','\'','+','-','=','_','.'};
 		public static bool IsValidEmailCharNonAtSign(char cNow) {
@@ -551,13 +526,12 @@ namespace classifoo {
 				}//end if still haven't found an extra/nonstandard e-mail address so dig deeper
 			}
 			catch (Exception exn) {
-				Console.Error.WriteLine("Error scraping value:");
-				Console.Error.WriteLine(exn.ToString());
+				RReporting.ShowExn(exn,"scraping value");
 			}
 			return sReturn;
 		}//end 
 		public static bool IsValidFaxCharacter(char cNow) {
-			return IsDigit(cNow)||cNow==':'||cNow=='('||cNow==')'||cNow==' '||cNow=='.';
+			return char.IsDigit(cNow)||cNow==':'||cNow=='('||cNow==')'||cNow==' '||cNow=='.';
 		}
 		public string FindFax() {
 			string sReturn="";
@@ -577,8 +551,7 @@ namespace classifoo {
 				}
 			}
 			catch (Exception exn) {
-				Console.Error.WriteLine("Error scraping value:");
-				Console.Error.WriteLine(exn.ToString());
+				RReporting.ShowExn(exn,"scraping value");
 			}
 			return sReturn;
 		}//end 
@@ -633,8 +606,7 @@ namespace classifoo {
 				}
 			}
 			catch (Exception exn) {
-				Console.Error.WriteLine("Error scraping value:");
-				Console.Error.WriteLine(exn.ToString());
+				RReporting.ShowExn(exn,"scraping value");
 			}
 			return sReturn;
 		}//end 
@@ -644,8 +616,7 @@ namespace classifoo {
 				//TODO: find company name
 			}
 			catch (Exception exn) {
-				Console.Error.WriteLine("Error scraping value:");
-				Console.Error.WriteLine(exn.ToString());
+				RReporting.ShowExn(exn,"scraping value");
 			}
 			return sReturn;
 		}//end 
@@ -669,8 +640,7 @@ namespace classifoo {
 				} while (iStart>-1);
 			}
 			catch (Exception exn) {
-				Console.Error.WriteLine("Error scraping value:");
-				Console.Error.WriteLine(exn.ToString());
+				RReporting.ShowExn(exn,"scraping value");
 			}
 			return sReturn;
 		}//end 
@@ -680,8 +650,7 @@ namespace classifoo {
 				if (cultureinfo.CompareInfo.IndexOf(sData,"OK for recruiters to contact this job poster",System.Globalization.CompareOptions.IgnoreCase)>-1) bReturn=true;
 			}
 			catch (Exception exn) {
-				Console.Error.WriteLine("Error scraping value:");
-				Console.Error.WriteLine(exn.ToString());
+				RReporting.ShowExn(exn,"scraping value");
 			}
 			return bReturn;
 		}//end 
@@ -691,8 +660,7 @@ namespace classifoo {
 				if (cultureinfo.CompareInfo.IndexOf(sData,"it's NOT ok to contact this poster with services",System.Globalization.CompareOptions.IgnoreCase)>-1) bReturn=true;
 			}
 			catch (Exception exn) {
-				Console.Error.WriteLine("Error scraping value:");
-				Console.Error.WriteLine(exn.ToString());
+				RReporting.ShowExn(exn,"scraping value");
 			}
 			return bReturn;
 		}//end FindIfNoCommercialInterestsCL
@@ -702,8 +670,7 @@ namespace classifoo {
 				sReturn=FindBetweenI("img src=\"","\"");
 			}
 			catch (Exception exn) {
-				Console.Error.WriteLine("Error scraping value:");
-				Console.Error.WriteLine(exn.ToString());
+				RReporting.ShowExn(exn,"scraping value");
 			}
 			return sReturn;
 		}//end FindImageUrl
@@ -721,11 +688,10 @@ namespace classifoo {
 				}
 			}
 			catch (Exception exn) {
-				Console.Error.WriteLine("Error parsing url encoding:");
-				Console.Error.WriteLine(exn.ToString());
+				RReporting.ShowExn(exn,"parsing url encoding");
 			}
 			return sReturn;
-		}
+		}//end DecodePercentEncoding
 		public static string DecodeEntities(string sDataX) {
 			string sReturn=sDataX;
 			try {
@@ -752,8 +718,7 @@ namespace classifoo {
 				}//end while has html entity openers and closers
 			}
 			catch (Exception exn) {
-				Console.Error.WriteLine("Error decoding html entities:");
-				Console.Error.WriteLine(exn.ToString());
+				RReporting.ShowExn(exn,"decoding html entities");
 			}
 			return sReturn;
 		}//end DecodeEntities
@@ -794,66 +759,8 @@ namespace classifoo {
 
 #region utilities
 		private void DetectNewLine() {
-			sNewLine=DetectNewLine(sData);
+			sHyperTextNewLine=RString.DetectNewLine(sData);
 		}
-		public static string DetectNewLine(string sDataX) {
-			string sReturn="";
-			int iNow;
-			int iLoc;
-			int iUsedMethods=0;
-			if (sDataX!=null&&sDataX.Length>0&&sPossibleNewLineChars!=null&&sPossibleNewLineChars.Length>0) {
-				bool[] barrUsed=new bool[sPossibleNewLineChars.Length];
-				for (iNow=0; iNow<barrUsed.Length; iNow++) barrUsed[iNow]=false;
-				for (iNow=0; iNow<sDataX.Length; iNow++) {
-					for (int iMethod=0; iMethod<sPossibleNewLineChars.Length; iMethod++) {
-						if ( sDataX[iNow]==sPossibleNewLineChars[iMethod] && !barrUsed[iMethod] ) {
-							sReturn+=sDataX[iNow];
-							barrUsed[iMethod]=true;
-							iUsedMethods++;
-							break;
-						}
-					}
-					if (iUsedMethods>=sPossibleNewLineChars.Length) break;
-				}
-			}
-			return sReturn;
-		}//this is just to blow your mind
-		public static int MinVal(int[] arrVal) {
-			int val=int.MaxValue;//error condition
-			if (arrVal!=null) {
-				for (int iNow=0; iNow<arrVal.Length; iNow++) {
-					if (arrVal[iNow]<val) val=arrVal[iNow];
-				}
-			}
-			return val;
-		}//end MinVal
-		public static int MaxVal(int[] arrVal) {
-			int val=int.MinValue;//error condition
-			if (arrVal!=null) {
-				for (int iNow=0; iNow<arrVal.Length; iNow++) {
-					if (arrVal[iNow]>val) val=arrVal[iNow];
-				}
-			}
-			return val;
-		}//end MaxVal
-		public static int MinPosVal(int[] arrVal) {
-			int val=int.MaxValue;//error condition
-			if (arrVal!=null) {
-				for (int iNow=0; iNow<arrVal.Length; iNow++) {
-					if ( arrVal[iNow]>=0 && arrVal[iNow]<val ) val=arrVal[iNow];
-				}
-			}
-			return val;
-		}//end MinPosVal
-		public static int MaxPosVal(int[] arrVal) {
-			int val=0;//error condition
-			if (arrVal!=null) {
-				for (int iNow=0; iNow<arrVal.Length; iNow++) {
-					if ( /*arrVal[iNow]>=0 && */ arrVal[iNow]>val ) val=arrVal[iNow];
-				}
-			}
-			return val;
-		}//end MaxPosVal
 		public static bool UrlToFile(string sFileX, string sUrl) {
 			bool bGood=false;
 			string sVerb="initializing";
@@ -864,7 +771,7 @@ namespace classifoo {
 			System.Net.WebResponse webrespNow = webreqNow.GetResponse();
 			int iBlockSize=32768;
 			byte[] byarrNow=new byte[iBlockSize];
-			int iCount;
+			//int iCount;
 			int iBytesFoundNow=0;
 			int iBytesTotal=0;
 			int iLastDot=Environment.TickCount;
@@ -878,7 +785,7 @@ namespace classifoo {
 							streamOut.Write(byarrNow, 0, iBytesFoundNow);
 							iBytesTotal+=iBytesFoundNow;
 							if (Environment.TickCount-iLastDot>1000) {
-								Console.Write(".");
+								Console.Error.Write(".");
 								iLastDot=Environment.TickCount;
 							}
 							bGood=true;
@@ -890,53 +797,11 @@ namespace classifoo {
 				webrespNow.Close();
 			}
 			catch (Exception exn) {
-				Console.Error.WriteLine("Error while "+sVerb+" ("+iBytesTotal.ToString()+" bytes read):");
-				Console.Error.WriteLine(exn.ToString());
+				RReporting.ShowExn(exn,sVerb,String.Format("UrlToFile(){{bytes-read:{0}}}",iBytesTotal));
 			}
 			return bGood;
 		}//end UrlToFile
-		public static string ReplaceAny(string sSrc, char[] sOld, char cNew) {
-			try {
-				if (sSrc!=null&&sOld!=null) {
-					for (int iNow=0; iNow<sSrc.Length; iNow++) {
-						for (int iChar=0; iChar<sOld.Length; iChar++) {
-							if (sSrc[iNow]==sOld[iChar]) {
-								if (iNow==0) sSrc=char.ToString(cNew)+sSrc.Substring(iNow+1);
-								else if (iNow+1<sSrc.Length) sSrc=sSrc.Substring(0,iNow)+char.ToString(cNew)+sSrc.Substring(iNow+1);
-								else sSrc=sSrc.Substring(0,iNow)+char.ToString(cNew);
-								break;
-							}
-						}
-					}
-				}
-			}
-			catch (Exception exn) {
-				Console.Error.WriteLine("Error replacing characters");
-				Console.Error.WriteLine(exn.ToString());
-			}
-			return sSrc;
-		}//end ReplaceAny(string, char[], char)
-		public static string ReplaceAny(string sSrc, string sOld, string cNew) {
-			try {
-				if (sSrc!=null&&sOld!=null) {
-					for (int iNow=0; iNow<sSrc.Length; iNow++) {
-						for (int iChar=0; iChar<sOld.Length; iChar++) {
-							if (sSrc[iNow]==sOld[iChar]) {
-								if (iNow==0) sSrc=cNew+sSrc.Substring(iNow+1);
-								else if (iNow+1<sSrc.Length) sSrc=sSrc.Substring(0,iNow)+cNew+sSrc.Substring(iNow+1);
-								else sSrc=sSrc.Substring(0,iNow)+cNew;
-								break;
-							}
-						}
-					}
-				}
-			}
-			catch (Exception exn) {
-				Console.Error.WriteLine("Error replacing string characters");
-				Console.Error.WriteLine(exn.ToString());
-			}
-			return sSrc;
-		}//end ReplaceAny(string,string,string)
+
 		public static string DirSep {
 			get {return char.ToString(Path.DirectorySeparatorChar);}
 		}
@@ -973,19 +838,19 @@ namespace classifoo {
 						if (iValEnder>iValSeperator) { //if everything is okay
 						}
 						else {
-							Base.ShowErr("Null style value in \""+sStyleWithoutCurlyBraces.Substring(iStartNow)+"\".","StyleSplit");
+							RReporting.ShowErr("Null style value in \""+sStyleWithoutCurlyBraces.Substring(iStartNow)+"\".","StyleSplit");
 							iStartNext=sStyleWithoutCurlyBraces.Substring(iValSeperator).IndexOf(";");
 							int iEnder=0;
 							bGood=false;
 							if (iStartNext>-1) {
 								iEnder=iStartNext+iValSeperator; //this is an ACTUAL location since iValSeperator was already incremented by iStartNow
-								sNameNow=Base.SafeSubstringByInclusiveEnder(sStyleWithoutCurlyBraces, iStartNow, iEnder-1);
+								sNameNow=RString.SafeSubstringByInclusiveEnder(sStyleWithoutCurlyBraces, iStartNow, iEnder-1);
 							}
 							else sNameNow="";
 							sValNow="";
 						}
-						Base.RemoveEndsSpacing(ref sValNow);
-						Base.RemoveEndsSpacing(ref sNameNow);
+						RString.RemoveEndsWhiteSpace(ref sValNow);
+						RString.RemoveEndsWhiteSpace(ref sNameNow);
 						if (sNameNow.Length>0) {
 							alNames.Add(sNameNow);
 							alValues.Add(sValNow);
@@ -994,14 +859,14 @@ namespace classifoo {
 						else {
 							if (iStartNext!=-1) {
 								iStartNext=-1;
-								Base.ShowErr("Variable name expected in: \""+sStyleWithoutCurlyBraces.Substring(iStartNow)+"\".","StyleSplit");
+								RReporting.ShowErr("Variable name expected in: \""+sStyleWithoutCurlyBraces.Substring(iStartNow)+"\".","StyleSplit");
 								bGood=false;
 							}
 						}
 					}
 					else {
 						bGood=false;
-						Base.ShowErr("Missing style colon in \""+sStyleWithoutCurlyBraces.Substring(iStartNow)+"\".","StyleSplit");
+						RReporting.ShowErr("Missing style colon in \""+sStyleWithoutCurlyBraces.Substring(iStartNow)+"\".","StyleSplit");
 						break;
 					}
 					iStartNow=iStartNext;
@@ -1018,29 +883,25 @@ namespace classifoo {
 					else {
 						bGood=false;
 						string sErr="Values/Names count do not match--";
-						Base.StyleBegin(ref sErr);
-						Base.StyleAppend(ref sErr, "alNames_Count", alNames.Count);
-						Base.StyleAppend(ref sErr, "alValues_Count", alValues.Count);
-						Base.StyleEnd(ref sErr);
-						Base.ShowErr(sErr,"StyleSplit");
+						RReporting.ShowErr(sErr,"parsing style attributes",String.Format("StyleSplit(...){{alNames.Count:{0}; alValues.Count:{1}}}",alNames.Count,alValues.Count));
 					}
 				}
 				else {
 					sarrName=null;
 					sarrValue=null;
-					Base.ShowErr("No style variables in \""+sStyleWithoutCurlyBraces+"\"!","StyleSplit");
+					RReporting.ShowErr("No style variables in \""+sStyleWithoutCurlyBraces+"\"!","StyleSplit");
 					bGood=false;
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"StyleSplit");
+				RReporting.ShowExn(exn,"StyleSplit");
 				bGood=false;
 			}
 			return bGood;
 		}//end StyleSplit
 #endregion utilities
-		//public static bool DayAdd(out int iMoReturn, out int iDayReturn, out int iYearReturn, int iMo, int iDay, int iYear, int iDayModifierPosOrNeg) {
-		//}//time math can be done with the DateTime class (convert using dt=DateTime.Parse(string))
+//public static bool DayAdd(out int iMoReturn, out int iDayReturn, out int iYearReturn, int iMo, int iDay, int iYear, int iDayModifierPosOrNeg) {
+		//}//time math can be done with the DateTime section (convert using dt=DateTime.Parse(string))
 /*
 		public static void StyleAppend(ref string sStyle, string sName, int iValue) {
 			StyleAppend(ref sStyle, sName, iValue.ToString());
@@ -1060,7 +921,14 @@ namespace classifoo {
 			sStyle+="}";
 		}
 */
-	}//end class HyperText
+	}//end section RHyperText
+
+
+/////////////////////////////////////////////////////////////////////
+//////////////////////////   CL (category tree) /////////////////////
+/////////////////////////////////////////////////////////////////////
+
+
 	public class CL {//CL category tree
 		public static CLCat[] catarr=null;
 		private static int iCats=0;
@@ -1142,8 +1010,7 @@ namespace classifoo {
 					}
 				}
 				catch (Exception exn) {
-					Console.Error.WriteLine("Error setting CL tree array length:");
-					Console.Error.WriteLine(exn.ToString());
+					RReporting.ShowExn(exn,"setting CL tree array length");
 				}
 			}//end set Length
 		}//end Length
@@ -1156,7 +1023,7 @@ namespace classifoo {
 		public static void AddCat(string sKeyX, string sNameX) {
 			AddCat(sKeyX,sNameX,"");
 		}
-	}//end class CL
+	}//end section CL
 	public class CLCat {//CL category node
 		string sKey;
 		string sName;
@@ -1187,5 +1054,5 @@ namespace classifoo {
 		public bool IsARoot() {
 			return sTags==""||sTags==null;
 		}
-	}//end class CLCat
+	}//end section CLCat
 }//end namespace

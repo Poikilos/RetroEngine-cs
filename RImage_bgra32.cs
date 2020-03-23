@@ -6,6 +6,10 @@
  * 
  * To change this template use Tools | Options | Coding | Edit Standard Headers.
  */
+ //TODO (VSHA ideas):
+ // - blend src>>1+dest>>1 if 127 OR 128
+ // - create RImageVSHA.cs but still call the object a RImage
+ // - allow combinations: 88 VA16, 844 VSH16, and 8448 VSHA24
 //TODO: (x=done)
 //-Scaling methods:
 //  -public const int ResizeLinearWithNearestSubPixelDownscaling=1;
@@ -24,18 +28,31 @@ using System.Windows.Forms;
 using System.IO;
 
 namespace ExpertMultimedia {
+
+	//public class DrawMode {
+	//	public const int CopyColor_CopyAlpha			= 0; //formerly DrawMode_CopyAlpha
+	//	public const int AlphaColor_KeepDestAlpha				= 1; //formerly DrawMode_Alpha //does NOT affect dest alpha but DOES do alpha edge of source (there is no DrawMode_AlphaAlpha)
+	//	public const int AlphaQuickEdgeColor_KeepDestAlpha	= 2; //formerly DrawMode_AlphaQuickEdge
+	//	public const int AlphaHardEdgeColor_KeepDestAlpha	= 3; //formerly DrawMode_AlphaHardEdge
+	//	public const int AlphaColor_KeepGreaterAlpha= 4; //formerly DrawMode_KeepGreaterAlpha
+	//	public const int CopyColor_KeepDestAlpha	= 5; //formerly DrawMode_KeepDestAlpha //copies color channels WITHOUT ALPHA and skips alpha
+	//}
 	/// <summary>
 	/// For simple graphics buffers used as images, variable-size frames, or graphics surfaces.
 	/// Static overlay (DrawTo) methods are called by the nonstatic (DrawFrom) equivalents
 	/// </summary>
 	public class RImage {
-		public static readonly string[] sarrDrawMode=new string[] {"DrawModeCopyAlpha", "DrawModeAlpha","DrawModeAlphaQuickEdge","DrawModeAlphaHardEdge","DrawModeGreaterAlpha","DrawModeKeepDestAlpha"};
-		public const int DrawModeCopyAlpha			= 0;
-		public const int DrawModeAlpha				= 1; //does NOT affect dest alpha (there is no DrawModeAlphaAlpha)
-		public const int DrawModeAlphaQuickEdge	= 2; //QuickEdge
-		public const int DrawModeAlphaHardEdge		= 3;
-		public const int DrawModeKeepGreaterAlpha	= 4;
-		public const int DrawModeKeepDestAlpha		= 5;
+		public static readonly string[] sarrDrawMode=new string[] {"DrawMode_CopyColor_CopyAlpha", "DrawMode_AlphaColor_KeepDestAlpha","DrawMode_AlphaQuickEdgeColor_KeepDestAlpha","DrawMode_AlphaHardEdgeColor_KeepDestAlpha","DrawMode_GreaterAlpha","DrawMode_CopyColor_KeepDestAlpha"};
+		public static RImage MegaDebug_Layer=null;
+
+		//TODO: eliminate DrawMode_ constants in favor of ROverlay (allowing alpha alpha and color alpha separately):
+		public const int DrawMode_CopyColor_CopyAlpha			= 0; //formerly DrawMode_CopyAlpha
+		public const int DrawMode_AlphaColor_KeepDestAlpha				= 1; //formerly DrawMode_Alpha //does NOT affect dest alpha but DOES do alpha edge of source (there is no DrawMode_AlphaAlpha)
+		public const int DrawMode_AlphaQuickEdgeColor_KeepDestAlpha	= 2; //formerly DrawMode_AlphaQuickEdge
+		public const int DrawMode_AlphaHardEdgeColor_KeepDestAlpha	= 3; //formerly DrawMode_AlphaHardEdge
+		public const int DrawMode_AlphaColor_KeepGreaterAlpha= 4; //formerly DrawMode_KeepGreaterAlpha
+		public const int DrawMode_CopyColor_KeepDestAlpha	= 5; //formerly DrawMode_KeepDestAlpha //copies color channels WITHOUT ALPHA and skips alpha
+		
 		public const int ScaleModeLinear				= 0;
 		private const int INDEX_TL=0;
 		private const int INDEX_TR=1;
@@ -74,7 +91,7 @@ namespace ExpertMultimedia {
 				return iHeight;
 			}
 		}
-		public static int DrawModes {
+		public static int DrawMode_s {
 			get {
 				return (sarrDrawMode!=null)?sarrDrawMode.Length:0;
 			}
@@ -100,31 +117,64 @@ namespace ExpertMultimedia {
 			}
 		}
 		public RImage(int iWidthNow, int iHeightNow) {
-			Init(iWidthNow, iHeightNow, 4, true);
+			Init(iWidthNow, iHeightNow, 4, true,true,true);
 		}
 		public RImage(int iWidthNow, int iHeightNow, int iBytesPPNow) {
-			Init(iWidthNow, iHeightNow, iBytesPPNow, true);
+			Init(iWidthNow, iHeightNow, iBytesPPNow, true,true,true);
 		}
-		public RImage(int iWidthNow, int iHeightNow, int iBytesPPNow, bool bInitializeBuffer) {
-			Init(iWidthNow, iHeightNow, iBytesPPNow, bInitializeBuffer);
+		public RImage(int iWidthNow, int iHeightNow, int iBytesPPNow, bool bCreateBufferIfNull) {
+			Init(iWidthNow, iHeightNow, iBytesPPNow, bCreateBufferIfNull, true,true);
 		}
-		public void Init(int iWidthNow, int iHeightNow, int iBytesPPNow, bool bInitializeBuffer) {
+		public void SetDimensions(int iWidthNow, int iHeightNow, int iBytesPPNow, bool ClearIfCreatedBuffer, bool ClearIfDidNotCreateBuffer) {
+			Init(iWidthNow, iHeightNow, iBytesPPNow,true,ClearIfCreatedBuffer, ClearIfDidNotCreateBuffer);
+		}
+		/// <summary>
+		/// Only initializes buffer if needed
+		/// </summary>
+		/// <param name="iWidthNow"></param>
+		/// <param name="iHeightNow"></param>
+		/// <param name="iBytesPPNow"></param>
+		/// <param name="bCreateBuffer"></param>
+		/// <param name="bCreateBuffer"></param>
+		public void Init(int iWidthNow, int iHeightNow, int iBytesPPNow, bool CreateBufferIfNull, bool ClearIfCreatedBuffer, bool ClearIfDidNotCreateBuffer) {
+			if (iWidthNow<=0) {
+				RReporting.ShowErr("iWidthNow:"+iWidthNow+" reverting to 1");
+				iWidthNow=1;
+			}
+			if (iHeightNow<=0) {
+				RReporting.ShowErr("iHeightNow:"+iHeightNow+" reverting to 1");
+				iHeightNow=1;
+			}
+			if (iBytesPPNow<=0) {
+				RReporting.ShowErr("iBytesPPNow:"+iBytesPPNow+" reverting to 1");
+				iBytesPPNow=1;
+			}
 			iBytesPP=iBytesPPNow;
 			iWidth=iWidthNow;
 			iHeight=iHeightNow;
 			iStride=iWidth*iBytesPP;
 			iBytesTotal=iStride*iHeight;
 			iPixelsTotal=iWidth*iHeight;
-			if (bInitializeBuffer) {
+			if (CreateBufferIfNull) {
 				try {
-					bool bClear=true;
-					if (byarrData==null||byarrData.Length!=iBytesTotal) {
-						byarrData=new byte[iBytesTotal];
-						bClear=false;
+					bool bBufferWasCreated=false;
+					byte byFill=0;
+					uint uiFill=0;
+					if (iBytesTotal>0&&(iBytesTotal>=iPixelsTotal*iBytesPP)) {
+						if (byarrData==null||byarrData.Length!=iBytesTotal) {
+							byarrData=new byte[iBytesTotal];
+							bBufferWasCreated=true;
+						}
+						
+						if ( (bBufferWasCreated&&ClearIfCreatedBuffer)
+							|| (!bBufferWasCreated&&ClearIfDidNotCreateBuffer) ) {
+							if (iBytesPP==4) RMemory.Fill(ref byarrData,uiFill,0,iPixelsTotal);
+							else RMemory.Fill(ref byarrData,byFill,0,iBytesTotal);
+						}
 					}
-					if (bClear) {
-						if (iBytesPP==4) RMemory.Fill(ref byarrData,(uint)0,0,iPixelsTotal);
-						else RMemory.Fill(ref byarrData,(byte)0,0,iBytesTotal);
+					else {
+						byarrData=null;
+						RReporting.ShowErr("Fatal bitmap description problem initializing image","creating buffer","rimage Init");
 					}
 				}
 				catch (Exception exn) {
@@ -133,13 +183,22 @@ namespace ExpertMultimedia {
 					iPixelsTotal=0;
 				}
 			}
-			rpaintFore.SetArgb(255,255,0,128);
+			//this.rpaintFore.SetArgb(255,255,0,128);
 		}//end Init
+		public static bool IsOkImage(RImage rimageSrc) {
+			return (rimageSrc!=null)&&rimageSrc.IsOk;
+		}
 		public bool IsOk {
 			get {
 				bool bGood=false;
 				try {
-					if (byarrData!=null) byarrData[0]=byarrData[0];
+					if (byarrData!=null) {
+						if (byarrData.Length>0) {
+							byarrData[0]=byarrData[0];
+							bGood=true;
+						}
+						else bGood=false;
+					}
 					else bGood=false;
 				}
 				catch {
@@ -168,7 +227,7 @@ namespace ExpertMultimedia {
 		public bool CopyTo(ref RImage riReturn) {
 			bool bGood=false;
 			try {
-				if (riReturn==null||!IsLike(riReturn)) riReturn=new RImage(iWidth,iHeight,iBytesPP);
+				if (riReturn==null||!IsInStrideWithAndSameSizeAs(riReturn)) riReturn=new RImage(iWidth,iHeight,iBytesPP);
 				for (int iNow=0; iNow<iBytesTotal; iNow++) {
 					riReturn.byarrData[iNow]=byarrData[iNow];
 				}
@@ -196,7 +255,7 @@ namespace ExpertMultimedia {
 			bool bGood=false;
 			try {
 				if (riReturn==null
-				    || riReturn.iBytesTotal!=width*height*this.iBytesPP
+					|| riReturn.iBytesTotal!=width*height*this.iBytesPP
 				   ) {
 					riReturn=new RImage(width,height,this.iBytesPP);
 				}
@@ -206,7 +265,8 @@ namespace ExpertMultimedia {
 				riReturn.iStride=width*this.iBytesPP;
 				riReturn.iPixelsTotal=width*height;
 				riReturn.iBytesTotal=riReturn.iStride*height;
-				riReturn.DrawFrom(0,0,(float)width,(float)height,this,RImage.DrawModeCopyAlpha);
+				
+				riReturn.DrawFrom(0,0,(float)width,(float)height,this,ROverlay.CopyChannels());
 				//rpaintFore=riReturn.rpaintFore.Copy(); //commented since static
 				//rpaintBack=riReturn.rpaintBack.Copy(); //commented since static
 				riReturn.sPathFileBaseName=sPathFileBaseName+" (Copy)";
@@ -268,6 +328,25 @@ namespace ExpertMultimedia {
 
 
 		#region Draw methods (all should have nonstatic versions)
+		private const int MegaDebugLayer_BytesPPDesired=4;
+		private static void PrepareMegaDebugLayer(RImage riThisBigOrBigger) {
+			if (riThisBigOrBigger!=null) {
+				if (MegaDebug_Layer==null) {
+					MegaDebug_Layer=new RImage(riThisBigOrBigger.iWidth,riThisBigOrBigger.iHeight, MegaDebugLayer_BytesPPDesired,true);
+				}
+				else if (MegaDebug_Layer.Width<riThisBigOrBigger.Width||MegaDebug_Layer.Height<riThisBigOrBigger.Height) {
+					int iMaxW=(MegaDebug_Layer.Width>riThisBigOrBigger.Width)?MegaDebug_Layer.Width:riThisBigOrBigger.Width;
+					int iMaxH=(MegaDebug_Layer.Height>riThisBigOrBigger.Height)?MegaDebug_Layer.Height:riThisBigOrBigger.Height;
+					RImage riTemp=MegaDebug_Layer;
+					MegaDebug_Layer=new RImage(iMaxW,iMaxH,MegaDebugLayer_BytesPPDesired,true);
+					RImage.DrawToLargerNoClipCopyAlpha(ref MegaDebug_Layer, RMath.ipZero, ref riTemp);
+				}
+			}
+			else {
+				RReporting.ShowErr("PrepareMegaDebugLayer: Sample image was null");
+				MegaDebug_Layer=new RImage(777,777,MegaDebugLayer_BytesPPDesired);
+			}
+		}
 		/// <summary>
 		/// Primary Scaled Drawing Method (float version).
 		/// Does NOT check boundaries!  Use DrawFrom for automatic cropping.
@@ -286,7 +365,7 @@ namespace ExpertMultimedia {
 		/// <param name="from_Height"></param>
 		/// <param name="iDrawMode"></param>
 		/// <returns></returns>
-		public static bool DrawTo(RImage destination, float to_X, float to_Y, float to_W, float to_H, RImage source, float from_X, float from_Y, float from_W, float from_H, int iDrawMode) {
+		public static bool DrawTo(RImage destination, float to_X, float to_Y, float to_W, float to_H, RImage source, float from_X, float from_Y, float from_W, float from_H, ROverlay overlayoptions) {
 			//TODO: only initialize vars that are used by error output?
 			//-OR OPTION 2 make all of these vars static to prevent re-allocation slowness
 			bool bGood=false;
@@ -321,7 +400,7 @@ namespace ExpertMultimedia {
 			float fyRoundedSrcNearestT=0.0f;
 			float fxRoundedSrcNearestR=0.0f;
 			float fyRoundedSrcNearestB=0.0f;
-			bool bFourCorner=false;
+			//bool bFourCorner=false;
 			int indexSrcNearestTL=0;
 			int indexSrcNearestTR=0;
 			int indexSrcNearestBL=0;
@@ -363,11 +442,16 @@ namespace ExpertMultimedia {
 			int iSrcStart_TL=0;
 			int iSrcStart_BR=0;
 			try {
-				RReporting.sParticiple="setting primary resampling variables";
-				if (destination.iBytesPP!=4||source.iBytesPP!=4) {
-					RReporting.ShowErr("Source and destination must be 32-bit for DrawTo Primary Scaled Drawing Method!");
-					return false;
+				RReporting.sParticiple="checking images";
+				if ( destination!=null && (destination.iBytesPP!=4||source.iBytesPP!=4) ) {
+					if (RReporting.bDebug) RReporting.Warning("Anything other than 32-bit Source and destination for DrawTo Primary Scaled Drawing Method is experimental!");
+					//return false;
 				}
+				if (source==null) throw new ApplicationException("Null source image");
+				else if (source.byarrData==null) throw new ApplicationException("Null pixel buffer in source");
+				else if (source.byarrData.Length<source.iBytesTotal) throw new ApplicationException("pixel buffer Length in source is 0");
+				else if (source.iBytesTotal<source.iWidth*source.iHeight*source.iBytesPP) throw new ApplicationException("pixel buffer Length in source is less than dimensions times channels");
+				RReporting.sParticiple="setting primary resampling variables";
 				//RImage.rpaintFore.SetArgb(255,0,0,0);
 				//destination.DrawRect(RConvert.ToInt(from_X)+2,RConvert.ToInt(from_Y)+2,RConvert.ToInt(from_W)-2,RConvert.ToInt(from_H)-2);
 				//RImage.rpaintFore.SetArgb(255,255,0,0);
@@ -423,9 +507,11 @@ namespace ExpertMultimedia {
 					RReporting.ShowErr("Drawing non-precropped dest rect is causing inaccurate out-of-range bottom edge!","drawing scaled after clipping {iDestRect_B:"+iDestRect_B.ToString()+"; iDestRect_T:"+iDestRect_T.ToString()+"}","DrawTo(RImage,float,...)");
 					iDestRect_B=iDestRect_T;
 				}
+				
 				RReporting.sParticiple="done setting primary resampling variables {iDestRect_L:"+iDestRect_L+"; iDestRect_T:"+iDestRect_T+"; iDestRect_R:"+iDestRect_R+"; iDestRect_B:"+iDestRect_R+"}";
 				if (RReporting.bMegaDebug) {
-					RReporting.sParticiple="drawing debug marks";
+					RReporting.sParticiple="drawing debug marks to RImage.MegaDebug_Layer";
+					PrepareMegaDebugLayer(destination);
 					RImage.rpaintFore.SetArgb(255,255,0,0);
 					int iDebugRect_L=iDestRect_L;//RMath.IRound(to_X);
 					int iDebugRect_T=iDestRect_T;//RMath.IRound(to_Y);
@@ -434,25 +520,25 @@ namespace ExpertMultimedia {
 					if (iDebugRect_T-1>=0) {
 						if (iDebugRect_L-1>=0) {
 							//TL
-							destination.DrawHorzLine(iDebugRect_L-1,iDebugRect_T-1,3);
-							destination.DrawVertLine(iDebugRect_L-1,iDebugRect_T,2);
+							MegaDebug_Layer.DrawHorzLine(iDebugRect_L-1,iDebugRect_T-1,3);
+							MegaDebug_Layer.DrawVertLine(iDebugRect_L-1,iDebugRect_T,2);
 						}
-						if (iDebugRect_R+1<destination.Width) {
+						if (iDebugRect_R+1<MegaDebug_Layer.Width) {
 							//TR
-							destination.DrawHorzLine(iDebugRect_R-1,iDebugRect_T-1,3);//R-1 since rect is inclusive and line is 3 long
-							destination.DrawVertLine(iDebugRect_R+1,iDebugRect_T,2);
+							MegaDebug_Layer.DrawHorzLine(iDebugRect_R-1,iDebugRect_T-1,3);//R-1 since rect is inclusive and line is 3 long
+							MegaDebug_Layer.DrawVertLine(iDebugRect_R+1,iDebugRect_T,2);
 						}
 					}
-					if (iDebugRect_B+1<destination.Height) {
+					if (iDebugRect_B+1<MegaDebug_Layer.Height) {
 						if (iDebugRect_L-1>=0) {
 							//BL
-							destination.DrawHorzLine(iDebugRect_L-1,iDebugRect_B+1,3);
-							destination.DrawVertLine(iDebugRect_L-1,iDebugRect_B,2);
+							MegaDebug_Layer.DrawHorzLine(iDebugRect_L-1,iDebugRect_B+1,3);
+							MegaDebug_Layer.DrawVertLine(iDebugRect_L-1,iDebugRect_B,2);
 						}
-						if (iDebugRect_R+1<destination.Width) {
+						if (iDebugRect_R+1<MegaDebug_Layer.Width) {
 							//BR
-							destination.DrawHorzLine(iDebugRect_R-1,iDebugRect_B+1,3);//R-1 since rect is inclusive and line is 3 long
-							destination.DrawVertLine(iDebugRect_R+1,iDebugRect_B,2);
+							MegaDebug_Layer.DrawHorzLine(iDebugRect_R-1,iDebugRect_B+1,3);//R-1 since rect is inclusive and line is 3 long
+							MegaDebug_Layer.DrawVertLine(iDebugRect_R+1,iDebugRect_B,2);
 						}
 					}
 					RImage.rpaintFore.SetArgb(255,255,255,0);
@@ -461,24 +547,24 @@ namespace ExpertMultimedia {
 					float CaddyCorner_R=to_R+.5f;//+.5 to be around not inside
 					float CaddyCorner_B=to_B+.5f;//+.5 to be around not inside
 					
-					if (CaddyCorner_L>=0&&CaddyCorner_T>=0) destination.DrawVectorDot(CaddyCorner_L,CaddyCorner_T);
-					if (CaddyCorner_R<fDestW-.5&&CaddyCorner_B<fDestH-.5) destination.DrawVectorDot(CaddyCorner_R,CaddyCorner_B);
+					if (CaddyCorner_L>=0&&CaddyCorner_T>=0) MegaDebug_Layer.DrawVectorDot(CaddyCorner_L,CaddyCorner_T);
+					if (CaddyCorner_R<fDestW-.5&&CaddyCorner_B<fDestH-.5) MegaDebug_Layer.DrawVectorDot(CaddyCorner_R,CaddyCorner_B);
 				}//end if bMegaDebug
 				
 				
-				RReporting.sParticiple="calculating scaling resampling variables from sizes {from_W:"+from_W+"; from_H:"+from_H+"; to_W:"+to_W+"; to_H:"+to_H+"}";
+				RReporting.sParticiple="calculating scale from rectangles {from_W:"+from_W+"; from_H:"+from_H+"; to_W:"+to_W+"; to_H:"+to_H+"}";
 				//xScale=to_W/from_W;
 				//xScale=to_H/from_H;
 				xInverseScale=from_W/to_W;//how much source should be incremented per every 1.0 destination pixel i.e. if upscaling to a bigger width, need to move smaller since result will cover a higher pixel count on the destination
 				yInverseScale=from_H/to_H;
-				RReporting.sParticiple="calculating destination resampling variables";
+				RReporting.sParticiple="calculating initial destination resampling variables";
 				fxDestWholeNum=(float)iDestRect_L;
 				fyDestWholeNum=(float)iDestRect_T;
 				indexWhenDestLineNowStarts=destination.XYToLocation(iDestRect_L,iDestRect_T);
 				iDestStart=indexWhenDestLineNowStarts;
-				bFourCorner=false;
+				//bFourCorner=false;
 				
-				RReporting.sParticiple="calculating source resampling variables from destination modifications {to_X:"+to_X+"; to_Y:"+to_Y+"; fxDestWholeNum:"+fxDestWholeNum+"; fyDestWholeNum:"+fyDestWholeNum+"}";
+				RReporting.sParticiple="calculating initial source resampling variables from source size and target size {to_X:"+to_X+"; to_Y:"+to_Y+"; fxDestWholeNum:"+fxDestWholeNum+"; fyDestWholeNum:"+fyDestWholeNum+"}";
 				//ixRoundedSrcPrev; int ixRoundedSrcNext; int iyRoundedSrcPrev; int iyRoundedSrcNext; //TODO: un-implement these in favor of indeces
 				//ixRoundedSrcPrev=0; ixRoundedSrcNext=0; iyRoundedSrcPrev=0; iyRoundedSrcNext=0; //TODO: start value intelligently so can be incremented intelligently
 				
@@ -491,7 +577,7 @@ namespace ExpertMultimedia {
 				fxSrcNow=fxSrcWhenLineStarts; //done at the beginning of each loop, but set redundantly now too so edge nearest pixels can be calculated before loop starts
 				fySrcNow=from_Y-(to_Y-fyDestWholeNum)*yInverseScale;
 				//NOTE: source dimensions don't have to be adjusted, because from_R and from_B are absolute and used when traversing source
-				RReporting.sParticiple="getting quadrants around point {fxSrcNow:"+fxSrcNow+"; fySrcNow:"+fySrcNow+"}";
+				RReporting.sParticiple="getting quadrants around initial point {fxSrcNow:"+fxSrcNow+"; fySrcNow:"+fySrcNow+"}";
 				//NOTE: rounded source vars are ONLY for finding nearest whole pixel locations:
 				//NOTE: -.5 becomes -1 but those (x&y) are cropped later before drawing row and pixel
 				fxRoundedSrcWhenLineStarts=RMath.Round(fxSrcWhenLineStarts);//=RMath.Round(fxSrcNow);
@@ -519,7 +605,7 @@ namespace ExpertMultimedia {
 				
 				fxRoundedSrcNearestLWhenLineStarts=fxRoundedSrcNearestL;
 				fxRoundedSrcNearestRWhenLineStarts=fxRoundedSrcNearestR;
-				RReporting.sParticiple="getting indeces for quadrants {fxSrcNow:"+fxSrcNow+"; fySrcNow:"+fySrcNow+"; fxRoundedSrcNearestL:"+fxRoundedSrcNearestL+"; fxRoundedSrcNearestR:"+fxRoundedSrcNearestR+"; fyRoundedSrcNearestT:"+fyRoundedSrcNearestT+"; fyRoundedSrcNearestB:"+fyRoundedSrcNearestB+"}";
+				RReporting.sParticiple="getting indeces for initial quadrants {fxSrcNow:"+fxSrcNow+"; fySrcNow:"+fySrcNow+"; fxRoundedSrcNearestL:"+fxRoundedSrcNearestL+"; fxRoundedSrcNearestR:"+fxRoundedSrcNearestR+"; fyRoundedSrcNearestT:"+fyRoundedSrcNearestT+"; fyRoundedSrcNearestB:"+fyRoundedSrcNearestB+"}";
 				indexSrcNearestTL=source.XYToLocation((int)fxRoundedSrcNearestL,(int)fyRoundedSrcNearestT);//ok to truncate these floats since they are whole numbers
 				indexSrcNearestTLWhenSrcLineNowStarts=indexSrcNearestTL; //modified after each line
 				indexSrcNearestTR=indexSrcNearestTL+source.iBytesPP;
@@ -557,10 +643,21 @@ namespace ExpertMultimedia {
 				//-NOW source location should be adjusted by the difference between the dest location and the dest whole number
 				//and the whole number should be used from now on.
 				//end Destination edge blending
-				RReporting.sParticiple="done setting up all resampling variables {fxRoundedSrcNearestL:"+fxRoundedSrcNearestL+"; (int)fxRoundedSrcNearestL:"+((int)fxRoundedSrcNearestL)+"; fyRoundedSrcNearestT:"+fyRoundedSrcNearestT+"; (int)fyRoundedSrcNearestT:"+((int)fyRoundedSrcNearestT)+"; fxRoundedSrcNearestR:"+fxRoundedSrcNearestR+"; fyRoundedSrcNearestB:"+fyRoundedSrcNearestB+"; indexSrcNearestTL:"+indexSrcNearestTL+"}";
-				//TODO: finish this (recoding) asdf
+				if (RReporting.bMegaDebug) RReporting.sParticiple="done setting up all resampling variables {fxRoundedSrcNearestL:"+fxRoundedSrcNearestL+"; (int)fxRoundedSrcNearestL:"+((int)fxRoundedSrcNearestL)+"; fyRoundedSrcNearestT:"+fyRoundedSrcNearestT+"; (int)fyRoundedSrcNearestT:"+((int)fyRoundedSrcNearestT)+"; fxRoundedSrcNearestR:"+fxRoundedSrcNearestR+"; fyRoundedSrcNearestB:"+fyRoundedSrcNearestB+"; indexSrcNearestTL:"+indexSrcNearestTL+"; indexSrcNearestTL/source.iBytesPP:"+(indexSrcNearestTL/source.iBytesPP).ToString()+"; source:"+source.Description()+"; destination:"+destination.Description()+"}";
+				//if (RReporting.bUltraDebug) {
+				//	string UltraDebug_ImageFileDest_Name="ultradebug-DrawTo(RImage,float,...).dest.png";
+				//	RReporting.sParticiple="saving "+UltraDebug_ImageFileDest_Name;
+				//	destination.Save(UltraDebug_ImageFileDest_Name,ImageFormat.Png);
+				//	string UltraDebug_ImageFileSource_Name="ultradebug-DrawTo(RImage,float,...).source.png";
+				//	RReporting.sParticiple="saving "+UltraDebug_ImageFileSource_Name;
+				//	source.Save(UltraDebug_ImageFileSource_Name,ImageFormat.Png);
+				//}
 				RReporting.sParticiple="running main resampling loop";
-				bool bShowCropMsg=true;
+				bool bUpdateDebugRowStatus=false;
+				bool RowNow_HasMsg=bUpdateDebugRowStatus;
+				bool bNeedSourceAlpha=overlayoptions.NeedsSourceAlpha;
+				int ColorDestModeDetermined=overlayoptions.ColorDestMode;
+				int AlphaDestModeDetermined=overlayoptions.AlphaDestMode;
 				for (iyDestNow=iDestRect_T; iyDestNow<=iDestRect_B; iyDestNow++) {
 					indexSrcNearestT_CroppedByNow=0;
 					indexSrcNearestB_CroppedByNow=0;
@@ -573,24 +670,6 @@ namespace ExpertMultimedia {
 					
 					//WHILE PAST ROW BOUNDARY IN SOURCE IMAGE, SKIP SOURCE ROWS:
 					//replace while loops (in x as well) with adding ceiling of difference
-/*
--3        -2        -1         0         1         2
- +--|------+---------+----|----+--|------+----|--|-+
-    a                     b       c           d  e
-
-                       a=-2.7  b=-0.5  c=0.3  d=1.5  e=2.8
-                       ======  ======  =====  =====  =====
-Floor                    -3      -1      0      1      2
-Ceiling                  -2       0      1      2      3
-Truncate                 -2       0      0      1      2
-Round (ToEven)           -3       0      0      2      3
-Round (AwayFromZero)     -3      -1      0      2      3
-
-Pax, I think you've got a mistake with: Round(AwayFromZero) -3 -2 1 2 3 Math.Round(-1.2, MidpointRounding.AwayFromZero) == -1 Math.Round(0.3, MidpointRounding.AwayFromZero)==0.0 etc.. – dtroy May 5 at 3:49
-
-Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Truncate() in .NET?" <http://stackoverflow.com/questions/14/whats-the-difference-between-math-floor-and-math-truncate-in-c/580252#580252> 2009-12-12
-
- */
  					///NOTE: CEILING rounds UP (in positive direction) even if number is negative!
  					/// - FLOOR rounds DOWN (in negative direction) even if number is negative!
  					/// - TRUNCATE rounds TOWARD ZERO regardless of sign
@@ -657,12 +736,14 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 						indexSrcNearestBL+=indexSrcNearestB_CroppedByNow;//+ a negative
 						indexSrcNearestBR+=indexSrcNearestB_CroppedByNow;//+ a negative
 					}
-					if (bShowCropMsg) {
-						RReporting.sParticiple="done cropping variables for first row iyDestNow:"+iyDestNow;
-					}
-					else {
-						RReporting.sParticiple="done cropping variables for row iyDestNow:"+iyDestNow;
-						bShowCropMsg=true;//show for first pixel of each row
+					if (bUpdateDebugRowStatus) {
+						if (RowNow_HasMsg) {
+							RReporting.sParticiple="done cropping variables for first row iyDestNow:"+iyDestNow;
+						}
+						else {
+							RReporting.sParticiple="done cropping variables for row iyDestNow:"+iyDestNow;
+							RowNow_HasMsg=true;//show for first pixel of each row
+						}
 					}
 					//if (fyRoundedSrcNearestT<0.0f) {
 					//	indexSrcNearestTL+=source.iStride;
@@ -692,7 +773,12 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 					else if (iyDestNow==iDestRect_B) {
 						fRowInness*=fRectEdgeAlpha_B;
 					}
-					RReporting.sParticiple="drawing row with interpolation {fxRoundedSrcNearestL:"+fxRoundedSrcNearestL+"; (int)fxRoundedSrcNearestL:"+((int)fxRoundedSrcNearestL)+"; fyRoundedSrcNearestT:"+fyRoundedSrcNearestT+"; (int)fyRoundedSrcNearestT:"	+((int)fyRoundedSrcNearestT)+"; fxRoundedSrcNearestR:"+fxRoundedSrcNearestR+"; fyRoundedSrcNearestB:"+fyRoundedSrcNearestB+"; indexSrcNearestTL:"+indexSrcNearestTL+"}";
+					//if (RReporting.bUltraDebug) {
+					//	string UltraDebug_ImageFileDest_Name="ultradebug-DrawTo(RImage,float,...).dest.png";
+					//	RReporting.sParticiple="saving "+UltraDebug_ImageFileDest_Name;
+					//	destination.Save(UltraDebug_ImageFileDest_Name,ImageFormat.Png);
+					//}
+					if (bUpdateDebugRowStatus) RReporting.sParticiple="drawing row with interpolation {fxRoundedSrcNearestL:"+fxRoundedSrcNearestL+"; (int)fxRoundedSrcNearestL:"+(RConvert.ToInt(fxRoundedSrcNearestL))+"; fyRoundedSrcNearestT:"+fyRoundedSrcNearestT+"; (int)fyRoundedSrcNearestT:"	+(RConvert.ToInt(fyRoundedSrcNearestT))+"; fxRoundedSrcNearestR:"+fxRoundedSrcNearestR+"; fyRoundedSrcNearestB:"+fyRoundedSrcNearestB+"; indexSrcNearestTL:"+indexSrcNearestTL+"}";
 					for (ixDestNow=iDestRect_L; ixDestNow<=iDestRect_R; ixDestNow++) {
 						indexSrcNearestL_CroppedByNow=0;
 						indexSrcNearestR_CroppedByNow=0;
@@ -765,9 +851,9 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 							indexSrcNearestTR+=indexSrcNearestR_CroppedByNow;//+ a negative
 							indexSrcNearestBR+=indexSrcNearestR_CroppedByNow;//+ a negative
 						}
-						if (bShowCropMsg) {
+						if (RowNow_HasMsg) {
 							RReporting.sParticiple="done cropping variables for pixel {indexSrcNearestL_CroppedByNow:"+indexSrcNearestL_CroppedByNow+"; indexSrcNearestT_CroppedByNow:"+indexSrcNearestT_CroppedByNow+"; indexSrcNearestR_CroppedByNow:"+indexSrcNearestR_CroppedByNow+"; indexSrcNearestB_CroppedByNow:"+indexSrcNearestB_CroppedByNow+"; indexSrcNearestTL:"+indexSrcNearestTL+"; indexSrcNearestTR:"+indexSrcNearestTR+"; indexSrcNearestBL:"+indexSrcNearestBL+"; indexSrcNearestBR:"+indexSrcNearestBR+"}";
-							bShowCropMsg=false;
+							RowNow_HasMsg=false;
 						}
 						
 						//alpha formula: (foreground*alpha + background*(max-alpha))/max
@@ -794,68 +880,205 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 						}
 						
 						//if (fInness>0.0f) {
-						switch (iDrawMode) {
-							case DrawModeCopyAlpha:
+						///if alpha is needed, get the alpha at the source subpixel
+						if (source.iBytesPP>3&&bNeedSourceAlpha) {
+							bySourceA = RMath.ByRound(  fInness  *  ( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+3]-(float)source.byarrData[indexSrcNearestTL+3])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+3])
+												  + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+3]-(float)source.byarrData[indexSrcNearestBL+3])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+3]) )  );
+						}
+						else bySourceA=255;
+						if (destination.iBytesPP>3) {
+							//if (destination.iBytesPP>3)
+								byDestA=destination.byarrData[iDest+3];
+							//else byDestA=255;
+						}
+						else byDestA=255;
+						
+						//else if (DrawMode==ROverlay.AlphaDestMode_AlphaBlend) { //aka DrawModeAlphaAlpha
+						//	if (destination.iBytesPP>3) {
+						//		if (riDest_iBytesPP>3) byDestA=destination.byarrData[iDest+3];
+						//		else byDestA=255;
+						//		if (source.iBytesPP>3) {
+						//			bySourceA = RMath.ByRound(  fInness  *  ( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+3]-(float)source.byarrData[indexSrcNearestTL+3])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+3])
+						//								  + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+3]-(float)source.byarrData[indexSrcNearestBL+3])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+3]) )  );
+						//		}
+						//		else bySourceA=255;
+						//		destination.byarrData[iDest+3]=RMath.AlphaLook[bySourceA][byDestA][bySourceA];
+						//	}
+						//	//iDrawMode=DrawMode_CopyColor_KeepDestAlpha;
+						//}//end DrawMode_AlphaColor_KeepDestAlpha (falls through to self: DrawMode_AlphaColor_KeepDestAlpha)
+						//TODO: reduce redundant code by using effective submodes determined based on mode and alpha:
+						// - then process AlphaOpNow AND ColorOpNow
+						// ColorOp_Copy, ColorOp_Skip, ColorOp_Alpha, ColorOp_QuickEdge, ColorOp_HardEdge
+						// AlphaOp_Copy, AlphaOp_AlphaAlpha, AlphaOp_Skip, AlphaOp_KeepGreater
+						iDestTemp=iDest;
+						switch (ColorDestModeDetermined) {
+							case ROverlay.ColorDestMode_AlphaQuickEdge://formerly DrawMode_AlphaQuickEdgeColor_KeepDestAlpha:
+								if (bySourceA>=170) {
+									//B (or gray)
+									destination.byarrData[iDestTemp]= RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR]-(float)source.byarrData[indexSrcNearestTL])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL])
+										 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR]-(float)source.byarrData[indexSrcNearestBL])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL]) );
+									if (destination.iBytesPP>1) {
+										iDestTemp++;
+										///G
+										destination.byarrData[iDestTemp]
+											= RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+1]-(float)source.byarrData[indexSrcNearestTL+1])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+1])
+											 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+1]-(float)source.byarrData[indexSrcNearestBL+1])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+1]) );
+										iDestTemp++;
+										///R
+										destination.byarrData[iDestTemp]
+											= RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+2]-(float)source.byarrData[indexSrcNearestTL+2])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+2])
+											 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+2]-(float)source.byarrData[indexSrcNearestBL+2])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+2]) );
+									}
+								}
+								else if (bySourceA<85) {
+									//do nothing
+								}
+								else {//else do quick (50% via bitshifting) alpha
+									///B (or gray)
+									destination.byarrData[iDestTemp]
+										=RMath.AddBytes[  (( RMath.IRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR]-(float)source.byarrData[indexSrcNearestTL])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL])
+										 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR]-(float)source.byarrData[indexSrcNearestBL])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL]) )
+										)>>1) ][ ((destination.byarrData[iDestTemp])>>1)  ];
+									if (destination.iBytesPP>1) {
+										iDestTemp++;
+										///G
+										destination.byarrData[iDestTemp]
+											=RMath.AddBytes[  (( RMath.IRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+1]-(float)source.byarrData[indexSrcNearestTL+1])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+1])
+											 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+1]-(float)source.byarrData[indexSrcNearestBL+1])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+1]) )
+											)>>1) ][ ((destination.byarrData[iDestTemp])>>1)  ];
+										iDestTemp++;
+										///R
+										destination.byarrData[iDestTemp]
+											=RMath.AddBytes[  (( RMath.IRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+2]-(float)source.byarrData[indexSrcNearestTL+2])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+2])
+											 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+2]-(float)source.byarrData[indexSrcNearestBL+2])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+2]) )
+											)>>1) ][ ((destination.byarrData[iDestTemp])>>1)  ];
+									}
+								}
+								break;
+								
+							case ROverlay.ColorDestMode_Copy://formerly DrawMode_CopyColor_CopyAlpha:
 								destination.byarrData[iDest]
-									= RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR]-(float)source.byarrData[indexSrcNearestTL])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL])
+									 = RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR]-(float)source.byarrData[indexSrcNearestTL])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL])
 									 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR]-(float)source.byarrData[indexSrcNearestBL])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL]) );
 								if (destination.iBytesPP>1) {
 									destination.byarrData[iDest+1]
 										= RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+1]-(float)source.byarrData[indexSrcNearestTL+1])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+1])
-										 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+1]-(float)source.byarrData[indexSrcNearestBL+1])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+1]) );
+										+ fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+1]-(float)source.byarrData[indexSrcNearestBL+1])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+1]) );
 									destination.byarrData[iDest+2]
 										= RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+2]-(float)source.byarrData[indexSrcNearestTL+2])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+2])
-										 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+2]-(float)source.byarrData[indexSrcNearestBL+2])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+2]) );
-								}
-								if (destination.iBytesPP>3) {
-									destination.byarrData[iDest+3] 
-										= RMath.ByRound(  fInness  *  ( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+3]-(float)source.byarrData[indexSrcNearestTL+3])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+3])
-										                  + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+3]-(float)source.byarrData[indexSrcNearestBL+3])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+3]) )  );
+										+ fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+2]-(float)source.byarrData[indexSrcNearestBL+2])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+2]) );
 								}
 								break;
-							case DrawModeAlpha:
-								iDestTemp=iDest;
-								if (destination.iBytesPP>3) {
-									bySourceA = RMath.ByRound(  fInness  *  ( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+3]-(float)source.byarrData[indexSrcNearestTL+3])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+3])
-										                  + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+3]-(float)source.byarrData[indexSrcNearestBL+3])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+3]) )  );
+				
+							//case ColorDestMode_Copy://formerly DrawMode_CopyColor_KeepDestAlpha: //behaves as though source alpha is 255
+							//	///B (or gray)
+							//	destination.byarrData[iDestTemp] 
+							//		 = RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR]-(float)source.byarrData[indexSrcNearestTL])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL])
+							//		 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR]-(float)source.byarrData[indexSrcNearestBL])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL]) );
+							//	if (destination.iBytesPP>1) {
+							//		iDestTemp++;
+							//		///G
+							//		destination.byarrData[iDestTemp] 
+							//			 = RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+1]-(float)source.byarrData[indexSrcNearestTL+1])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+1])
+							//			 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+1]-(float)source.byarrData[indexSrcNearestBL+1])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+1]) );
+							//		iDestTemp++;
+							//		///R
+							//		destination.byarrData[iDestTemp]
+							//			 = RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+2]-(float)source.byarrData[indexSrcNearestTL+2])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+2])
+							//			 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+2]-(float)source.byarrData[indexSrcNearestBL+2])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+2]) );
+							//	}
+							//	break;
+								
+							case ROverlay.ColorDestMode_AlphaBlend://formerly DrawMode_AlphaColor_KeepDestAlpha:
+								//if (source.iBytesPP>3) {
+								//	bySourceA = RMath.ByRound(  fInness  *  ( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+3]-(float)source.byarrData[indexSrcNearestTL+3])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+3])
+								//						  + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+3]-(float)source.byarrData[indexSrcNearestBL+3])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+3]) )  );
+								//}
+								//else bySourceA=255;
+								
+								if (bySourceA==255) {
+									//B (or gray)
+									destination.byarrData[iDestTemp]= RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR]-(float)source.byarrData[indexSrcNearestTL])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL])
+										 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR]-(float)source.byarrData[indexSrcNearestBL])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL]) );
+									if (destination.iBytesPP>1) {
+										iDestTemp++;
+										///G
+										destination.byarrData[iDestTemp]
+											= RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+1]-(float)source.byarrData[indexSrcNearestTL+1])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+1])
+											 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+1]-(float)source.byarrData[indexSrcNearestBL+1])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+1]) );
+										iDestTemp++;
+										///R
+										destination.byarrData[iDestTemp]
+											= RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+2]-(float)source.byarrData[indexSrcNearestTL+2])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+2])
+											 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+2]-(float)source.byarrData[indexSrcNearestBL+2])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+2]) );
+									}
 								}
-								else bySourceA=255;
-								///B (or gray)
-								destination.byarrData[iDestTemp]
-									= RMath.AlphaLook[ RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR]-(float)source.byarrData[indexSrcNearestTL])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL])
-									 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR]-(float)source.byarrData[indexSrcNearestBL])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL]) )
-									][destination.byarrData[iDestTemp]][bySourceA];
-								if (destination.iBytesPP>1) {
-									iDestTemp++;
-									///G
+								else if (bySourceA==0) {
+									//do nothing
+								}
+								else { //alpha blend
+									///B (or gray)
 									destination.byarrData[iDestTemp]
-										= RMath.AlphaLook[ RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+1]-(float)source.byarrData[indexSrcNearestTL+1])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+1])
-										 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+1]-(float)source.byarrData[indexSrcNearestBL+1])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+1]) )
+										= RMath.AlphaLook[ RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR]-(float)source.byarrData[indexSrcNearestTL])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL])
+										 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR]-(float)source.byarrData[indexSrcNearestBL])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL]) )
 										][destination.byarrData[iDestTemp]][bySourceA];
-									iDestTemp++;
-									///R
-									destination.byarrData[iDestTemp]
-										= RMath.AlphaLook[ RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+2]-(float)source.byarrData[indexSrcNearestTL+2])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+2])
-										 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+2]-(float)source.byarrData[indexSrcNearestBL+2])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+2]) )
-										][destination.byarrData[iDestTemp]][bySourceA];
+									if (destination.iBytesPP>1) {
+										iDestTemp++;
+										///G
+										destination.byarrData[iDestTemp]
+											= RMath.AlphaLook[ RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+1]-(float)source.byarrData[indexSrcNearestTL+1])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+1])
+											 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+1]-(float)source.byarrData[indexSrcNearestBL+1])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+1]) )
+											][destination.byarrData[iDestTemp]][bySourceA];
+										iDestTemp++;
+										///R
+										destination.byarrData[iDestTemp]
+											= RMath.AlphaLook[ RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+2]-(float)source.byarrData[indexSrcNearestTL+2])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+2])
+											 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+2]-(float)source.byarrData[indexSrcNearestBL+2])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+2]) )
+											][destination.byarrData[iDestTemp]][bySourceA];
+									}
 								}
 								break;
-							case DrawModeAlphaQuickEdge:
-								break;
-							case DrawModeAlphaHardEdge:
-								break;
-							case DrawModeKeepGreaterAlpha:
-								byDestA=destination.byarrData[iDest+3];
-								if (destination.iBytesPP>3) {
-									bySourceA = RMath.ByRound(  fInness  *  ( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+3]-(float)source.byarrData[indexSrcNearestTL+3])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+3])
-										                  + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+3]-(float)source.byarrData[indexSrcNearestBL+3])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+3]) )  );
+							case ROverlay.ColorDestMode_AlphaHardEdge://formerly DrawMode_AlphaHardEdgeColor_KeepDestAlpha:
+								if (bySourceA>127) {
+									//B (or gray)
+									destination.byarrData[iDestTemp]= RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR]-(float)source.byarrData[indexSrcNearestTL])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL])
+										 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR]-(float)source.byarrData[indexSrcNearestBL])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL]) );
+									if (destination.iBytesPP>1) {
+										iDestTemp++;
+										///G
+										destination.byarrData[iDestTemp]
+											= RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+1]-(float)source.byarrData[indexSrcNearestTL+1])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+1])
+											 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+1]-(float)source.byarrData[indexSrcNearestBL+1])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+1]) );
+										iDestTemp++;
+										///R
+										destination.byarrData[iDestTemp]
+											= RMath.ByRound( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+2]-(float)source.byarrData[indexSrcNearestTL+2])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+2])
+											 + fySrcNextness*(((float)source.byarrData[indexSrcNearestBR+2]-(float)source.byarrData[indexSrcNearestBL+2])*fxSrcNextness+(float)source.byarrData[indexSrcNearestBL+2]) );
+									}
 								}
-								else bySourceA=255;
-								break;
-							case DrawModeKeepDestAlpha:
+								//else //do nothing
+								
 								break;
 							default:break;
-						}//end switch (iDrawMode)
+						}//end switch (ColorDestModeDetermined)
+						
+						if (destination.iBytesPP>3) {
+							switch (AlphaDestModeDetermined) {
+								case ROverlay.AlphaDestMode_KeepGreater:
+									destination.byarrData[iDest+3]=(bySourceA>byDestA)?bySourceA:byDestA;
+									break;
+								case ROverlay.AlphaDestMode_Copy:
+									destination.byarrData[iDest+3] 
+										= bySourceA; //RMath.ByRound(  fInness  *  ( (1.0f-fySrcNextness)*(((float)source.byarrData[indexSrcNearestTR+3]-(float)source.byarrData[indexSrcNearestTL+3])*fxSrcNextness+(float)source.byarrData[indexSrcNearestTL+3])
+									break;
+								case ROverlay.AlphaDestMode_AlphaBlend:
+									destination.byarrData[iDest+3] 
+										= RMath.AlphaLook[bySourceA][byDestA][bySourceA];
+									break;
+								//case ROverlay.AlphaDestMode_KeepDestAlpha: break;//do nothing
+								default:break;
+							}
+						}
 						//}//if fInness>0.0f (if inside destination at all)
 						//}//end if iDest within range
 						//else {
@@ -875,58 +1098,6 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 						iDest+=destination.iBytesPP;
 						fxDestWholeNum+=1.0f;
 						fxSrcNow+=xInverseScale;//pSrcNow.X+=xInverseScale;
-						
-						///EVERYTHING below in this scope is OLD
-						/*
-						if (pSrcNow.X!=fxRoundedSrc) { //not precisely on column
-							if (pSrcNow.Y==fyRoundedSrc) { //precisely on row (not column)
-								bFourCorner=false;
-								//use 2 pixels in column
-								indexRoundedSrc0=XYToLocation((int)fxRoundedSrc,(int)fyRoundedSrc);
-								if (pSrcNow.X<fxRoundedSrc) {
-									indexRoundedSrc1=indexRoundedSrc0-source.iStride;
-									destination.byarrData[iDest]=(double)source.byarrData[indexRoundedSrc]; indexRoundedSrc++; //B
-									destination.byarrData[iDest]=(double)source.byarrData[indexRoundedSrc]; indexRoundedSrc++; //G
-									destination.byarrData[iDest]=(double)source.byarrData[indexRoundedSrc]; indexRoundedSrc++; //R
-									if (indexRoundedSrc1<0) { //if (pSrcNow.Y<0.0) { 
-										destination.byarrData[iDest]=(double)source.byarrData[indexRoundedSrc]  *  ( 1.0-((pSrcNow.Y>-1.0)?(0.0-pSrcNow.Y):1.0) ); //A
-									}
-									else {
-										//destination.byarrData[iDest]=(double)source.byarrData[indexRoundedSrc]+(double)source.byarrData[indexRoundedSrc];
-									}
-								}
-							}
-							else bFourCorner=true;
-						}
-						else if (pSrcNow.Y!=fyRoundedSrc) { //not precisely on row
-							if (pSrcNow.X==fxRoundedSrc) { //precisely on column (not row)
-								bFourCorner=false;
-								//use 2 pixels in row
-							}
-							else bFourCorner=true;
-						}
-						else {//else on the exact pixel
-							//use 1 pixel
-							RMemory.CopyFastVoid(destination.byarrData, source.byarrData, iDest, source.XYToLocation((int)xSourceDRound,(int)ySourceDRound), 4);//assumes 32-bit
-						}
-						if (bFourCorner) {
-							//use 4 pixels
-						}
-						//destination.byarrData[iDest]=;
-						
-						//SetMultiple(destination.byarrData,iDest,
-						//            , //B
-						//            , //G
-						//            , //R
-						//             //A
-						//           );
-						//dPixelWeightTotal=0;
-						//xSrcI=RConvert.ToInt(pSrcNow.X);
-						//ySrcI=RConvert.ToInt(pSrcNow.Y);
-						iDest+=destination.iBytesPP;  //ONLY if not incremented above
-						fxDestWholeNum+=1.0f;
-						fxSrcNow+=xInverseScale;//pSrcNow.X+=xInverseScale;
-						*/
 					}//end for ixDestNow
 					//uncrop Y axis of source resampling quads:
 					if (indexSrcNearestT_CroppedByNow!=0) {
@@ -945,6 +1116,36 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 				bGood=true;
 			}
 			catch (Exception exn) {
+				string sDestAsStyleAttrib="destination";
+				if (destination!=null) {
+					if (destination.byarrData!=null) {
+						sDestAsStyleAttrib+=".byarrData.Length:"+destination.byarrData.Length.ToString();
+					}
+					else {
+						sDestAsStyleAttrib+=".byarrData:null";
+					}
+					if (destination.sPathFileBaseName!=null&&destination.sFileExt!=null) {
+						sDestAsStyleAttrib+="; DestFile:"+destination.sPathFileBaseName+"."+destination.sFileExt;
+					}
+				}
+				else {
+					sDestAsStyleAttrib+=":null";
+				}
+				string sSrcAsStyleAttrib="source";
+				if (source!=null) {
+					if (source.byarrData!=null) {
+						sSrcAsStyleAttrib+=".byarrData.Length:"+source.byarrData.Length.ToString();
+					}
+					else {
+						sSrcAsStyleAttrib+=".byarrData:null";
+					}
+					if (source.sPathFileBaseName!=null&&source.sFileExt!=null) {
+						sSrcAsStyleAttrib+="; SourceFile:"+source.sPathFileBaseName+"."+source.sFileExt;
+					}
+				}
+				else {
+					sSrcAsStyleAttrib+=":null";
+				}
 				string sDestination_iBytesTotal=(destination!=null)?destination.iBytesTotal.ToString():"null";
 				string sSource_iBytesTotal=(source!=null)?source.iBytesTotal.ToString():"null";
 				int source_iBytesTotal=(source!=null)?source.iBytesTotal:int.MinValue;
@@ -955,48 +1156,53 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 				string sMsg="";
 				RString.StringWriteLine(ref sMsg, "drawing to scaled pre-cropped destination ("+RReporting.sParticiple+") {"
 					);RString.StringWriteLine(ref sMsg,""
-				                   +"iDestStart:"+iDestStart.ToString()+"; "
-				                   +"iDest:"+iDest.ToString()+"; "
-				                   +"destination.iBytesTotal:"+sDestination_iBytesTotal+"; "
-				                   +"destination.iBytesPP:"+((destination_iBytesPP==int.MinValue)?"(zero)":"")+destination_iBytesPP.ToString()+"; "
+								   +"iDestStart:"+iDestStart.ToString()+"; "
+								   +"iDest:"+iDest.ToString()+"; "
+								   +"iDestTemp:"+iDestTemp.ToString()+"; "
+								   +"destination.iBytesTotal:"+sDestination_iBytesTotal+"; "
+								   +sDestAsStyleAttrib+"; "
+								   +"destination.Description:"+((destination!=null)?destination.Description():"(null destination object)")+"; "
+								   +"destination.iBytesPP:"+((destination_iBytesPP==int.MinValue)?"(zero)":"")+destination_iBytesPP.ToString()+"; "
 					);RString.StringWriteLine(ref sMsg,""
-				                   +"iSrcStart_TL:"+iSrcStart_TL.ToString()+"; "
-				                   +"iSrcStart_TL/source_iBytesPP:"+(iSrcStart_TL/source_iBytesPP).ToString()+"; "
-				                   +"iSrcStart_BR:"+iSrcStart_BR.ToString()+"; "
-				                   +"iSrcStart_BR/source_iBytesPP:"+(iSrcStart_BR/source_iBytesPP).ToString()+"; "
-				                   +"indexSrcNearestTL:"+indexSrcNearestTL.ToString()+"; "
-				                   +"indexSrcNearestTR:"+indexSrcNearestTR.ToString()+"; "
-				                   +"indexSrcNearestBL:"+indexSrcNearestBL.ToString()+"; "
-				                   +"indexSrcNearestBR:"+indexSrcNearestBR.ToString()+"; "
-				                   +"source.iBytesTotal:"+sSource_iBytesTotal+"; "
-				                   +"source.iBytesPP:"+((source_iBytesPP==int.MinValue)?"(zero)":"")+source_iBytesPP.ToString()+"; "
-				                   +"indexSrcNearestTL/iBytesPP:"+(indexSrcNearestTL/source_iBytesPP).ToString()+"; "
-				                   +"indexSrcNearestTR/iBytesPP:"+(indexSrcNearestTR/source_iBytesPP).ToString()+"; "
-				                   +"indexSrcNearestBL/iBytesPP:"+(indexSrcNearestBL/source_iBytesPP).ToString()+"; "
-				                   +"indexSrcNearestBR/iBytesPP:"+(indexSrcNearestBR/source_iBytesPP).ToString()+"; "
-				                   +"source.iBytesTotal/iBytesPP:"+(source_iBytesTotal/source_iBytesPP).ToString()+"; "
+								   +"iSrcStart_TL:"+iSrcStart_TL.ToString()+"; "
+								   +"iSrcStart_TL/source_iBytesPP:"+(iSrcStart_TL/source_iBytesPP).ToString()+"; "
+								   +"iSrcStart_BR:"+iSrcStart_BR.ToString()+"; "
+								   +"iSrcStart_BR/source_iBytesPP:"+(iSrcStart_BR/source_iBytesPP).ToString()+"; "
+								   +"indexSrcNearestTL:"+indexSrcNearestTL.ToString()+"; "
+								   +"indexSrcNearestTR:"+indexSrcNearestTR.ToString()+"; "
+								   +"indexSrcNearestBL:"+indexSrcNearestBL.ToString()+"; "
+								   +"indexSrcNearestBR:"+indexSrcNearestBR.ToString()+"; "
+								   +"source.iBytesTotal:"+sSource_iBytesTotal+"; "
+								   +sSrcAsStyleAttrib+"; "
+								   +"source.Description:"+((source!=null)?source.Description():"(null source object)")+"; "
+								   +"source.iBytesPP:"+((source_iBytesPP==int.MinValue)?"(zero)":"")+source_iBytesPP.ToString()+"; "
+								   +"indexSrcNearestTL/iBytesPP:"+(indexSrcNearestTL/source_iBytesPP).ToString()+"; "
+								   +"indexSrcNearestTR/iBytesPP:"+(indexSrcNearestTR/source_iBytesPP).ToString()+"; "
+								   +"indexSrcNearestBL/iBytesPP:"+(indexSrcNearestBL/source_iBytesPP).ToString()+"; "
+								   +"indexSrcNearestBR/iBytesPP:"+(indexSrcNearestBR/source_iBytesPP).ToString()+"; "
+								   +"source.iBytesTotal/iBytesPP:"+(source_iBytesTotal/source_iBytesPP).ToString()+"; "
 					);RString.StringWriteLine(ref sMsg,""
-				                   +"to_X:"+to_X.ToString("N")+"; "
-				                   +"to_Y:"+to_Y.ToString("N")+"; "
-				                   +"to_W:"+to_W.ToString("N")+"; "
-				                   +"to_H:"+to_H.ToString("N")+"; "
+								   +"to_X:"+to_X.ToString("N")+"; "
+								   +"to_Y:"+to_Y.ToString("N")+"; "
+								   +"to_W:"+to_W.ToString("N")+"; "
+								   +"to_H:"+to_H.ToString("N")+"; "
 					);RString.StringWriteLine(ref sMsg,""
-				                   +"from_X:"+from_X.ToString("N")+"; "
-				                   +"from_Y:"+from_Y.ToString("N")+"; "
-				                   +"from_W:"+from_W.ToString("N")+"; "
-				                   +"from_H:"+from_H.ToString("N")+"; "
-				                   +"ixDestNow:"+ixDestNow.ToString()+"; "
-				                   +"iyDestNow:"+iyDestNow.ToString()+"; "
+								   +"from_X:"+from_X.ToString("N")+"; "
+								   +"from_Y:"+from_Y.ToString("N")+"; "
+								   +"from_W:"+from_W.ToString("N")+"; "
+								   +"from_H:"+from_H.ToString("N")+"; "
+								   +"ixDestNow:"+ixDestNow.ToString()+"; "
+								   +"iyDestNow:"+iyDestNow.ToString()+"; "
 					);RString.StringWriteLine(ref sMsg,""
-				                   +"fxRoundedSrcNearestL:"+fxRoundedSrcNearestL.ToString("N")+"; "
-				                   +"fyRoundedSrcNearestT:"+fyRoundedSrcNearestT.ToString("N")+"; "
-				                   +"fxRoundedSrcNearestR:"+fxRoundedSrcNearestR.ToString("N")+"; "
-				                   +"fyRoundedSrcNearestB:"+fyRoundedSrcNearestB.ToString("N")+"; "
-				                   +"fxSrcNow:"+fxSrcNow.ToString("N")+"; "
-				                   +"fySrcNow:"+fySrcNow.ToString("N")+"; "
-				                   +"fSrcW:"+fSrcW.ToString("N")+"; "
-				                   +"fSrcH:"+fSrcH.ToString("N")+"; "
-				                   +"}"
+								   +"fxRoundedSrcNearestL:"+fxRoundedSrcNearestL.ToString("N")+"; "
+								   +"fyRoundedSrcNearestT:"+fyRoundedSrcNearestT.ToString("N")+"; "
+								   +"fxRoundedSrcNearestR:"+fxRoundedSrcNearestR.ToString("N")+"; "
+								   +"fyRoundedSrcNearestB:"+fyRoundedSrcNearestB.ToString("N")+"; "
+								   +"fxSrcNow:"+fxSrcNow.ToString("N")+"; "
+								   +"fySrcNow:"+fySrcNow.ToString("N")+"; "
+								   +"fSrcW:"+fSrcW.ToString("N")+"; "
+								   +"fSrcH:"+fSrcH.ToString("N")+"; "
+								   +"}"
 					);
 				
 				RReporting.ShowExn(exn,sMsg);
@@ -1016,7 +1222,7 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 		/// <param name="rectSrc"></param>
 		/// <returns></returns>
 		public bool DrawFrom(IPoint ipDest, RImage source, IRect rectSrc) {
-			return DrawTo(this, ipDest, source, rectSrc, DrawModeCopyAlpha);
+			return DrawTo(this, ipDest, source, rectSrc, DrawMode_CopyColor_CopyAlpha);
 		}
 		/// <summary>
 		/// Calls DrawTo(RImage,IPoint,RImage,IRect,int), which DOES NOT automatically crop;
@@ -1032,13 +1238,13 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 		
 		/// <summary>
 		/// Calls DrawFrom(IPoint,RImage,int), which DOES automatically crop, then selects appropriate static method [selects DrawToLargerWithoutCropElseCancel OR DrawTo(RImage,IPoint,RImage,IRect,int)].
-		/// --DEFAULTS TO DrawModeCopyAlpha since no DrawMode is specified in this overload.
+		/// --DEFAULTS TO DrawMode_CopyColor_CopyAlpha since no DrawMode_ is specified in this overload.
 		/// </summary>
 		/// <param name="ipDest"></param>
 		/// <param name="source"></param>
 		/// <returns></returns>
 		public bool DrawFrom(IPoint ipDest, RImage source) {
-			return DrawFrom(ipDest, source, DrawModeCopyAlpha);
+			return DrawFrom(ipDest, source, DrawMode_CopyColor_CopyAlpha);
 		}
 		/// <summary>
 		/// DOES automatically crop, then calls static method [selects DrawToLargerWithoutCropElseCancel OR DrawTo(RImage,IPoint,RImage,IRect,int)].
@@ -1090,7 +1296,7 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 		}//end DrawTo
 		
 		public bool DrawFromSmallerWithoutCropElseCancel(int xDest, int yDest, RImage source) {
-			return DrawToLargerWithoutCropElseCancel(this, xDest, yDest, source, DrawModeCopyAlpha);
+			return DrawToLargerWithoutCropElseCancel(this, xDest, yDest, source, DrawMode_CopyColor_CopyAlpha);
 		}
 		public bool DrawFromSmallerWithoutCropElseCancel(int xDest, int yDest, RImage source, int iDrawMode) {
 			return DrawToLargerWithoutCropElseCancel(this, xDest, yDest, source, iDrawMode);
@@ -1098,7 +1304,7 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 		
 		///<summary>
 		///Draws riSrc to riDest if riSrc is smaller AND doesn't need to be cropped.
-		///uses RImage.rpaintFore for hue if riSrc is grayscale and riDest is RGB
+		///--if riSrc is Grayscale and riDest is RGB: Uses foreground brush (RImage.rpaintFore) for hue, gray image for alpha
 		///</summary>
 		public static bool DrawToLargerWithoutCropElseCancel(RImage riDest, int xDest, int yDest, RImage riSrc, int iDrawMode) { //formerly DrawFromSmallerWithoutCropElseCancel
 			bool bGood=true;
@@ -1117,7 +1323,7 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 				//int riSrc_iBytesPP=riSrc.iBytesPP;
 				//int riDest_iBytesPP=riDest.iBytesPP;
 				if (bShowDrawSmallerWithoutCropElseCancelMsg||RReporting.bMegaDebug) {
-					//Console.Error.Write("DrawToLargerWithoutCropElseCancel("+riDest.Description()+",("+xDest.ToString()+","+yDest.ToString()+"),"+riSrc.Description()+","+DrawModeToString(iDrawMode)+") "+(RReporting.bMegaDebug?"(bMegaDebug showing all attempts)":"(only showing first attempt)")+"...");//debug only
+					//Console.Error.Write("DrawToLargerWithoutCropElseCancel("+riDest.Description()+",("+xDest.ToString()+","+yDest.ToString()+"),"+riSrc.Description()+","+DrawMode_ToString(iDrawMode)+") "+(RReporting.bMegaDebug?"(bMegaDebug showing all attempts)":"(only showing first attempt)")+"...");//debug only
 					//Console.Error.Flush(); //debug only
 				}
 				if (!riDest.CanFit(riSrc,xDest,yDest)) {//if (riSrc.NeedsToCropToFitInto(this,xDest,yDest)) {
@@ -1135,42 +1341,61 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 					int iDestPix;
 					int iLocSrcLine=0;
 					int iSrcPix;
-					int iSrcBytesPP=riSrc.iBytesPP;
-					int iDestBytesPP=riDest.iBytesPP;
-					int iMinBytesPP=iSrcBytesPP<iDestBytesPP?iSrcBytesPP:iDestBytesPP;
-					
+					int riDest_iBytesPP=riDest.iBytesPP;//reduces pointer addition
+					int riSrc_iBytesPP=riSrc.iBytesPP;//reduces pointer addition
+					int iMinBytesPP=riSrc_iBytesPP<riDest_iBytesPP?riSrc_iBytesPP:riDest_iBytesPP;
+					int iDestRToB=riDest.iBytesPP-2;
+					if (iDestRToB<0) iDestRToB=0;
+					int iSrcRToB=riSrc.iBytesPP-2;
+					if (iSrcRToB<0) iSrcRToB=0;
 					//byte* lpDestLine=&riDest_byarrData[yDest*riDest.iStride+xDest*riDest.iBytesPP];
 					//byte* lpDestPix;
 					//byte* lpSrcLine=riSrc_byarrData;
 					//byte* lpSrcPix;
 					int iStrideMin=(riSrc.iStride<riDest.iStride)?riSrc.iStride:riDest.iStride;
-					if (riDest.iBytesPP==4 && riSrc.iBytesPP==4) {
+					if (riDest.iBytesPP>=3 && riSrc.iBytesPP>=3) {
 						switch (iDrawMode) {
-						case DrawModeCopyAlpha:
+						case DrawMode_CopyColor_CopyAlpha:
 							//if (riDest.iStride==riSrc.iStride && riDest.iBytesPP==iBytesPP && xDest==0 && yDest==0) {
-							if (riSrc.IsLike(riDest) && xDest==0 && yDest==0) {
+							if (riSrc.IsInStrideWithAndSameSizeAs(riDest) && xDest==0 && yDest==0) {
 								RMemory.CopyFast(ref riDest_byarrData, ref riSrc_byarrData, 0, 0, riSrc.iBytesTotal);
 							}
 							else {
-								for (y=0; y<riSrc.iHeight; y++) {
-									RMemory.CopyFast(ref riDest_byarrData, ref riSrc_byarrData, iLocDestLine, iLocSrcLine, iStrideMin);
-									iLocDestLine+=riDest.iStride;//lpDestLine+=riDest.iStride;
-									iLocSrcLine+=riSrc.iStride;//lpSrcLine+=riSrc.iStride;
+								if (riDest.iBytesPP==riSrc.iBytesPP) {
+									for (y=0; y<riSrc.iHeight; y++) {
+										RMemory.CopyFast(ref riDest_byarrData, ref riSrc_byarrData, iLocDestLine, iLocSrcLine, iStrideMin);
+										iLocDestLine+=riDest.iStride;//lpDestLine+=riDest.iStride;
+										iLocSrcLine+=riSrc.iStride;//lpSrcLine+=riSrc.iStride;
+									}
+								}
+								else {
+									for (y=0; y<riSrc.iHeight; y++) {
+										iSrcPix=iLocSrcLine;
+										iDestPix=iLocDestLine;
+										for (x=0; x<riSrc.iWidth; y++) {
+											RMemory.CopyFast(ref riDest_byarrData, ref riSrc_byarrData, iDestPix, iSrcPix, iMinBytesPP);
+											iDestPix+=riDest_iBytesPP;
+											iSrcPix+=riSrc_iBytesPP;
+										}
+										iLocSrcLine+=riSrc.iStride;
+										iLocDestLine+=riDest.iStride;
+									}
 								}
 							}
 							break;
-						case DrawModeAlpha:
+						case DrawMode_AlphaColor_KeepDestAlpha:
 							//alpha formula: ((Source-Dest)*alpha/255+Dest)
 							for (y=0; y<riSrc.iHeight; y++) {
 								iDestPix=iLocDestLine;
 								iSrcPix=iLocSrcLine;
 								for (x=0; x<riSrc.iWidth; x++) {
-									if (riSrc_byarrData[iSrcPix+3]==0) {
-										iSrcPix+=4; iDestPix+=4;//iSrcPix+=riSrc.iBytesPP; iDestPix+=riDest.iBytesPP;//assumes 32-bit
+									if (riSrc_iBytesPP<4||riSrc_byarrData[iSrcPix+3]==255) {
+										//if <4, just copy the same bytes anyway
+										RMemory.CopyFast(ref riDest_byarrData,ref riSrc_byarrData,iDestPix, iSrcPix, iMinBytesPP);
+										iSrcPix+=riSrc_iBytesPP; iDestPix+=riDest_iBytesPP;
 									}
-									else if (riSrc_byarrData[iSrcPix+3]==255) {
-										RMemory.CopyFast(ref riDest_byarrData,ref riSrc_byarrData,iDestPix, iSrcPix, 3);
-										iSrcPix+=4; iDestPix+=4;//iSrcPix+=riSrc.iBytesPP; iDestPix+=riDest.iBytesPP;//assumes 32-bit
+									else if (riSrc_byarrData[iSrcPix+3]==0) {
+										iSrcPix+=riSrc_iBytesPP; iDestPix+=riDest_iBytesPP;
 									}
 									else {
 										fCookedAlpha=(float)riSrc_byarrData[iSrcPix+3]/255.0f;
@@ -1179,24 +1404,24 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 										riDest_byarrData[iDestPix]=RMath.ByRound(((float)(riSrc_byarrData[iSrcPix]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //G
 										iSrcPix++; iDestPix++;
 										riDest_byarrData[iDestPix]=RMath.ByRound(((float)(riSrc_byarrData[iSrcPix]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //R
-										iSrcPix+=2; iDestPix+=2;//assumes 32-bit
+										iSrcPix+=iSrcRToB; iDestPix+=iDestRToB;
 									}
 								}
 								iLocDestLine+=riDest.iStride;
 								iLocSrcLine+=riSrc.iStride;
 							}
 							break;
-						case DrawModeAlphaQuickEdge:
+						case DrawMode_AlphaQuickEdgeColor_KeepDestAlpha:
 							for (y=0; y<riSrc.iHeight; y++) {
 								iDestPix=iLocDestLine;
 								iSrcPix=iLocSrcLine;
 								for (x=0; x<riSrc.iWidth; x++) {
-									if (riSrc_byarrData[iSrcPix+3]<=85) {
-										iSrcPix+=4; iDestPix+=4;//assumes 32-bit
+									if (riSrc_iBytesPP<4||riSrc_byarrData[iSrcPix+3]>170) {
+										RMemory.CopyFast(ref riDest_byarrData,ref riSrc_byarrData, iDestPix, iSrcPix, iMinBytesPP);
+										iSrcPix+=riSrc_iBytesPP; iDestPix+=riDest_iBytesPP;
 									}
-									else if (riSrc_byarrData[iSrcPix+3]>170) {
-										RMemory.CopyFast(ref riDest_byarrData,ref riSrc_byarrData, iDestPix, iSrcPix, 3);
-										iSrcPix+=4; iDestPix+=4;//assumes 32-bit
+									else if (riSrc_byarrData[iSrcPix+3]<=85) {
+										iSrcPix+=riSrc_iBytesPP; iDestPix+=riDest_iBytesPP;
 									}
 									else {
 										riDest_byarrData[iDestPix]=(byte)( (riSrc_byarrData[iSrcPix]>>2) + (riDest_byarrData[iDestPix]>>2) ); //B
@@ -1204,54 +1429,78 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 										riDest_byarrData[iDestPix]=(byte)( (riSrc_byarrData[iSrcPix]>>2) + (riDest_byarrData[iDestPix]>>2) ); //G
 										iSrcPix++; iDestPix++;
 										riDest_byarrData[iDestPix]=(byte)( (riSrc_byarrData[iSrcPix]>>2) + (riDest_byarrData[iDestPix]>>2) ); //R
-										iSrcPix+=2; iDestPix+=2;//assumes 32-bit
+										iSrcPix+=iSrcRToB; iDestPix+=iDestRToB;
 									}
 								}
 								iLocDestLine+=riDest.iStride;
 								iLocSrcLine+=riSrc.iStride;
 							}
 							break;
-						case DrawModeAlphaHardEdge:
+						case DrawMode_AlphaHardEdgeColor_KeepDestAlpha:
 							for (y=0; y<riSrc.iHeight; y++) {
 								iDestPix=iLocDestLine;
 								iSrcPix=iLocSrcLine;
 								for (x=0; x<riSrc.iWidth; x++) {
-									if (riSrc_byarrData[iSrcPix+3]>=128) {
-										RMemory.CopyFast(ref riDest_byarrData,ref riSrc_byarrData, iDestPix, iSrcPix, 3);
+									if (riSrc_iBytesPP<4||riSrc_byarrData[iSrcPix+3]>=128) {
+										RMemory.CopyFast(ref riDest_byarrData,ref riSrc_byarrData, iDestPix, iSrcPix, iMinBytesPP);
 									}
-									iSrcPix+=4; iDestPix+=4;
+									//else do nothing since alpha below threshold
+									iSrcPix+=riSrc_iBytesPP; iDestPix+=riDest_iBytesPP;
 								}//end for x
 								iLocDestLine+=riDest.iStride;
 								iLocSrcLine+=riSrc.iStride;
 								////Console.Error.Write("-");//debug only
 							}//end for y
 							break;
-						case DrawModeKeepGreaterAlpha:
+						case DrawMode_AlphaColor_KeepGreaterAlpha:
 							//alpha result: ((Source-Dest)*alpha/255+Dest)
+							byte bySrcA=255;//reduce pointer multiplication in "if" clauses and blending scenario
 							for (y=0; y<riSrc.iHeight; y++) {
 								iDestPix=iLocDestLine;
 								iSrcPix=iLocSrcLine;
 								for (x=0; x<riSrc.iWidth; x++) {
-									riDest_byarrData[iDestPix]=(riSrc_byarrData[iSrcPix]>riDest_byarrData[iDestPix])?riSrc_byarrData[iSrcPix]:riDest_byarrData[iDestPix]; //B
-									iSrcPix++; iDestPix++;
-									
-									riDest_byarrData[iDestPix]=(riSrc_byarrData[iSrcPix]>riDest_byarrData[iDestPix])?riSrc_byarrData[iSrcPix]:riDest_byarrData[iDestPix]; //G
-									iSrcPix++; iDestPix++;
-									
-									riDest_byarrData[iDestPix]=(riSrc_byarrData[iSrcPix]>riDest_byarrData[iDestPix])?riSrc_byarrData[iSrcPix]:riDest_byarrData[iDestPix]; //R
-									iSrcPix+=2; iDestPix+=2; //assumes 32-bit
-								}
+									if (riSrc_iBytesPP==4) bySrcA=riSrc_byarrData[iSrcPix+3];
+									if (bySrcA==255) {
+										RMemory.CopyFast(ref riDest_byarrData,ref riSrc_byarrData, iDestPix, iSrcPix, iMinBytesPP);
+										//NOTE: ok to copy iMinBytesPP since KeepGreaterAlpha will treat 24-bit source as 0 alpha, and 255 alpha source is always copied over old alpha
+										iSrcPix+=riSrc_iBytesPP; iDestPix+=riDest_iBytesPP;
+									}
+									else if (bySrcA==0) {
+										iSrcPix+=riSrc_iBytesPP; iDestPix+=riDest_iBytesPP;
+									}
+									else {
+										riDest_byarrData[iDestPix]=RMath.AlphaLook[riSrc_byarrData[iSrcPix]][riDest_byarrData[iDestPix]][bySrcA]; //B
+										iSrcPix++; iDestPix++;
+										
+										riDest_byarrData[iDestPix]=RMath.AlphaLook[riSrc_byarrData[iSrcPix]][riDest_byarrData[iDestPix]][bySrcA]; //G
+										iSrcPix++; iDestPix++;
+										
+										riDest_byarrData[iDestPix]=RMath.AlphaLook[riSrc_byarrData[iSrcPix]][riDest_byarrData[iDestPix]][bySrcA]; //R
+										iSrcPix++; iDestPix++;
+										if (riDest_iBytesPP==4) {
+											if (riSrc_iBytesPP==4) {
+												riDest_byarrData[iDestPix]=(bySrcA>riDest_byarrData[iDestPix])?bySrcA:riDest_byarrData[iDestPix]; //A
+												iSrcPix++;
+											}
+											//else treat source alpha as if zero for keeping dest alpha, if no source alpha in KeepGreaterAlpha mode
+											iDestPix++;
+										}
+										else if (riSrc_iBytesPP==4) {//dest does not have alpha but source does
+											iSrcPix++;
+										}
+									}
+								}//end for x
 								iLocDestLine+=riDest.iStride;
 								iLocSrcLine+=riSrc.iStride;
-							}
+							}//end for y
 							break;
-						case DrawModeKeepDestAlpha:
+						case DrawMode_CopyColor_KeepDestAlpha:
 							for (y=0; y<riSrc.iHeight; y++) {
 								iDestPix=iLocDestLine;
 								iSrcPix=iLocSrcLine;
 								for (x=0; x<riSrc.iWidth; x++) {
-									RMemory.CopyFast(ref riDest_byarrData, ref riSrc_byarrData,iDestPix,iSrcPix,3);
-									iDestPix+=4; iSrcPix+=4; //assumes 32-bit
+									RMemory.CopyFast(ref riDest_byarrData, ref riSrc_byarrData,iDestPix,iSrcPix,iMinBytesPP);
+									iDestPix+=riDest_iBytesPP; iSrcPix+=riSrc_iBytesPP;
 								}
 								iLocDestLine+=riDest.iStride;
 								iLocSrcLine+=riSrc.iStride;
@@ -1262,71 +1511,75 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 							//Console.Error.WriteLine("OK (32-bit to 32-bit)");//debug only
 							bShowDrawSmallerWithoutCropElseCancelMsg=false;
 						}
-					}//end 32-bit to 32-bit
-					else if (riSrc.iBytesPP==1&&riDest.iBytesPP==4) {
+					}//end both at least 24-bit
+					else if (riSrc.iBytesPP==1&&riDest.iBytesPP>=3) {
 						//8-bit to 32-bit
+						int iDestNonAlphaChannels=(riDest_iBytesPP>=3)?3:riDest_iBytesPP;
 						switch (iDrawMode) {
-						case DrawModeCopyAlpha:
+						case DrawMode_CopyColor_CopyAlpha:
 						//if (riDest.iStride==riSrc.iStride && riDest.iBytesPP==iBytesPP && xDest==0 && yDest==0) {
 							for (y=0; y<riSrc.iHeight; y++) {
 								int iLocDest=iLocDestLine;
 								int iLocSrc=iLocSrcLine;
 								for (x=0; x<riSrc.iWidth; x++) {
-									RMemory.CopyFast(ref riDest_byarrData, ref rpaintFore.data32, iLocDest, 0, 3);
-									riDest_byarrData[iDestBytesPP+3]=riSrc_byarrData[iLocSrc];//assumes 32-bit; assumes 8-bit grayscale source
-									iLocDest+=iDestBytesPP;
-									iLocSrc+=iSrcBytesPP;
+									RMemory.CopyFast(ref riDest_byarrData, ref rpaintFore.data32, iLocDest, 0, iDestNonAlphaChannels); //assumes data32 has same channels as dest
+									if (riDest_iBytesPP==4) riDest_byarrData[riDest_iBytesPP+3]=riSrc_byarrData[iLocSrc];//use gray as alpha
+									iLocDest+=riDest_iBytesPP;
+									iLocSrc+=riSrc_iBytesPP;
 								}
 								iLocDestLine+=riDest.iStride;//lpDestLine+=riDest.iStride;
 								iLocSrcLine+=riSrc.iStride;//lpSrcLine+=riSrc.iStride;
 							}
 							break;
-						case DrawModeAlpha:
-								//alpha result: ((Source-Dest)*alpha/255+Dest)
+						case DrawMode_AlphaColor_KeepDestAlpha:
+							//alpha result: ((Source-Dest)*alpha/255+Dest)
 							for (y=0; y<riSrc.iHeight; y++) {
 								iDestPix=iLocDestLine;
 								iSrcPix=iLocSrcLine;
 								for (x=0; x<riSrc.iWidth; x++) {
 									if (riSrc_byarrData[iSrcPix]==0) {//assumes 8-bit
-										iSrcPix+=iSrcBytesPP; iDestPix+=iDestBytesPP;//iSrcPix+=riSrc.iBytesPP; iDestPix+=riDest.iBytesPP;//assumes 32-bit
+										iSrcPix+=riSrc_iBytesPP; iDestPix+=riDest_iBytesPP;
 									}
 									else if (riSrc_byarrData[iSrcPix]==255) {//assumes 8-bit
-										RMemory.CopyFast(ref riDest_byarrData,ref riSrc_byarrData,iDestPix, iSrcPix, 3);
-										iSrcPix+=iSrcBytesPP; iDestPix+=iDestBytesPP;//iSrcPix+=riSrc.iBytesPP; iDestPix+=riDest.iBytesPP;//assumes 32-bit
+										RMemory.CopyFast(ref riDest_byarrData,ref rpaintFore.data32,iDestPix, 0, iDestNonAlphaChannels);//assumes data32 has same channels as dest
+										iSrcPix+=riSrc_iBytesPP; iDestPix+=riDest_iBytesPP;
 									}
 									else {
-										fCookedAlpha=(float)riSrc_byarrData[iSrcPix]/255.0f;
+										//fCookedAlpha=(float)riSrc_byarrData[iSrcPix]/255.0f;
 										
-										riDest_byarrData[iDestPix]=RMath.ByRound(((float)(rpaintFore.data32[0]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //B
+										//the operations below assume data32 has same channels as dest
+										
+										riDest_byarrData[iDestPix]=RMath.AlphaLook[rpaintFore.data32[0]][riDest_byarrData[iDestPix]][riSrc_byarrData[iSrcPix]];//R; assumes 8-bit gray as alpha //riDest_byarrData[iDestPix]=RMath.ByRound(((float)(rpaintFore.data32[0]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //B
 										iDestPix++;
 										//iSrcPix++; //being commented assumes grayscale
 										
-										riDest_byarrData[iDestPix]=RMath.ByRound(((float)(rpaintFore.data32[1]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //G
+										riDest_byarrData[iDestPix]=RMath.AlphaLook[rpaintFore.data32[1]][riDest_byarrData[iDestPix]][riSrc_byarrData[iSrcPix]];//R; assumes 8-bit gray as alpha //riDest_byarrData[iDestPix]=RMath.ByRound(((float)(rpaintFore.data32[1]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //G
 										iDestPix++; 
 										//iSrcPix++;  //being commented assumes grayscale
 										
-										riDest_byarrData[iDestPix]=RMath.ByRound(((float)(rpaintFore.data32[2]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //R
-										iSrcPix+=iSrcBytesPP;//assumes not incremented during copy above
-										iDestPix+=2; //assumes 32-bit
+										riDest_byarrData[iDestPix]=RMath.AlphaLook[rpaintFore.data32[2]][riDest_byarrData[iDestPix]][riSrc_byarrData[iSrcPix]];//R; assumes 8-bit gray as alpha //riDest_byarrData[iDestPix]=RMath.ByRound(((float)(rpaintFore.data32[2]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //R
+										iSrcPix+=riSrc_iBytesPP;//assumes not incremented during copy above
+										iDestPix+=iDestRToB;
 									}//end else neither 0 nor 255
 								}//end x
 								iLocDestLine+=riDest.iStride;
 								iLocSrcLine+=riSrc.iStride;
 							}//end y
 							break;
-						case DrawModeAlphaQuickEdge:
+						case DrawMode_AlphaQuickEdgeColor_KeepDestAlpha:
 							for (y=0; y<riSrc.iHeight; y++) {
 								iDestPix=iLocDestLine;
 								iSrcPix=iLocSrcLine;
 								for (x=0; x<riSrc.iWidth; x++) {
 									if (riSrc_byarrData[iSrcPix]<=85) {//assumes 8-bit
-										iSrcPix+=iSrcBytesPP; iDestPix+=iDestBytesPP;//assumes 32-bit
+										iSrcPix+=riSrc_iBytesPP; iDestPix+=riDest_iBytesPP;
 									}
 									else if (riSrc_byarrData[iSrcPix]>170) {//assumes 8-bit
-										RMemory.CopyFast(ref riDest_byarrData,ref rpaintFore.data32, iDestPix, 0, 3);
-										iSrcPix+=iSrcBytesPP; iDestPix+=iDestBytesPP;//assumes 32-bit
+										RMemory.CopyFast(ref riDest_byarrData, ref rpaintFore.data32, iDestPix, 0, iDestNonAlphaChannels); //assumes data32 has same channels as dest
+										iSrcPix+=riSrc_iBytesPP; iDestPix+=riDest_iBytesPP;
 									}
-									else {
+									else {//blend halfway if in middle third of range
+										//the operations below assume data32 has same channels as dest
 										riDest_byarrData[iDestPix]=(byte)( (rpaintFore.data32[0]>>2) + (riDest_byarrData[iDestPix]>>2) ); //B //copy from rpaint assumes 8-bit source
 										//iSrcPix++;//commented assumes 8-bit source
 										iDestPix++;
@@ -1334,29 +1587,29 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 										//iSrcPix++;//commented assumes 8-bit source
 										iDestPix++;
 										riDest_byarrData[iDestPix]=(byte)( (rpaintFore.data32[2]>>2) + (riDest_byarrData[iDestPix]>>2) ); //R //copy from rpaint assumes 8-bit source
-										iSrcPix+=iSrcBytesPP;//assumes not incremented during copy above
-										iDestPix+=2;//assumes 32-bit
+										iSrcPix+=riSrc_iBytesPP;//assumes not incremented during copy above
+										iDestPix+=iDestRToB;
 									}
 								}//end for x
 								iLocDestLine+=riDest.iStride;
 								iLocSrcLine+=riSrc.iStride;
 							}//end for y
 							break;
-						case DrawModeAlphaHardEdge:
+						case DrawMode_AlphaHardEdgeColor_KeepDestAlpha:
 							for (y=0; y<riSrc.iHeight; y++) {
 								iDestPix=iLocDestLine;
 								iSrcPix=iLocSrcLine;
 								for (x=0; x<riSrc.iWidth; x++) {
 									if (riSrc_byarrData[iSrcPix]>=128) {
-										RMemory.CopyFast(ref riDest_byarrData,ref rpaintFore.data32, iDestPix, 0, iDestBytesPP);//copy from rpaintFore.data32 0 assumes 8-bit source
+										RMemory.CopyFast(ref riDest_byarrData,ref rpaintFore.data32, iDestPix, 0, iDestNonAlphaChannels); //assumes data32 has same channels as dest
 									}
-									iSrcPix+=iSrcBytesPP; iDestPix+=iDestBytesPP;
+									iSrcPix+=riSrc_iBytesPP; iDestPix+=riDest_iBytesPP;
 								}//end for x
 								iLocDestLine+=riDest.iStride;
 								iLocSrcLine+=riSrc.iStride;
 							}//end for y
 							break;
-						case DrawModeKeepGreaterAlpha:
+						case DrawMode_AlphaColor_KeepGreaterAlpha:
 								//alpha result: ((Source-Dest)*alpha/255+Dest)
 							byte bySrc;
 							byte byDest;
@@ -1366,47 +1619,45 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 								for (x=0; x<riSrc.iWidth; x++) {
 									if (riSrc_byarrData[iSrcPix]==0) {//assumes 8-bit
 										iSrcPix++;//assumes 8-bit
-										iDestPix+=iDestBytesPP;//iSrcPix+=riSrc.iBytesPP; iDestPix+=riDest.iBytesPP;//assumes 32-bit
+										iDestPix+=riDest_iBytesPP;
 									}
 									else if (riSrc_byarrData[iSrcPix]==255) {//assumes 8-bit
-										RMemory.CopyFast(ref riDest_byarrData,ref riSrc_byarrData,iDestPix, iSrcPix, 3);
-										riDest_byarrData[iDestPix+3]=255;
+										RMemory.CopyFast(ref riDest_byarrData,ref rpaintFore.data32,iDestPix, iSrcPix, iDestNonAlphaChannels); ////assumes data32 has same channels as dest
+										if (riDest_iBytesPP==4) riDest_byarrData[iDestPix+3]=255;//use riSrc_byarrData[iSrcPix]==255 (assumes 8-bit gray as alpha)
 										iSrcPix++;//assumes 8-bit
-										iDestPix+=iDestBytesPP;//assumes 32-bit
+										iDestPix+=riDest_iBytesPP;
 									}
 									else {
-										fCookedAlpha=(float)riSrc_byarrData[iSrcPix]/255.0f;
-										
-										riDest_byarrData[iDestPix]=RMath.ByRound(((float)(rpaintFore.data32[0]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //B
+										bySrc=riSrc_byarrData[iSrcPix];//used as alpha below://fCookedAlpha=(float)riSrc_byarrData[iSrcPix]/255.0f;
+										riDest_byarrData[iDestPix]=RMath.AlphaLook[rpaintFore.data32[0]][riDest_byarrData[iDestPix]][bySrc]; //B; assumes data32 has same channels as dest and using 8-bit gray source as alpha; //riDest_byarrData[iDestPix]=RMath.ByRound(((float)(rpaintFore.data32[0]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //B
 										iDestPix++;
 										//iSrcPix++; //being commented assumes grayscale
-										
-										riDest_byarrData[iDestPix]=RMath.ByRound(((float)(rpaintFore.data32[1]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //G
+										riDest_byarrData[iDestPix]=RMath.AlphaLook[rpaintFore.data32[1]][riDest_byarrData[iDestPix]][bySrc]; //G; assumes data32 has same channels as dest and using 8-bit gray source as alpha; //riDest_byarrData[iDestPix]=RMath.ByRound(((float)(rpaintFore.data32[1]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //G
 										iDestPix++; 
 										//iSrcPix++;  //being commented assumes grayscale
-										
-										riDest_byarrData[iDestPix]=RMath.ByRound(((float)(rpaintFore.data32[2]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //R
+										riDest_byarrData[iDestPix]=RMath.AlphaLook[rpaintFore.data32[2]][riDest_byarrData[iDestPix]][bySrc]; //R; assumes data32 has same channels as dest and using 8-bit gray source as alpha; //riDest_byarrData[iDestPix]=RMath.ByRound(((float)(rpaintFore.data32[2]-riDest_byarrData[iDestPix]))*fCookedAlpha+riDest_byarrData[iDestPix]); //R
 										iDestPix++;
-										
-										bySrc=riSrc_byarrData[iSrcPix];
-										byDest=riDest_byarrData[iDestPix];
-										riDest_byarrData[iDestPix]=byDest>bySrc?byDest:bySrc;
-										iSrcPix++;//assumes 8-bit
-										iDestPix++; //assumes 32-bit
+										if (riDest_iBytesPP==4) {
+											//bySrc=riSrc_byarrData[iSrcPix]; //should already be set to this above
+											byDest=riDest_byarrData[iDestPix];//dest should now be at A (incremented past R above)
+											riDest_byarrData[iDestPix]=byDest>bySrc?byDest:bySrc; //dest should now be at A (incremented past R above)
+											iDestPix++; //ok since riDest_iBytesPP==4
+										}
+										iSrcPix+=riSrc_iBytesPP;
 									}//end else neither 0 nor 255
 								}//end x
 								iLocDestLine+=riDest.iStride;
 								iLocSrcLine+=riSrc.iStride;
 							}//end y
 							break;
-						case DrawModeKeepDestAlpha:
+						case DrawMode_CopyColor_KeepDestAlpha:
 							for (y=0; y<riSrc.iHeight; y++) {
 								iDestPix=iLocDestLine;
 								iSrcPix=iLocSrcLine;
 								for (x=0; x<riSrc.iWidth; x++) {
-									RMemory.CopyFast(ref riDest_byarrData, ref rpaintFore.data32,iDestPix,0,3);//copy from rpaintFore.data32 0 assumes 8-bit source
-									iDestPix+=4; //assumes 32-bit
-									iSrcPix++; //assumes 8-bit
+									RMemory.CopyFast(ref riDest_byarrData, ref rpaintFore.data32,iDestPix,0,iDestNonAlphaChannels);//copy from rpaintFore.data32 0 assumes 8-bit source; assumes data32 has same channels as dest
+									iDestPix+=riDest_iBytesPP;
+									iSrcPix+=riSrc_iBytesPP;
 								}
 								iLocDestLine+=riDest.iStride;
 								iLocSrcLine+=riSrc.iStride;
@@ -1427,7 +1678,7 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 							//Console.Error.WriteLine("FAILED (non-implemented bitdepth conversion)");//debug only
 							bShowDrawSmallerWithoutCropElseCancelMsg=false;
 						}
-						RReporting.ShowErr("Can't DrawFrom unless both images are 32-bit BGRA, or source is 8-bit and dest is 32-bit.  This method is designed for fast copying between images with similar color formats.","","RImage DrawToLargerWithoutCropElseCancel {"+"riDest.iBytesPP:"+riDest.iBytesPP.ToString()+ "; iBytesPP:"+riSrc.iBytesPP.ToString()+"}");
+						RReporting.ShowErr("Can't DrawFrom unless both images are 24-bit BGR or 32-bit BGRA, or source is 8-bit and dest is 24-bit BGR or 32-bit BGRA.  This method is designed for fast copying between images with similar color formats.","","RImage DrawToLargerWithoutCropElseCancel {"+"riDest.iBytesPP:"+riDest.iBytesPP.ToString()+ "; iBytesPP:"+riSrc.iBytesPP.ToString()+"}");
 					}
 				}//end if does not need to crop
 				else {
@@ -1449,13 +1700,13 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 		}//end DrawToLargerWithoutCropElseCancel
 		
 		/// <summary>
-		/// Bitdepth-Insensitive copy; does not crop, only prevents overflow
+		/// Bitdepth-Ignorant copy; does not crop, only prevents overflow
 		/// </summary>
 		/// <param name="riDest"></param>
 		/// <param name="ipSrc"></param>
 		/// <param name="riSrc"></param>
 		/// <returns></returns>
-		public static bool DrawToSmallerCopyAlphaSaferBitdepthInsensitive(ref RImage riDest, ref IPoint ipSrc, ref RImage riSrc) { //formerly OverlayCropRawSafer formerly RawCropSafer
+		public static bool DrawToSmallerCopyAlphaSaferBitdepthInsensitive(ref RImage riDest, ref IPoint ipSrc, ref RImage riSrc) { //formerly OverlayCropRawSafer formerly RawCropSafer //aka Bitdepth-insensitive
 			bool bGood=true;
 			int iByDest=0;
 			int iBySrc;//=ipSrc.Y*riSrc.iStride+ipSrc.X*riSrc.iBytesPP;
@@ -1620,22 +1871,29 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 		/// <param name="ipAt"></param>
 		/// <param name="riSrc"></param>
 		/// <returns></returns>
-		public static bool DrawToLargerNoClipCopyAlpha(ref RImage riDest, ref IPoint ipAt, ref RImage riSrc) {
+		public static bool DrawToLargerNoClipCopyAlpha(ref RImage riDest, IPoint ipAt, ref RImage riSrc) {
 			int iSrcByte;
 			int iDestByte;
 			bool bGood=true;
 			try {
 				iDestByte=ipAt.Y*riDest.iStride+ipAt.X*riDest.iBytesPP;
 				iSrcByte=0;
-				for (int ySrc=0; ySrc<riSrc.iHeight; ySrc++) {
-					if (!RMemory.CopyFast(ref riDest.byarrData, ref riSrc.byarrData, iDestByte, iSrcByte, riSrc.iStride)) {
-						bGood=false;
+				int iMinStride=riSrc.iStride<riDest.iStride?riSrc.iStride:riDest.iStride;
+				if (riDest.iBytesPP==riSrc.iBytesPP) {
+					for (int ySrc=0; ySrc<riSrc.iHeight; ySrc++) {
+						if (!RMemory.CopyFast(ref riDest.byarrData, ref riSrc.byarrData, iDestByte, iSrcByte, iMinStride)) {
+							bGood=false;
+						}
+						iSrcByte+=riSrc.iStride;
+						iDestByte+=riDest.iStride;
 					}
-					iSrcByte+=riSrc.iStride;
-					iDestByte+=riDest.iStride;
+					if (!bGood) {
+						RReporting.ShowErr("Error copying graphics buffer data","","RImage DrawToLargerNoClipCopyAlpha");
+					}
 				}
-				if (!bGood) {
-					RReporting.ShowErr("Error copying graphics buffer data","","RImage DrawToLargerNoClipCopyAlpha");
+				else {
+					bGood=false;
+					RReporting.ShowErr("DrawToLargerNoClipCopyAlpha: Nothing to do--bitdepths must match.");
 				}
 			}
 			catch (Exception exn) {
@@ -1652,7 +1910,7 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 		/// <param name="ipAt"></param>
 		/// <param name="riSrc"></param>
 		/// <returns></returns>
-		public static bool DrawToLargerNoClipCopyAlphaSafe(ref RImage riDest, ref IPoint ipAt, ref RImage riSrc) { //formerly OverlayToBigNoClipCopyAlphaSafe formerly OverlayNoClipToBigCopyAlphaSafe
+		public static bool DrawToLargerNoClipCopyAlphaSafe(ref RImage riDest, IPoint ipAt, ref RImage riSrc) { //formerly OverlayToBigNoClipCopyAlphaSafe formerly OverlayNoClipToBigCopyAlphaSafe
 			int iSrcByte;
 			int iDestByte;
 			bool bGood=true;
@@ -1723,12 +1981,12 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 				int SrcLineNow_StartIndex=riSrc.XYToLocation(xSrc,ySrc);
 				int iDest=DestLineNow_StartIndex;
 				int iSrc=SrcLineNow_StartIndex;
-				//Console.Error.WriteLine("debug DrawTo: "+riDest.Description()+"; at:"+ipDest.ToString()+"; from:"+riSrc.Description()+"; from rect:"+rectSrc.ToString()+"; DrawMode:"+DrawModeToString(iDrawMode));//debug only
+				//Console.Error.WriteLine("debug DrawTo: "+riDest.Description()+"; at:"+ipDest.ToString()+"; from:"+riSrc.Description()+"; from rect:"+rectSrc.ToString()+"; DrawMode_:"+DrawMode_ToString(iDrawMode));//debug only
 				if (DestLineNow_StartIndex>=0&&SrcLineNow_StartIndex>=0) {
 					bGood=true;
 					while (yDestRel<riDest.Height&&(ySrc<rectSrc.Y+rectSrc.Height)) { //OK SINCE yDestRel is incremented when xDestRel is past RIGHT EDGE (see below)!
 						if (!DrawPixel(riDest,iDest,riSrc,iSrc,iDrawMode)) {
-							RReporting.ShowErr("Could not draw pixel","drawing from image to image","rimage_32bgra DrawFrom(riDest="+(riDest!=null?riDest.Description():"null")+", ipDest="+(ipDest!=null?ipDest.ToString():"null")+", riSrc="+(riSrc!=null?riSrc.Description():"null")+", rectSrc="+(rectSrc!=null?rectSrc.ToString():"null")+", DrawMode="+RImage.DrawModeToString(iDrawMode)+") {xDest:"+xDest+"; yDest:"+yDest+"; xSrc:"+xSrc+"; ySrc:"+ySrc+"; iSrc:"+iSrc+"; iDest:"+iDest+"}");
+							RReporting.ShowErr("Could not draw pixel","drawing from image to image","rimage_32bgra DrawFrom(riDest="+(riDest!=null?riDest.Description():"null")+", ipDest="+(ipDest!=null?ipDest.ToString():"null")+", riSrc="+(riSrc!=null?riSrc.Description():"null")+", rectSrc="+(rectSrc!=null?rectSrc.ToString():"null")+", DrawMode_="+RImage.DrawMode_ToString(iDrawMode)+") {xDest:"+xDest+"; yDest:"+yDest+"; xSrc:"+xSrc+"; ySrc:"+ySrc+"; iSrc:"+iSrc+"; iDest:"+iDest+"}");
 							bGood=false;
 							break;
 						}
@@ -1757,7 +2015,7 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 			}
 			catch (Exception exn) {
 				bGood=false;
-				RReporting.ShowExn(exn,"drawing pre-cropped rect sensitive to DrawMode","DrawTo(riDest,ipDest,riSrc,rectSrc,iDrawMode)");
+				RReporting.ShowExn(exn,"drawing pre-cropped rect sensitive to DrawMode_","DrawTo(riDest,ipDest,riSrc,rectSrc,iDrawMode)");
 			}
 			return bGood;
 		}//end DrawTo
@@ -1778,7 +2036,7 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 		/// <param name="source"></param>
 		/// <param name="iDrawMode"></param>
 		/// <returns></returns>
-		public bool DrawFrom(float to_X, float to_Y, float to_W, float to_H, RImage source, int iDrawMode) {
+		public bool DrawFrom(float to_X, float to_Y, float to_W, float to_H, RImage source, ROverlay overlayoptions) {
 			//this is nonstatic so that the calling method can handle null reference exceptions
 			bool bGood=true; //MUST start true for logic below to work
 			try {
@@ -1796,7 +2054,7 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 					bGood=false;
 				if (RReporting.bUltraDebug) Console.Error.WriteLine("DrawFrom-step2 {dest-rect:"+FRect.ToString(to_X,to_Y,to_W,to_H)+",source-rect:"+FRect.ToString(from_X,from_Y,from_W,from_H)+"}"+(bGood?" (about to do DrawTo since image is within dest)":" (skipping DrawTo since none of image is within dest)"));//debug only
 				if (bGood) {
-					if (!RImage.DrawTo(this,to_X,to_Y,to_W,to_H,source,from_X,from_Y,from_W,from_H,iDrawMode)) {
+					if (!RImage.DrawTo(this,to_X,to_Y,to_W,to_H,source,from_X,from_Y,from_W,from_H,overlayoptions)) {
 						bGood=false;
 					}
 				}
@@ -1849,14 +2107,19 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 		public unsafe bool Load(string sFile, int iAsBytesPP) {
 			bool bGood=true;
 			try {
-				if (!File.Exists(sFile)) {
-					RReporting.ShowErr("Missing resource \""+sFile+"\"","","RImage Load");
-					return false;
+				if (File.Exists(sFile)) {
+					bmpLoaded=new Bitmap(sFile);
+					//if (bmpLoaded!=null) 
+					RReporting.sParticiple="about to load as "+(iAsBytesPP*8).ToString()+"-bit bitmap from file {sFile:"+RReporting.StringMessage(sFile,true)+"}";
+					bGood=Load(bmpLoaded,iAsBytesPP);
+					RReporting.sParticiple="finished loading as "+(iAsBytesPP*8).ToString()+"-bit bitmap from file {this.Description:"+this.Description()+"}";
+					//bmpLoaded.Dispose();
+					bmpLoaded=null;
 				}
-				bmpLoaded=new Bitmap(sFile);
-				bGood=Load(bmpLoaded,iAsBytesPP);
-				bmpLoaded.Dispose();
-				bmpLoaded=null;
+				else {
+					RReporting.ShowErr("Missing resource \""+sFile+"\"","","RImage Load");
+					bGood=false;
+				}
 			}
 			catch (Exception exn) {
 				RReporting.ShowExn(exn,"loading file","RImage Load(sFile,int)");
@@ -1884,7 +2147,15 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 		//	}
 		//	return bGood;
 		//}
-		public unsafe bool Load(Bitmap bitmap, int iAsBytesPP) {
+		public static string Description(Bitmap bitmap) {
+			string sReturn="null";
+			RReporting.sParticiple="getting bitmap description";
+			if (bitmap!=null) {
+				sReturn=bitmap.Width+"x"+bitmap.Height+"(PixelFormat:"+bitmap.PixelFormat.ToString()+")";
+			}
+			return sReturn;
+		}
+		public bool Load(Bitmap bitmap, int iAsBytesPP) {
 			bool bGood=true;
 			try {
 				iWidth=bitmap.Width;
@@ -1893,6 +2164,8 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 				iBytesPP=iAsBytesPP;//ByteDepthFromPixelFormat();//iBytesPP=iStride/iWidth;
 				iBytesTotal=iStride*iHeight;
 				iPixelsTotal=iWidth*iHeight;
+				//RReporting.sParticiple="about to load "+(iAsBytesPP*8).ToString()+"-bit bitmap object {sLastFileBaseName:"+RReporting.StringMessage(this.sPathFileBaseName,true)+"; sLastFileExt:"+RReporting.StringMessage(this.sFileExt,true)+"}";
+				RReporting.sParticiple="about to load bitmap object as "+(iAsBytesPP*8).ToString()+"-bit {bitmap:"+RImage.Description(bitmap)+"}";
 				if (iBytesTotal>0 && iBytesPP!=2 && iBytesPP<=4) {
 					if (byarrData==null||byarrData.Length!=iBytesTotal) byarrData=new byte[iBytesTotal];
 					int iNow=0;
@@ -1919,30 +2192,46 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 								iNow++;
 							}
 							else if (iAsBytesPP==1) {
-								byarrData[iNow]=(byte)( ((double)(colorNow.B+colorNow.G+colorNow.R))/3.0  );
+								byarrData[iNow]=RConvert.ToByte( ((double)colorNow.B+(double)colorNow.G+(double)colorNow.R)/3.0 );
 								iNow++;
 							}
 							else {
-								RReporting.ShowErr("Failed to load "+(iAsBytesPP*8).ToString()+"-bit buffer.","","RImage Load");
+								RReporting.ShowErr("Failed to load image: cannot handle "+(iAsBytesPP*8).ToString()+"-bit buffer.","","RImage Load");
 								bGood=false;
 								break;
 							}
 						}//end for x
 					}//end for y
 				}
-				else RReporting.ShowErr("Can't create a "+iWidth.ToString()+"x"+iHeight.ToString()+"x"+iAsBytesPP.ToString()+"-bit buffer","","RImage Load");
+				else RReporting.ShowErr("Can't create a "+iWidth.ToString()+"x"+iHeight.ToString()+"x"+(iAsBytesPP*8).ToString()+"-bit buffer","","RImage Load");
 			}
 			catch (Exception exn) {
 				RReporting.ShowExn(exn,"loading Bitmap object","RImage Load(Bitmap,int)");
 				bGood=false;
 			}
+			if (byarrData.Length<1) RReporting.ShowErr("Load: bad buffer size "+byarrData.Length.ToString());
+			RReporting.sParticiple="finished loading bitmap object as "+(iAsBytesPP*8).ToString()+"-bit {bitmap:"+RImage.Description(bitmap)+"; this.Description:"+this.Description()+"}";
 			return bGood;
 		}//end Load
 		public bool Save(string sSetFile) {
 			//TODO:? check for tga extension
+			/*
 			RString.SplitFileName(out sPathFileBaseName, out sFileExt, sSetFile);
 			return Save(sPathFileBaseName+"."+sFileExt, RImage.ImageFormatFromNameElseCapitalizedPng(ref sPathFileBaseName, out sFileExt));
-		}
+			*/
+			sPathFileBaseName=sSetFile;//ONLY ok since truncated ImageFormatFromNameElseCapitalizedPng by below
+			ImageFormat imgformatNow=RImage.ImageFormatFromNameElseCapitalizedPng(ref sPathFileBaseName, out sFileExt);
+			string sNewName=sPathFileBaseName;
+			if (sFileExt!="") sNewName+="."+sFileExt;
+			if (sSetFile!=sNewName) {
+				if (sSetFile.ToLower()==sNewName.ToLower()) {
+					sNewName=sSetFile;
+				}
+				else RReporting.Warning("Changed name of file "+sSetFile+" to "+sNewName+" since extension was not recognized!","saving RImage","Save(sSetFile)");
+			}
+			bool bGood=Save(sNewName, imgformatNow);
+			return bGood;
+		}//end Save(sSetFile)
 		public bool Save(string FileNameWithoutExtension, string FileExtension) {
 			//TODO:? check for tga extension
 			sPathFileBaseName=FileNameWithoutExtension;
@@ -1953,7 +2242,7 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 		public bool Save(string sFileNow, ImageFormat imageformatNow) {
 			bool bGood=true;
 			try {
-				bmpLoaded=new Bitmap(iWidth, iHeight, PixelFormatNow());
+				bmpLoaded=new Bitmap(iWidth, iHeight, this.PixelFormatNow);
 				if (iBytesPP==1) SetGrayPalette();
 				int iNow=0;
 				for (int y=0; y<iHeight; y++) {
@@ -2041,7 +2330,7 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 				rectNow = new Rectangle((int)rectNowF.X, (int)rectNowF.Y,
 									(int)rectNowF.Width, (int)rectNowF.Height);
 				bmpdata = bmpLoaded.LockBits(rectNow, ImageLockMode.ReadOnly,
-				                             bmpLoaded.PixelFormat);//TODO: change to custom pixel format (OR use a softer get method)?????
+											 bmpLoaded.PixelFormat);//TODO: change to custom pixel format (OR use a softer get method)?????
 				iStride=bmpdata.Stride;
 				iWidth=rectNow.Width;
 				iHeight=rectNow.Height;
@@ -2084,11 +2373,155 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 		#endregion file operations
 		
 		#region utilities
-		
+		/// <summary>
+		/// Looks for the pixel closest to (xCenter,yCenter) where the channel iChannel is outside of byThreshold.
+		/// </summary>
+		/// <param name="xReturn">returns 0 or above if found</param>
+		/// <param name="yReturn">returns 0 or above if found</param>
+		/// <param name="xCenter">x location of inclusive starting point</param>
+		/// <param name="yCenter">y location of inclusive starting point</param>
+		/// <param name="iChannel">channel of this image to compare to byThreshold</param>
+		/// <param name="byThreshold">The exclusive limit for the desired pixel's color channel</param>
+		/// <param name="bGreaterThanThreshold_FalseForLessThan">If true, the method looks for a pixel where it's channel iChannel is greater than byThreshold; if false, less than byThreshold.</param>
+		/// <returns>returns true if found</returns>
+		public bool FindNearest(out int xReturn, out int yReturn, int xCenter, int yCenter, int iChannel, byte byThreshold, bool bGreaterThanThreshold_FalseForLessThan) {
+			bool bFoundAny=false;
+			double rDistNow=double.MaxValue;
+			double rDistMin=double.MaxValue;
+			xReturn=-1;
+			yReturn=-1;
+			try {
+				if (iChannel>=this.iBytesPP) {
+					RReporting.ShowErr("Channel index was truncated to range","finding nearest pixel outside channel value threshold");
+					iChannel=this.iBytesPP-1;
+				}
+				int iLineLoc=iChannel;
+				int iChanLoc;
+				for (int y=0; y<this.iHeight; y++) {
+					iChanLoc=iLineLoc;
+					for (int x=0; x<this.iWidth; x++) {
+						//debug performance: this would be a lot faster if it started from the center and found the first one outside threshold
+						if ( bGreaterThanThreshold_FalseForLessThan 
+							? (this.byarrData[iChanLoc]>byThreshold) 
+							: (this.byarrData[iChanLoc]<byThreshold) ) {
+							rDistNow=RMath.Dist((double)x,(double)y,(double)xCenter,(double)yCenter);
+							bFoundAny=true;
+							if (rDistNow<rDistMin) {
+								xReturn=x;
+								yReturn=y;
+								rDistMin=rDistNow;
+							}
+						}
+						iChanLoc+=this.iBytesPP;
+					}
+					iLineLoc+=this.iStride;
+					if ( (rDistMin<=0.0) //if AT the center (usable channel value found at search center)
+						|| ((rDistMin<=1.0)&&(xReturn>=xCenter)&&(yReturn>=yCenter)) ) break; //if below or after (">=" prevents stopping before center)
+				}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"finding nearest pixel outside channel value threshold");
+			}
+			return bFoundAny;
+		}//end FindNearest
+		/// <summary>
+		/// For every pixel that is transparent at all, change non-alpha channels to color of nearest completely opaque pixel
+		/// </summary>
+		/// <returns></returns>
+		public bool DeBleed() { //aka realpha aka re-alpha
+			bool bGood=true;
+			byte byThreshold=254;//if alpha greater than this, use as blending pixel if nearest
+			int iLineLocAlpha=this.iBytesPP-1;//ONLY ok since iBytesPP=4;
+			int iLineLocNow=0;
+			//int iSolidFoundMax=0;
+			//int iSolidFound=0;
+			int iLocNow;
+			int iLocAlpha;
+			int xSolid=-1;
+			int ySolid=-1;
+			if (this.iBytesPP==4) {
+				try {
+					//bool bAny=true;
+					for (int y=0; y<this.iHeight; y++) {
+						iLocNow=iLineLocNow;
+						iLocAlpha=iLineLocAlpha;
+						for (int x=0; x<this.iWidth; x++) {
+							if (this.byarrData[iLocAlpha]>0&&this.byarrData[iLocAlpha]<255) {
+								//0<alpha<255, so debleed this pixel:
+								if (FindNearest(out xSolid, out ySolid, x,y,3,byThreshold,true)) {
+									int iLocFound=XYToLocation(xSolid,ySolid);
+									for (int iChan=0; iChan<3; iChan++) { //less than 3 since NOT copying alpha!
+										//copy ONLY color channels:
+										this.byarrData[iLocNow+iChan]=this.byarrData[iLocFound+iChan];
+									}
+								}
+								else {
+									RReporting.ShowErr("debleed error: no fully solid pixels to use as source color");
+									bGood=false;
+									break;
+								}
+							}
+							iLocAlpha+=this.iBytesPP;
+							iLocNow+=this.iBytesPP;
+						}
+						if (!bGood) break;
+						iLineLocNow+=this.iStride;
+						iLineLocAlpha+=this.iStride;
+					}//end for y
+					//if (iSolidFoundMax<=0) {}//debug -- optionally, detect threshold if no pixels at or above threshold are found (?)
+				}
+				catch (Exception exn) {
+					RReporting.ShowExn(exn,"removing background bleed on semitransparent areas");
+				}
+			}//if iBytesPP==4
+			else {
+				bGood=false;
+				if (RReporting.bDebug) RReporting.Warning("Cannot debleed "+(iBytesPP*8)+"-bit image.");
+			}
+			return bGood;
+		}//end DeBleed
+		public static void SetGrayPaletteIfUsesPalette(ref Bitmap bmpNow) {
+			//TODO: why doesn't this work? SetGrayPaletteIfUsesPalette
+			if (bmpNow!=null&&bmpNow.PixelFormat==PixelFormat.Format8bppIndexed) {
+				//if (bmpNow.Palette==null) {
+				//	bmpNow.Palette=new ColorPalette();
+				//}
+				//if (bmpNow.Palette.Entries==null||bmpNow.Palette.Entries.Length<=1) {
+				//	bmpNow.Palette.Entries=new Color[256];
+				//}
+				float fMax=(float)(bmpNow.Palette.Entries.Length-1);
+				float fI=0.0f;
+				byte byVal;
+				for (int i=0; i<bmpNow.Palette.Entries.Length; i++) {
+					byVal=RMath.ByRound(255.0f*(fI/fMax));
+					bmpNow.Palette.Entries[i]=Color.FromArgb(255, byVal, byVal, byVal);
+					fI+=1.0f;
+				}
+			}
+		}
+		public static void SetGrayPaletteIfUsesPalette(ref Image image) {
+			//TODO: why doesn't this work? SetGrayPaletteIfUsesPalette
+			if (image!=null&&image.PixelFormat==PixelFormat.Format8bppIndexed) {
+				//if (image.Palette==null) {
+				//	image.Palette=new ColorPalette();
+				//}
+				//if (image.Palette.Entries==null||image.Palette.Entries.Length<=1) {
+				//	image.Palette.Entries=new Color[256];
+				//}
+				float fMax=(float)(image.Palette.Entries.Length-1);
+				float fI=0.0f;
+				byte byVal;
+				for (int i=0; i<image.Palette.Entries.Length; i++) {
+					byVal=RMath.ByRound(255.0f*(fI/fMax));
+					image.Palette.Entries[i]=Color.FromArgb(255, byVal, byVal, byVal);
+					fI+=1.0f;
+				}
+			}
+		}
 		///<summary>
 		///Returns true if dimensions, number of channels, and total buffer size are the same as riTest.
 		///</summary>
-		public bool IsLike(RImage riTest) {//formerly IsSameAs
+		public bool IsInStrideWithAndSameSizeAs(RImage riTest) {//formerly IsLike, formerly IsSameAs
 			bool bReturn=false;
 			if (riTest!=null) {
 				if ( riTest.iWidth==iWidth
@@ -2120,13 +2553,13 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 				from_X+=to_X;
 				from_Y+=to_Y;
 				//Console.Error.WriteLine("{"
-				//                        +"from_X:"+from_X.ToString()
-				//                        +"; from_Y:"+from_Y.ToString()
-				//                        +"; from_W:"+from_W.ToString()
-				//                        +"; from_H:"+from_H.ToString()
-				//                        +"; riDest.Width:"+riDest.Width.ToString()
-				//                        +"; riDest.Height:"+riDest.Height.ToString()
-				//                        +"}");//debug only
+				//						+"from_X:"+from_X.ToString()
+				//						+"; from_Y:"+from_Y.ToString()
+				//						+"; from_W:"+from_W.ToString()
+				//						+"; from_H:"+from_H.ToString()
+				//						+"; riDest.Width:"+riDest.Width.ToString()
+				//						+"; riDest.Height:"+riDest.Height.ToString()
+				//						+"}");//debug only
 				bGood=riDest!=null?RMath.CropRect(ref from_X,ref from_Y,ref from_W,ref from_H, 0,0,riDest.Width,riDest.Height):false;
 				//change back to source coordinates:
 				from_X-=to_X;
@@ -2202,40 +2635,40 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 				bWithinDest=true;
 				if (to_W<=0) {
 					RReporting.ShowErr("Math fail!","cropping float destination {"
-					                   +Environment.NewLine
-					                   +"to_W:"+to_X.ToString()+"; "
-					                   +"to_W:"+to_W.ToString()+"; "
-					                   +"from_X:"+from_X.ToString()+"; "
-					                   +"from_W:"+from_W.ToString()+"; "
-					                   +"boundary_X:"+boundary_X.ToString()+"; "
-					                   +"boundary_W:"+boundary_W.ToString()+"; "
-					                   +"  original{"
-					                   +Environment.NewLine
-					                   +"to_X:"+original_to_X.ToString()+"; "
-					                   +"to_W:"+original_to_W.ToString()+"; "
-					                   +"from_X:"+original_from_X.ToString()+"; "
-					                   +"from_W:"+original_from_W.ToString()+"; "
-					                   +"}");
+									   +Environment.NewLine
+									   +"to_W:"+to_X.ToString()+"; "
+									   +"to_W:"+to_W.ToString()+"; "
+									   +"from_X:"+from_X.ToString()+"; "
+									   +"from_W:"+from_W.ToString()+"; "
+									   +"boundary_X:"+boundary_X.ToString()+"; "
+									   +"boundary_W:"+boundary_W.ToString()+"; "
+									   +"  original{"
+									   +Environment.NewLine
+									   +"to_X:"+original_to_X.ToString()+"; "
+									   +"to_W:"+original_to_W.ToString()+"; "
+									   +"from_X:"+original_from_X.ToString()+"; "
+									   +"from_W:"+original_from_W.ToString()+"; "
+									   +"}");
 					to_W=0;
 					bWithinDest=false;
 				}
 				if (to_H<=0) {
 					RReporting.ShowErr("Math fail!","cropping float destination {"
-					                   +Environment.NewLine
-					                   +"\t"+"to_Y:"+to_Y.ToString()+"; "
-					                   +"to_H:"+to_H.ToString()+"; "
-					                   +"from_Y:"+from_Y.ToString()+"; "
-					                   +"from_H:"+from_H.ToString()+"; "
-					                   +"boundary_Y:"+boundary_Y.ToString()+"; "
-					                   +"boundary_H:"+boundary_H.ToString()+"; "
-					                   +"}"
-					                   +"  original{"
-					                   +Environment.NewLine
-					                   +"\t"+"to_Y:"+original_to_Y.ToString()+"; "
-					                   +"to_H:"+original_to_H.ToString()+"; "
-					                   +"from_Y:"+original_from_Y.ToString()+"; "
-					                   +"from_H:"+original_from_H.ToString()+"; "
-					                   +"}");
+									   +Environment.NewLine
+									   +"\t"+"to_Y:"+to_Y.ToString()+"; "
+									   +"to_H:"+to_H.ToString()+"; "
+									   +"from_Y:"+from_Y.ToString()+"; "
+									   +"from_H:"+from_H.ToString()+"; "
+									   +"boundary_Y:"+boundary_Y.ToString()+"; "
+									   +"boundary_H:"+boundary_H.ToString()+"; "
+									   +"}"
+									   +"  original{"
+									   +Environment.NewLine
+									   +"\t"+"to_Y:"+original_to_Y.ToString()+"; "
+									   +"to_H:"+original_to_H.ToString()+"; "
+									   +"from_Y:"+original_from_Y.ToString()+"; "
+									   +"from_H:"+original_from_H.ToString()+"; "
+									   +"}");
 					to_H=0;
 					bWithinDest=false;
 				}
@@ -2384,7 +2817,7 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 				return y*iStride+x*iBytesPP;;
 			}
 		}
-		public static string DrawModeToString(int iDrawMode) {
+		public static string DrawMode_ToString(int iDrawMode) {
 			string sReturn="uninitialized-drawmode";
 			try {
 				sReturn=sarrDrawMode[iDrawMode];
@@ -2394,11 +2827,11 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 			}
 			return sReturn;
 		}
-		public static int DrawMode(string DrawModeString) {
+		public static int DrawMode_(string DrawMode_String) {
 			int iReturn=-1;
 			try {
 				for (int iNow=0; iNow<sarrDrawMode.Length; iNow++) {
-					if (DrawModeString==sarrDrawMode[iNow]) {
+					if (DrawMode_String==sarrDrawMode[iNow]) {
 						iReturn=iNow;
 						break;
 					}
@@ -2437,8 +2870,8 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 			RString.StringToFile(sFile, sData);
 		}
 		public string Description() {
-			return iWidth.ToString()+"x"+iHeight.ToString()+"x"+iBytesPP.ToString()+(this.byarrData!=null?"["+this.byarrData.Length+"bytes]":"[NULL-BUFFER]");
-		}
+			return iWidth.ToString()+"x"+iHeight.ToString()+"x"+iBytesPP.ToString()+((this.byarrData!=null)?("[BufferLength:"+this.byarrData.Length+"bytes]"):"[NULL-BUFFER]");
+		}//"=~iBytesTotal:"+iBytesTotal.ToString()
 		public string DumpStyle() {
 			return DumpStyle(true);
 		}
@@ -2457,11 +2890,13 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 		public int Channels() {
 			return iBytesPP;
 		}
-		public PixelFormat PixelFormatNow() {
-			if (this.iBytesPP==1) return PixelFormat.Format8bppIndexed;//assumes no grayscale in framework
-			else if (this.iBytesPP==3) return PixelFormat.Format24bppRgb;//assumes BGR, though says Rgb
-			else if (this.iBytesPP==2) return PixelFormat.Format16bppGrayScale;//assumes no 16bit color
-			return PixelFormat.Format32bppArgb;
+		public PixelFormat PixelFormatNow {
+			get {
+				if (this.iBytesPP==1) return PixelFormat.Format8bppIndexed;//assumes no grayscale in framework
+				else if (this.iBytesPP==3) return PixelFormat.Format24bppRgb;//assumes BGR, though says Rgb
+				else if (this.iBytesPP==2) return PixelFormat.Format16bppGrayScale;//assumes no 16bit color allowed but this is a 16-bit deep gray image
+				return PixelFormat.Format32bppArgb;
+			}
 		}
 		public void SetGrayPalette() {
 			SetGrayPalette(ref bmpLoaded);
@@ -2560,34 +2995,83 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 		public void Fill(byte byGrayVal) {
 			RMemory.Fill(ref byarrData,byGrayVal,0,iBytesTotal);
 		}
-		public void Fill(uint dwPixelBGRA) {
+		public void Fill(uint dwPixelBGRA_LittleEndian_LeastSignificantByteIsAlpha) {
 			if (iBytesPP==4) {
-				RMemory.Fill(ref byarrData,dwPixelBGRA,0,iBytesTotal/4);
+				RMemory.Fill(ref byarrData,dwPixelBGRA_LittleEndian_LeastSignificantByteIsAlpha,0,iBytesTotal/4);
 			}
-			else RReporting.ShowErr("Filling this type of surface with 32-bit color is not implemented","",String.Format("Fill(32-bit){{ImageBitDepth:{0}}}",(iBytesPP*8)));
+			else {
+				RPaint rpaintFill=new RPaint(dwPixelBGRA_LittleEndian_LeastSignificantByteIsAlpha);
+				Fill(rpaintFill);
+				//RReporting.ShowErr("Filling this type of surface with 32-bit color is not implemented","",String.Format("Fill(32-bit){{ImageBitDepth:{0}}}",(iBytesPP*8)));
+			}
 		}
-		public void Fill(byte[] byarrPixel32bit) {
+		public void Fill(byte[] byarrPixel32bitBGRA) {
 			if (iBytesPP==4) {
-				RMemory.Fill4(ref byarrData,ref byarrPixel32bit,0,0,iBytesTotal/4);
+				RMemory.Fill4ByteChunksByUnitCount(ref byarrData,ref byarrPixel32bitBGRA,0,0,iBytesTotal/4);
 			}
-			else RReporting.ShowErr("Filling this type of surface with 32-bit color is not implemented","",String.Format("Fill(32-bit){{ImageBitDepth:{0}}}",(iBytesPP*8)));
+			else {
+				RPaint rpaintFill=RPaint.FromArgb(byarrPixel32bitBGRA[3],
+											 byarrPixel32bitBGRA[2],
+											 byarrPixel32bitBGRA[1],
+											 byarrPixel32bitBGRA[0]);
+				Fill(rpaintFill);
+				//RReporting.ShowErr("Filling this type of surface with 32-bit color is not implemented","",String.Format("Fill(32-bit){{ImageBitDepth:{0}}}",(iBytesPP*8)));
+			}
+		}
+		/// <summary>
+		/// If this image is grayscale, average will be used as fill color
+		/// </summary>
+		/// <param name="rpaintFill"></param>
+		public void Fill(RPaint rpaintFill) {
+			try {
+				if (rpaintFill!=null) {
+					if (this.iBytesPP==4) {
+						RMemory.Fill(ref this.byarrData,rpaintFill.data32Copied64,0,this.iBytesTotal);
+					}
+					else if (this.iBytesPP==3) {
+						RMemory.Fill(ref this.byarrData,rpaintFill.data24Copied48,0,this.iBytesTotal);
+					}
+					else if (this.iBytesPP==1) {
+						byte byVal=RMath.ByRound(((double)rpaintFill.R+(double)rpaintFill.G+(double)rpaintFill.B)/3.0);
+						RMemory.Fill(ref this.byarrData,byVal,0,this.iBytesTotal);
+					}
+					else {
+						RReporting.ShowErr("SKIPPED Fill due to unknown bitdepth "+iBytesPP.ToString(),"filling pixel buffer using paint object");
+					}
+				}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"filling pixel buffer using paint object");
+			}
 		}
 		#endregion utilities
 
 		#region Pattern Recognition
+		/// <summary>
+		/// Detects 0 alpha (or 0 gray value if 8-bit).  Will always be false if 24-bit
+		/// </summary>
+		/// <param name="x"></param>
+		/// <param name="y"></param>
+		/// <param name="iPixelCount"></param>
+		/// <returns></returns>
 		public bool IsTransparentVLine(int x, int y, int iPixelCount) {
 			int iFound=0;
 			try {
-				int iBuffer=XYToLocation(x,y);
-				if (iBuffer>-1&&iBuffer<iBytesTotal) {
-					for (int iNow=0; iNow<iPixelCount; iNow++) {
-						if (byarrData[iBuffer+3]==0) iFound++; //+3 assumes 32-bit BGRA
-						iBuffer+=iStride;
+				if (iBytesPP!=3) {
+					int iAOffset=3;
+					if (iBytesPP==1) iAOffset=0;
+					int iBuffer=XYToLocation(x,y);
+					if (iBuffer>-1&&iBuffer<iBytesTotal) {
+						for (int iNow=0; iNow<iPixelCount; iNow++) {
+							if (byarrData[iBuffer+iAOffset]==0) iFound++; //+iAOffset assumes 32-bit BGRA or 8-bit value used as alpha
+							iBuffer+=iStride;
+						}
+					}
+					else {
+						RReporting.ShowErr( "No line of pixels exists at location", "checking for transparent line", String.Format("IsTransparentVLine(x:{0},y:{1},count:{2}){found:{3}}",x,y,iPixelCount,iFound) );
 					}
 				}
-				else {
-					RReporting.ShowErr( "No line of pixels exists at location", "checking for transparent line", String.Format("IsTransparentVLine(x:{0},y:{1},count:{2}){found:{3}}",x,y,iPixelCount,iFound) );
-				}
+				//else iFound==0 so not transparent
 			}
 			catch (Exception exn) {
 				//do not modify bReturn, since exception implies nonexistent pixel
@@ -2598,7 +3082,7 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 		#endregion Pattern Recognition
 		
 		#region Get Methods
-		public Color GetPixel(int x, int y) {//keep this same to mimic the Bitmap method of the same name
+		public Color GetPixel(int x, int y) {//retain Color as return in order to mimic the Bitmap method of the same name
 			//TODO: wrapping modes
 			int iLoc=XYToLocation(x,y);
 			if (iLoc>0) {
@@ -2610,13 +3094,54 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 			}
 			return Color.FromArgb(0,0,0,0);
 		}
-		public byte Alpha(int x, int y) {
-			return ChannelValue(x,y,iBytesPP-1);//debug silently degrades (fixes) if grayscale (since iBytesPP-1 is 0 which is first channel)
+		/// <summary>
+		/// Gets pixel.  Will create paintReturn if necessary.  A=255 if this image is 24-bit.  ALL channels will be gray value if this image is 8-bit grayscale.
+		/// uses GrayHandling_Overlay.GrayToColorMode
+		/// </summary>
+		/// <param name="paintReturn">Returns value at (x,y) otherwise transparent.  Is ALWAYS set.  Alpha will be transparent and color will remain same if can't get pixel.</param>
+		/// <param name="x"></param>
+		/// <param name="y"></param>
+		/// <param name="GrayHandling_Overlay_OrNull">ROverlay for gray handling, or null (If null, all channels including alpha will to be set to gray value if this image is gray)</param>
+		/// <returns>Returns false if can't get pixel (but paintReturn is always set).</returns>
+		public bool GetPixel(ref RPaint paintReturn, int x, int y, ROverlay GrayHandling_Overlay_OrNull) {
+			bool bGood=true;
+			try {
+			if (byarrData!=null) {
+				int iLocation=this.XYToLocation(x,y);
+				if (this.iBytesPP==4) {
+					if (paintReturn==null) paintReturn=RPaint.FromArgb(byarrData[iLocation+3],byarrData[iLocation+2],byarrData[iLocation+1],byarrData[iLocation]);
+					else paintReturn.SetArgb(byarrData[iLocation+3],byarrData[iLocation+2],byarrData[iLocation+1],byarrData[iLocation]);
+				}
+				else if (this.iBytesPP==3) {
+					if (paintReturn==null) paintReturn=RPaint.FromArgb(255,byarrData[iLocation+2],byarrData[iLocation+1],byarrData[iLocation]);
+					else paintReturn.SetArgb(255,byarrData[iLocation+2],byarrData[iLocation+1],byarrData[iLocation]);
+				}
+				else if (this.iBytesPP==1) {
+					ROverlay.GrayToColor(ref paintReturn, byarrData[iLocation],GrayHandling_Overlay_OrNull);
+				}
+				else bGood=false;//unknown bitdepth
+			}
+			if (paintReturn==null) paintReturn=new RPaint(true);
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"getting paint object from pixel");
+			}
+			return bGood;
+		}//end GetPixel(RPaint,...)
+		public byte GetAlpha(int x, int y) {
+			return GetChannelValue(x,y,iBytesPP-1);//debug silently degrades (fixes) if grayscale (since iBytesPP-1 is 0 which is first channel)
 		}
-		public byte ChannelValue(int x, int y, int iChannel) {
+		public byte GetChannelValue(int x, int y, int iChannel) {
 			byte byReturn=0;
 			try {
-				//TODO: wrapping & other out-of-range handling modes go here
+				if (iChannel<0) {
+					if (RReporting.bDebug) RReporting.Debug("Channel number error: iChannel was less than zero (will be cropped to 0)!  {iChannel:"+iChannel.ToString()+"; iBytesPP:"+iBytesPP.ToString()+ "}.");
+					iChannel=0;
+				}
+				else if (iChannel>=iBytesPP) {
+					if (RReporting.bDebug) RReporting.Debug("Channel number error: iChannel was out of range (will be cropped to last channel). {iChannel:"+iChannel.ToString()+"; iBytesPP:"+iBytesPP.ToString()+ "}.");
+					iChannel=iBytesPP-1;
+				}
 				return byarrData[y*iStride+x*iBytesPP+iChannel];
 			}
 			catch (Exception exn) {
@@ -2642,7 +3167,7 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 			//int iSampleQuadIndex;
 			float xMaxSrc;
 			float yMaxSrc;
-			float dQuarterWeight;
+			//float dQuarterWeight;
 			int iQuad;
 			int iChan;
 			int iDestNow;
@@ -2912,14 +3437,14 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 			SetPixel(rpaintFore,x,y);
 		}
 		///TODO: eliminate assumed rpaintFore overloads of ALL functions
-		public unsafe void SetPixel(RPaint rpaintX, int x, int y) {
+		public unsafe void SetPixel(RPaint paintSource, int x, int y) {
 			try {
-				if (rpaintX==null) {
-					rpaintX=new RPaint();
-					rpaintX.SetRgb(255,255,255);
+				if (paintSource==null) {
+					paintSource=new RPaint();
+					paintSource.SetRgb(255,255,255);
 				}
 				if (iBytesPP==4) {
-					fixed (byte* lpDest=&byarrData[XYToLocation(x,y)], lpSrc=rpaintX.data32) {
+					fixed (byte* lpDest=&byarrData[XYToLocation(x,y)], lpSrc=paintSource.data32) {
 						*((UInt32*)lpDest) = *((UInt32*)lpSrc);
 					}
 				}
@@ -2927,7 +3452,7 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 					int iSrc=0;
 					int iDest=XYToLocation(x,y);
 					while (iSrc<iBytesPP) {
-						byarrData[iDest]=rpaintX.data32[iSrc];
+						byarrData[iDest]=paintSource.data32[iSrc];
 						iSrc++;
 						iDest++;
 					}
@@ -3137,16 +3662,16 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 			}
 			return false;
 		}
-		public bool DrawRectStyleCropped(RPaint rpaintX, int rect_Top, int rect_Left, int rect_Width, int rect_Height) {
+		public bool DrawRectStyleCropped(RPaint paintSource, int rect_Top, int rect_Left, int rect_Width, int rect_Height) {
 			RPaint rpaintForeOrig=rpaintFore;
 			bool bGood=false;
 			try {
 				//TODO: UseDrawRectBorderHomogeneous (...only for equally thick borders)
 				//TODO: CornerRadius
-				//rpaintX was formerly colorNow
-				if (rpaintX==null) rpaintX=rpaintFore.Copy();
-				rpaintFore=rpaintTemp;//rpaintX.Copy();//TODO: debug performance
-				rpaintFore.Set(rpaintX);//NOTE: this allows modifying the temporary rpaintFore while still referring to the original rpaintX parameter
+				//paintSource was formerly colorNow
+				if (paintSource==null) paintSource=rpaintFore.Copy();
+				rpaintFore=rpaintTemp;//paintSource.Copy();//TODO: debug performance
+				rpaintFore.Set(paintSource);//NOTE: this allows modifying the temporary rpaintFore while still referring to the original paintSource parameter
 				if (rpaintFore.A==0) {
 					rpaintFore.SetRgb_IgnoreAlpha(128,128,128);
 				}
@@ -3166,11 +3691,11 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 					}
 					//TODO: DrawRectStyle - vectorize and make color alpha polygons
 					//dark:
-					rpaintFore.SetRgb(RMath.SubtractBytes[rpaintX.R][85],RMath.SubtractBytes[rpaintX.G][85],RMath.SubtractBytes[rpaintX.B][85]);
+					rpaintFore.SetRgb(RMath.SubtractBytes[paintSource.R][85],RMath.SubtractBytes[paintSource.G][85],RMath.SubtractBytes[paintSource.B][85]);
 					DrawHorzLine(rect_Left, rect_Top+rect_Height-1, rect_Width);//, "DrawRectStyle(){part:B}");
 					DrawVertLine(rect_Left, rect_Top, rect_Height);//, "DrawRectStyle(){part:L}");//if (rect_Left>=0&&rect_Left<iWidth&&rect_Top>=0&&rectTop<iHeight)
 					//light:
-					rpaintFore.SetRgb(RMath.AddBytes[rpaintX.R][85],RMath.AddBytes[rpaintX.G][85],RMath.AddBytes[rpaintX.B][85]);
+					rpaintFore.SetRgb(RMath.AddBytes[paintSource.R][85],RMath.AddBytes[paintSource.G][85],RMath.AddBytes[paintSource.B][85]);
 					DrawHorzLine(rect_Left, rect_Top, rect_Width);//, "DrawRectStyle(){part:T}");//if (rect_Left<iWidth&&rect_Left>=0&&rect_Height>0)
 					DrawVertLine(rect_Left+rect_Width-1,rect_Top,rect_Height);//,"DrawRectStyle(){part:R}");//if (rect_Left+rect_Width-1<iWidth&&rect_Top>=0&&rect_Width>0)
 					bGood=true;
@@ -3229,25 +3754,44 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 		public bool DrawRectFilled(int xDest, int yDest, int iWidth, int iHeight, string sSender_ForErrorTracking) {
 			return DrawRectFilled(rpaintFore,xDest, yDest, iWidth, iHeight);
 		}
-		public unsafe bool DrawRectFilled(RPaint rpaintX, int xDest, int yDest, int iWidth, int iHeight) {
+		/// <summary>
+		/// Fills this image with paintSource.  Uses average of BGR if this image is grayscale.
+		/// </summary>
+		/// <param name="paintSource"></param>
+		/// <param name="xDest"></param>
+		/// <param name="yDest"></param>
+		/// <param name="iWidth"></param>
+		/// <param name="iHeight"></param>
+		/// <returns></returns>
+		public unsafe bool DrawRectFilled(RPaint paintSource, int xDest, int yDest, int iWidth, int iHeight) {
 			//TODO: implement overlay modes here
 			if ((iWidth<1)||(iHeight<1)) return false;
 			bool bGood=true;
 			try {
-				int iDest=yDest*iStride+xDest*iBytesPP;
-				fixed (byte* lpDest=&byarrData[iDest], lpSrc=rpaintX.data32Copied64) { //keeps GC at bay
-					byte* lpDestNow;
-					byte* lpDestStart=lpDest;
-					for (int yNow=0; yNow<iHeight; yNow++) {
-						lpDestNow=lpDestStart;
-						for (int i=iWidth/2; i!=0; i--) {
-							*((UInt64*)lpDestNow) = *((UInt64*)lpSrc);
-							lpDestNow+=8;
+				if (paintSource!=null) {
+					int iDest=yDest*iStride+xDest*iBytesPP;
+					if (iBytesPP==4) {
+						fixed (byte* lpDest=&byarrData[iDest], lpSrc=paintSource.data32Copied64) { //keeps GC at bay
+							byte* lpDestNow;
+							byte* lpDestLine=lpDest;
+							for (int yNow=0; yNow<iHeight; yNow++) {
+								lpDestNow=lpDestLine;
+								for (int i=iWidth/2; i!=0; i--) {
+									*((UInt64*)lpDestNow) = *((UInt64*)lpSrc);
+									lpDestNow+=8;
+								}
+								if ((iWidth%2)!=0) {
+									*((UInt32*)lpDestNow) = *((UInt32*)lpSrc);
+								}
+								lpDestLine+=iStride;
+							}
 						}
-						if ((iWidth%2)!=0) {
-							*((UInt32*)lpDestNow) = *((UInt32*)lpSrc);
-						}
-						lpDestStart+=iStride;
+					}
+					else if (iBytesPP==3) {
+						RMemory.Fill(ref byarrData, paintSource.data24Copied48,0,this.iBytesTotal);
+					}
+					else if (iBytesPP==1) {
+						RMemory.Fill(ref byarrData, RMath.ByRound( ((double)paintSource.B+(double)paintSource.G+(double)paintSource.R) / 3.0 ),0,this.iBytesTotal);
 					}
 				}
 			}
@@ -3289,17 +3833,30 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 		public bool DrawRectFilledCropped(int xDest, int yDest, int iWidth, int iHeight) {
 			return DrawRectFilledCropped(rpaintFore,xDest,yDest,iWidth,iHeight);
 		}
-		public bool DrawRectFilledCropped(RPaint rpaintX, int xDest, int yDest, int iWidth, int iHeight) {
+		public bool DrawRectFilledCropped(RPaint paintSource, int xDest, int yDest, int iWidth, int iHeight) {
 			//formerly DrawRectCroppedFilled
 			RMath.CropRect(ref xDest, ref yDest, ref iWidth, ref iHeight, 0, 0, Width, Height);
-			if (iWidth>0&&iHeight>0) return DrawRectFilled(rpaintX,xDest,yDest,iWidth,iHeight);
+			if (iWidth>0&&iHeight>0) return DrawRectFilled(paintSource,xDest,yDest,iWidth,iHeight);
+			else return true;
+		}
+		public bool DrawRectFilledCropped(IRect rectNow) {
+			return DrawRectFilledCropped(rpaintFore,rectNow);
+		}
+		public bool DrawRectFilledCropped(RPaint paintSource, IRect rectNow) {
+			//formerly DrawRectCroppedFilled
+			int xDest=rectNow.X;
+			int yDest=rectNow.Y;
+			int iWidth=rectNow.Width;
+			int iHeight=rectNow.Height;
+			RMath.CropRect(ref xDest, ref yDest, ref iWidth, ref iHeight, 0, 0, Width, Height);
+			if (iWidth>0&&iHeight>0) return DrawRectFilled(paintSource,xDest,yDest,iWidth,iHeight);
 			else return true;
 		}
 		public bool DrawRectFilled(IRect rectRect) {
 			return DrawRectFilled(rpaintFore,rectRect);
 		}
-		public bool DrawRectFilled(RPaint rpaintX, IRect rectRect) {
-			return DrawRectFilled(rpaintX, rectRect.X, rectRect.Y, rectRect.Width, rectRect.Height);
+		public bool DrawRectFilled(RPaint paintSource, IRect rectRect) {
+			return DrawRectFilled(paintSource, rectRect.X, rectRect.Y, rectRect.Width, rectRect.Height);
 		}
 		//public bool DrawRectFilledHsva(IRect rectDest, float h, float s, float v, float a) {
 		//	return DrawRectFilledHsva(rectDest.X,rectDest.Y,rectDest.Width,rectDest.Height,h,s,v,a);
@@ -3325,7 +3882,7 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 		/// <param name="rectRect"></param>
 		/// <param name="rectHole"></param>
 		/// <returns></returns>
-		public bool DrawRectBorderHomogeneous(RPaint rpaintX, IRect rectRect, IRect rectHole) {//formerly DrawRectBorderSym
+		public bool DrawRectBorderHomogeneous(RPaint paintSource, IRect rectRect, IRect rectHole) {//formerly DrawRectBorderSym
 			bool bGood=true;
 			int xNow;
 			int yNow;
@@ -3336,20 +3893,20 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 				yNow=rectRect.Y;
 				iWidthNow=rectRect.Width;
 				iHeightNow=rectHole.Y-rectRect.Y;
-				bool bTest=DrawRectFilled(rpaintX, xNow, yNow, iWidthNow, iHeightNow);//Top full width
+				bool bTest=DrawRectFilled(paintSource, xNow, yNow, iWidthNow, iHeightNow);//Top full width
 				if (!bTest) bGood=false;
 				yNow+=rectHole.Height+iHeightNow;
 				//would need to change iHeightNow here if asymmetrical
-				bTest=DrawRectFilled(rpaintX, xNow, yNow, iWidthNow, iHeightNow);//Bottom full width
+				bTest=DrawRectFilled(paintSource, xNow, yNow, iWidthNow, iHeightNow);//Bottom full width
 				if (!bTest) bGood=false;
 				yNow-=rectHole.Height;
 				iWidthNow=rectHole.X-rectRect.X;
 				iHeightNow=rectHole.Height;
-				bTest=DrawRectFilled(rpaintX, xNow, yNow, iWidthNow, iHeightNow);//Left remaining height
+				bTest=DrawRectFilled(paintSource, xNow, yNow, iWidthNow, iHeightNow);//Left remaining height
 				if (!bTest) bGood=false;
 				xNow+=rectHole.Width+iWidthNow;
 				//would need to change iWidthNow here if asymmetrical
-				bTest=DrawRectFilled(rpaintX, xNow, yNow, iWidthNow, iHeightNow);//Right remaining height
+				bTest=DrawRectFilled(paintSource, xNow, yNow, iWidthNow, iHeightNow);//Right remaining height
 				if (!bTest) bGood=false;
 			}
 			catch (Exception exn) {
@@ -3361,13 +3918,13 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 		} //end DrawRectBorderHomogeneous
 		private IRect rectOuterTemp=new IRect();
 		private IRect rectInnerTemp=new IRect();
-		public bool DrawRectBorder(RPaint rpaintX, int xDest, int yDest, int iWidth, int iHeight, int iThick) {
+		public bool DrawRectBorder(RPaint paintSource, int xDest, int yDest, int iWidth, int iHeight, int iThick) {
 			rectOuterTemp.Set(xDest,yDest,iWidth,iHeight);
 			rectInnerTemp.Set(xDest+iThick,yDest+iThick,iWidth-(iThick*2),iHeight-(iThick*2));
 			if ((rectInnerTemp.Width<=2) || (rectInnerTemp.Height<=2)) {
-				return DrawRectFilled(rpaintX,rectOuterTemp);
+				return DrawRectFilled(paintSource,rectOuterTemp);
 			}
-			else return DrawRectBorderHomogeneous(rpaintX,rectOuterTemp, rectInnerTemp);
+			else return DrawRectBorderHomogeneous(paintSource,rectOuterTemp, rectInnerTemp);
 		}//DrawRectBorder
 		public unsafe bool DrawVertLine(int xDest, int yDest, int iPixelCopies) {
 			return DrawVertLine(rpaintFore, xDest, yDest, iPixelCopies);
@@ -3375,21 +3932,59 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 		public unsafe bool DrawVertLine(int xDest, int yDest, int iPixelCopies, bool bBackColor) {
 			return DrawVertLine(bBackColor?rpaintBack:rpaintFore, xDest,yDest,iPixelCopies);
 		}
-		public unsafe bool DrawVertLine(RPaint rpaintX, int xDest, int yDest, int iPixelCopies) {
+		/// <summary>
+		/// Draws vertical line FAST.  Uses average of BGR if this image is grayscale
+		/// </summary>
+		/// <param name="paintSource"></param>
+		/// <param name="xDest"></param>
+		/// <param name="yDest"></param>
+		/// <param name="iPixelCopies"></param>
+		/// <returns></returns>
+		public unsafe bool DrawVertLine(RPaint paintSource, int xDest, int yDest, int iPixelCopies) {
 			if (iPixelCopies<1) return false;
 			bool bGood=true;
 			try {
 				int iDest=yDest*iStride+xDest*iBytesPP;
-				fixed (byte* lpDest=&byarrData[iDest], lpSrc=rpaintX.data32) { //keeps GC at bay
-					byte* lpDestNow=lpDest;
-					//byte* lpSrcNow=lpSrc;
-					//lpSrcNow+=iSrcByte;
-					//lpDestNow+=iDestByte;
-					for (int i=iPixelCopies; i!=0; i--) {
-						*((UInt32*)lpDestNow) = *((UInt32*)lpSrc);
-						lpDestNow+=iStride;
+				if (this.iBytesPP==4) {
+					fixed (byte* lpDest=&byarrData[iDest], lpSrc=paintSource.data32) { //keeps GC at bay
+						byte* lpDestNow=lpDest;
+						//byte* lpSrcNow=lpSrc;
+						//lpSrcNow+=iSrcByte;
+						//lpDestNow+=iDestByte;
+						for (int i=iPixelCopies; i!=0; i--) {
+							*((UInt32*)lpDestNow) = *((UInt32*)lpSrc);
+							lpDestNow+=iStride;
+						}
 					}
 				}
+				else {
+					byte byVal=0;
+					if (this.iBytesPP!=3) byVal=RMath.ByRound( ((double)paintSource.R+(double)paintSource.G+(double)paintSource.R) / 3.0 );
+					fixed (byte* lpDest=&byarrData[iDest], lpSrc=paintSource.data32Copied64) { //keeps GC at bay
+						byte* lpDestLine=lpDest; //ONLY use this since drawing a VERTICAL line
+						byte* lpDestNow;
+						byte* lpSrcNow;
+						int iChan;
+						for (int iRel=0; iRel<iPixelCopies; iRel++) {
+							lpSrcNow=lpSrc;
+							lpDestNow=lpDestLine;
+							if (this.iBytesPP==3) {
+								for (iChan=0; iChan<this.iBytesPP; iChan++) {
+									*lpDestNow = *lpSrcNow;
+									lpDestNow++;
+									lpSrcNow++;
+								}
+							}
+							else {
+								for (iChan=0; iChan<this.iBytesPP; iChan++) {
+									*lpDestNow = byVal;
+									lpDestNow++;
+								}
+							}
+							lpDestLine+=iStride;
+						}
+					}
+				}//else this is not 32-bit
 			}
 			catch (Exception exn) {
 				bGood=false;
@@ -3404,21 +3999,50 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 		public unsafe bool DrawHorzLine(int xDest, int yDest, int iPixelCopies, bool bBackColor) {
 			return DrawHorzLine(bBackColor?rpaintBack:rpaintFore, xDest,yDest,iPixelCopies);
 		}
-		public unsafe bool DrawHorzLine(RPaint rpaintX, int xDest, int yDest, int iPixelCopies) {
+		public unsafe bool DrawHorzLine(RPaint paintSource, int xDest, int yDest, int iPixelCopies) {
 			if (iPixelCopies<1) return false;
 			bool bGood=true;
 			try {
 				int iDest=yDest*iStride+xDest*iBytesPP;
-				fixed (byte* lpDest=&byarrData[iDest], lpSrc=rpaintX.data32Copied64) { //keeps GC at bay
-					byte* lpDestNow=lpDest;
-					for (int i=iPixelCopies/2; i!=0; i--) {
-						*((UInt64*)lpDestNow) = *((UInt64*)lpSrc);
-						lpDestNow+=8;
-					}
-					if ((iPixelCopies%2)!=0) {
-						*((UInt32*)lpDestNow) = *((UInt32*)lpSrc);
+				if (this.iBytesPP==4) {
+					fixed (byte* lpDest=&byarrData[iDest], lpSrc=paintSource.data32Copied64) { //keeps GC at bay
+						byte* lpDestNow=lpDest;
+						for (int i=iPixelCopies/2; i!=0; i--) {
+							*((UInt64*)lpDestNow) = *((UInt64*)lpSrc);
+							lpDestNow+=8;
+						}
+						if ((iPixelCopies%2)!=0) {
+							*((UInt32*)lpDestNow) = *((UInt32*)lpSrc);
+						}
 					}
 				}
+				else {
+					byte byVal=0;
+					if (this.iBytesPP!=3) byVal=RMath.ByRound( ((double)paintSource.R+(double)paintSource.G+(double)paintSource.R) / 3.0 );
+					fixed (byte* lpDest=&byarrData[iDest], lpSrc=paintSource.data32Copied64) { //keeps GC at bay
+						//byte* lpDestLine=lpDest;
+						byte* lpDestNow=lpDest;
+						byte* lpSrcNow;
+						int iChan;
+						for (int iRel=0; iRel<iPixelCopies; iRel++) {
+							lpSrcNow=lpSrc;
+							//lpDestNow=lpDestLine;
+							if (this.iBytesPP==3) {
+								for (iChan=0; iChan<this.iBytesPP; iChan++) {
+									*lpDestNow = *lpSrcNow;
+									lpDestNow++;
+									lpSrcNow++;
+								}
+							}
+							else {
+								for (iChan=0; iChan<this.iBytesPP; iChan++) {
+									*lpDestNow = byVal;
+									lpDestNow++;
+								}
+							}
+						}
+					}
+				}//end else not 32-bit
 			}
 			catch (Exception exn) {
 				bGood=false;
@@ -3508,7 +4132,7 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 				byte[] riSrc_byarrData=riSrc.byarrData;
 				byte[] riDest_byarrData=riDest.byarrData;
 				switch (iDrawMode) {
-					case DrawModeCopyAlpha:
+					case DrawMode_CopyColor_CopyAlpha:
 						iBytesPPMin=(riSrc.iBytesPP<riDest.iBytesPP)?riSrc.iBytesPP:riDest.iBytesPP;
 						if (iBytesPPMin>=3) {
 							bGood=RMemory.CopyFast(ref riDest_byarrData, ref riSrc_byarrData, iDestBufferLoc, iSrcBufferLoc, iBytesPPMin);
@@ -3525,7 +4149,7 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 							else bGood=RMemory.CopyFast(ref riDest_byarrData, ref riSrc_byarrData, iDestBufferLoc, iSrcBufferLoc, iBytesPPMin);
 						}
 						break;
-					case DrawModeAlpha:
+					case DrawMode_AlphaColor_KeepDestAlpha:
 						if (riSrc.iBytesPP==4&&riDest.iBytesPP>=3) {
 							fCookedAlpha=(float)riSrc_byarrData[iSrcBufferLoc+3]/255.0f;
 							riDest_byarrData[iDestBufferLoc]=RMath.ByRound(((float)(riSrc_byarrData[iSrcBufferLoc]-riDest_byarrData[iDestBufferLoc]))*fCookedAlpha+riDest_byarrData[iDestBufferLoc]); //B
@@ -3535,10 +4159,10 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 							riDest_byarrData[iDestBufferLoc]=RMath.ByRound(((float)(riSrc_byarrData[iSrcBufferLoc]-riDest_byarrData[iDestBufferLoc]))*fCookedAlpha+riDest_byarrData[iDestBufferLoc]); //R
 						}
 						else {
-							RReporting.ShowErr("Cannot use "+DrawModeToString(iDrawMode)+" overlay mode with images that are not true color or when source is not 32-bit.","","DrawPixel");
+							RReporting.ShowErr("Cannot use "+DrawMode_ToString(iDrawMode)+" overlay mode with images that are not true color or when source is not 32-bit.","","DrawPixel");
 						}
 						break;
-					case DrawModeAlphaQuickEdge:
+					case DrawMode_AlphaQuickEdgeColor_KeepDestAlpha:
 						if (riSrc.iBytesPP>=4&&riDest.iBytesPP>=3) {
 							byte byAlpha=riSrc_byarrData[iSrcBufferLoc+3];
 							if (byAlpha<=85) {//do nothing
@@ -3557,10 +4181,10 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 							}
 						}
 						else {
-							RReporting.ShowErr("Cannot use "+DrawModeToString(iDrawMode)+" overlay mode with images that are not true color or when source is not 32-bit.","","DrawPixel");
+							RReporting.ShowErr("Cannot use "+DrawMode_ToString(iDrawMode)+" overlay mode with images that are not true color or when source is not 32-bit.","","DrawPixel");
 						}
 						break;
-					case DrawModeAlphaHardEdge:
+					case DrawMode_AlphaHardEdgeColor_KeepDestAlpha:
 						if (riSrc.iBytesPP>=4&&riDest.iBytesPP>=3) {
 							byte byAlpha=riSrc_byarrData[iSrcBufferLoc+3];
 							if (byAlpha<128) {//do nothing
@@ -3572,10 +4196,10 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 							}
 						}
 						else {
-							RReporting.ShowErr("Cannot use "+DrawModeToString(iDrawMode)+" overlay mode with images that are not true color or when source is not 32-bit.","","DrawPixel");
+							RReporting.ShowErr("Cannot use "+DrawMode_ToString(iDrawMode)+" overlay mode with images that are not true color or when source is not 32-bit.","","DrawPixel");
 						}
 						break;
-					case DrawModeKeepGreaterAlpha:
+					case DrawMode_AlphaColor_KeepGreaterAlpha:
 						if (riSrc.iBytesPP>=4&&riDest.iBytesPP>=3) {
 							riDest_byarrData[iDestBufferLoc]=(riSrc_byarrData[iSrcBufferLoc]>riDest_byarrData[iDestBufferLoc])?riSrc_byarrData[iSrcBufferLoc]:riDest_byarrData[iDestBufferLoc]; //B
 							iSrcBufferLoc++; iDestBufferLoc++;
@@ -3584,38 +4208,38 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 							riDest_byarrData[iDestBufferLoc]=(riSrc_byarrData[iSrcBufferLoc]>riDest_byarrData[iDestBufferLoc])?riSrc_byarrData[iSrcBufferLoc]:riDest_byarrData[iDestBufferLoc]; //R
 						}
 						else {
-							RReporting.ShowErr("Cannot use mode "+DrawModeToString(iDrawMode)+" with images that are not true color or when source is not 32-bit.","","DrawPixel");
+							RReporting.ShowErr("Cannot use mode "+DrawMode_ToString(iDrawMode)+" with images that are not true color or when source is not 32-bit.","","DrawPixel");
 						}
 						break;
-					case DrawModeKeepDestAlpha:
+					case DrawMode_CopyColor_KeepDestAlpha:
 						//if (riSrc.iBytesPP>=4&&riDest.iBytesPP>=3) {
 						//	iBytesPPMin=(riSrc.iBytesPP<riDest.iBytesPP)?riSrc.iBytesPP:riDest.iBytesPP;
 						//	if (iBytesPPMin>=4) iBytesPPMin=3;
 						//	RMemory.CopyFast(ref riDest_byarrData, ref riSrc_byarrData,iDestPix,iSrcPix,iBytesPPMin);
 						//else {
-						//	RReporting.ShowErr("Cannot use mode "+DrawModeToString(iDrawMode)+" with images that are not true color or when source is not 32-bit.","","DrawPixel");
+						//	RReporting.ShowErr("Cannot use mode "+DrawMode_ToString(iDrawMode)+" with images that are not true color or when source is not 32-bit.","","DrawPixel");
 						//}
 						//break;
 						iBytesPPMin=(riSrc.iBytesPP<riDest.iBytesPP)?riSrc.iBytesPP:riDest.iBytesPP;
 						if (iBytesPPMin>=3) {
-							if (iBytesPPMin>3) iBytesPPMin=3;//since DrawModeKeepDestAlpha
+							if (iBytesPPMin>3) iBytesPPMin=3;//since DrawMode_CopyColor_KeepDestAlpha
 							bGood=RMemory.CopyFast(ref riDest_byarrData, ref riSrc_byarrData, iDestBufferLoc, iSrcBufferLoc, iBytesPPMin);
 						}
 						else {
 							if (riDest.iBytesPP==4&&riSrc.iBytesPP==1) {	
-								RReporting.ShowErr("Cannot use mode "+DrawModeToString(iDrawMode)+" when source is an alpha mask and destination is 32-bit.","","DrawPixel");
+								RReporting.ShowErr("Cannot use mode "+DrawMode_ToString(iDrawMode)+" when source is an alpha mask and destination is 32-bit.","","DrawPixel");
 								//riDest_byarrData[iDestBufferLoc+3]=riSrc_byarrData[iSrcBufferLoc];
 							}
 							else if (riDest.iBytesPP==1) {//&&riSrc.iBytesPP==4) {
-								RReporting.ShowErr("Cannot use mode "+DrawModeToString(iDrawMode)+" when destination is an alpha mask.","DrawPixel");
+								RReporting.ShowErr("Cannot use mode "+DrawMode_ToString(iDrawMode)+" when destination is an alpha mask.","DrawPixel");
 								//riDest_byarrData[iDestBufferLoc]=riSrc_byarrData[iSrcBufferLoc+3];
 							}
 							else {
-								if (iBytesPPMin>3) iBytesPPMin=3;//since DrawModeKeepDestAlpha
+								if (iBytesPPMin>3) iBytesPPMin=3;//since DrawMode_CopyColor_KeepDestAlpha
 								bGood=RMemory.CopyFast(ref riDest_byarrData, ref riSrc_byarrData, iDestBufferLoc, iSrcBufferLoc, iBytesPPMin);
 							}
 						}
-						break; //end DrawModeKeepDestAlpha
+						break; //end DrawMode_CopyColor_KeepDestAlpha
 					default:
 						RReporting.Warning("DrawPixel mode "+iDrawMode.ToString()+" is not implemented");
 						bGood=false;
@@ -3624,11 +4248,11 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 			}
 			catch (Exception exn) {
 				bGood=false;
-				RReporting.ShowExn(exn,"drawing pixel at buffer location sensitive to DrawMode","DrawPixel {riDest:"+(riDest!=null?riDest.Description():"null")
+				RReporting.ShowExn(exn,"drawing pixel at buffer location sensitive to DrawMode_","DrawPixel {riDest:"+(riDest!=null?riDest.Description():"null")
 						+"; riSrc:"+(riSrc!=null?riSrc.Description():"null")
 						+"; iDestBufferLoc:"+iDestBufferLoc.ToString()
 						+"; iSrcBufferLoc:"+iSrcBufferLoc.ToString()
-						+"; iDrawMode:"+DrawModeToString(iDrawMode)
+						+"; iDrawMode:"+DrawMode_ToString(iDrawMode)
 						+"; iBytesPPMin:"+((iBytesPPMin!=-1)?iBytesPPMin.ToString():"unused")
 						+"; fCookedAlpha:"+((fCookedAlpha!=-1.0f)?fCookedAlpha.ToString():"unused")
 						+"}"
@@ -3643,6 +4267,7 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 
 		#region Vector Geometry Drawing
 		public void DrawVectorDot(float xDot, float yDot) {
+			//bool bGood=true;
 			try {
 				//TODO: finish this (finish Vector accuracy)
 				// Begin header fields in order of writing //
@@ -3650,7 +4275,6 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 				//bySizeofID byMapType byTgaType wMapOrigin wMapLength byMapBitDepth
 				//xImageOrigin yImageOrigin width height byBitDepth bitsDescriptor sTag
 				//*byarrColorMap *byarrData footer;
-				bool bGood=true;
 				//LPIPOINT *lpipointarrNow=malloc(4*sizeof(LPIIPOINT));
 	
 				//+1 is okay even when exact since that would result in xEccentric==0 and yEccentric==0
@@ -3686,6 +4310,7 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 			}
 		}//end DrawVectorDot
 		public void DrawVectorDot(float xDot, float yDot, Pixel32 pixelColor) {
+			//bool bGood=true;
 			try {
 				//TODO: finish this (finish Vector accuracy)
 				// Begin header fields in order of writing //
@@ -3693,7 +4318,6 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 				//bySizeofID byMapType byTgaType wMapOrigin wMapLength byMapBitDepth
 				//xImageOrigin yImageOrigin width height byBitDepth bitsDescriptor sTag
 				//*byarrColorMap *byarrData footer;
-				bool bGood=true;
 				//LPIPOINT *lpipointarrNow=malloc(4*sizeof(LPIIPOINT));
 	
 				//TODO: is this a problem when floor would be same??? since changed to +1 for max; see below
@@ -3857,7 +4481,7 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 				double rInverseScale=1.0/rScale;
 				double xSrcStart=-(pOrigin.X*rInverseScale);
 				double xSrc;
-				double rSpeed;
+				//double rSpeed;
 				double ySrc=-(pOrigin.Y*rInverseScale);
 				for (int yDest=rectDest.Y; yDest<yEnder; yDest++) {
 					xSrc=xSrcStart;
@@ -3886,7 +4510,7 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 				double rInverseScale=1.0/rScale;
 				double xSrcStart=-(pOrigin.X*rInverseScale);
 				double xSrc;
-				double rSpeed;
+				//double rSpeed;
 				double ySrc=-(pOrigin.Y*rInverseScale);
 				for (int yDest=rectDest.Y; yDest<yEnder; yDest++) {
 					xSrc=xSrcStart;
@@ -3916,7 +4540,7 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 				int xRel=0;
 				int xAbs=xAt;
 				int yAbs=yAt;
-				Color colorNow;
+				//Color colorNow;
 				try {
 					for (yRel=0; yRel<iSetHeight; yRel++) {
 						xAbs=xAtRow;
@@ -4161,25 +4785,25 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 		}//EffectMoBlurSimModWidth
 		public static bool EffectSkewModWidth(ref RImage riDest, ref RImage riSrc, int xOffsetBottom) {
 			bool bGood=true;
-			int DestLineNow_StartIndex;
-			double xDirection;
+			//int DestLineNow_StartIndex;
+			//double xDirection;
 			double dHeight;
 			double yNow;
 			double dWidthDest;
-			double dWidthSrc;
+			//double dWidthSrc;
 			double xNow;
 			double xAdd;
 			double yMaxSrc;
 			int iDestIndex;
 			DPoint dpSrc;
-			int iDestByte;
-			int iSrcByte;
+			//int iDestByte;
+			//int iSrcByte;
 			if (xOffsetBottom<0) {
-				xDirection=-1;
+				//xDirection=-1;
 				xAdd=(double)(xOffsetBottom*-1);
 			}
 			else {
-				xDirection=1;
+				//xDirection=1;
 				xAdd=(double)xOffsetBottom;
 			}
 			try {
@@ -4201,10 +4825,10 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 						RReporting.ShowExn(exn2,"trying to recover from previous exception by recreating destination","RImage EffectSkewModWidth { previous exception:"+exn.ToString()+" }");
 					}
 				}
-				iSrcByte=0;
-				iDestByte=0;//iDestByteStart;//TODO: Uncomment, and separate the blur code here and make alpha overlay version
+				//iSrcByte=0;
+				//iDestByte=0;//iDestByteStart;//TODO: Uncomment, and separate the blur code here and make alpha overlay version
 				bool bTest=true;
-				DestLineNow_StartIndex=0;
+				//DestLineNow_StartIndex=0;
 				dpSrc=new DPoint();
 				dpSrc.Y=0;
 				dHeight=(double)riDest.iHeight;
@@ -4296,45 +4920,127 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 			return true;
 		}
 		#endregion Effects		
-		
+		public static int PixelFormatToBytesPP(PixelFormat pixelformat) {
+			int iReturn=PixelFormatToBitsPP(pixelformat)/8;
+			if (iReturn==0) {
+				RReporting.Warning("0 bytes per pixel returned for "+PixelFormatToBitsPP(pixelformat).ToString()+"-bit pixel format! {PixelFormat:"+pixelformat.ToString()+"}");
+			}
+			return iReturn;
+		}
+		public static int PixelFormatToBitsPP(PixelFormat pixelformat) {
+			int iReturn=0;
+			if (pixelformat==PixelFormat.Format16bppArgb1555) iReturn=16;
+			else if (pixelformat==PixelFormat.Format16bppGrayScale) iReturn=16;
+			else if (pixelformat==PixelFormat.Format16bppRgb555) iReturn=16;
+			else if (pixelformat==PixelFormat.Format16bppRgb565) iReturn=16;
+			else if (pixelformat==PixelFormat.Format1bppIndexed) iReturn=1; //1/8 bytes per pixel
+			else if (pixelformat==PixelFormat.Format24bppRgb) iReturn=24;
+			else if (pixelformat==PixelFormat.Format32bppArgb) iReturn=32;
+			else if (pixelformat==PixelFormat.Format32bppPArgb) iReturn=32;
+			else if (pixelformat==PixelFormat.Format32bppRgb) iReturn=32;
+			else if (pixelformat==PixelFormat.Format48bppRgb) iReturn=48;
+			else if (pixelformat==PixelFormat.Format4bppIndexed) iReturn=4; //.5 bytes per pixel
+			else if (pixelformat==PixelFormat.Format64bppArgb) iReturn=64;
+			else if (pixelformat==PixelFormat.Format64bppPArgb) iReturn=64;
+			else if (pixelformat==PixelFormat.Format8bppIndexed) iReturn=8;
+			return iReturn;
+		}
 		#region DrawAs other image type
-		public bool DrawAs(Bitmap bmpDest) {//, Graphics Graphics_FromImage_bmpDest) {
+		public bool DrawAs(Bitmap bmpDest, PixelFormat pixelformatDest_MustMatchDest) {//, Graphics Graphics_FromImage_bmpDest) {
 			bool bGood=true;
 			Exception exn2=null;
 			//Pen penNow=new Pen();
 			//Color colorNow=new Color();
-			BitmapData bmpdataDest = bmpDest.LockBits(new Rectangle(0, 0,
-										bmpDest.Width, bmpDest.Height),
-										ImageLockMode.WriteOnly, ///take notice
-										PixelFormat.Format32bppArgb);
+			
+			BitmapData bmpdataDest=null;
 			int y=0, x=0;
-			int iLineStart=0;
-			int iSrc=-1;
+			//int iLineStart=0;
+			int iSrcLineStartNow=int.MinValue;
 			int iExceptions=0;
 			try {
+				if (bmpDest==null) throw new ApplicationException("destination bitmap is NULL");
+				if (byarrData==null) throw new ApplicationException("source RImage has NULL BUFFER");
+				if (bmpDest.Width!=Width||bmpDest.Height!=Height) throw new ApplicationException("source RImage has DIFFERENT IMAGE SIZE");
+				bmpdataDest=bmpDest.LockBits(new Rectangle(0, 0,
+											bmpDest.Width, bmpDest.Height),
+											ImageLockMode.WriteOnly, ///WRITE ONLY MODE
+											pixelformatDest_MustMatchDest);
+				int riDest_iBytesPP=RImage.PixelFormatToBytesPP(pixelformatDest_MustMatchDest);
 				//debug performance--try: using(Graphics gNow = Graphics.FromImage(bmpDest)) {//do drawing here}
-				int iMinStride=iStride<bmpdataDest.Stride?iStride:bmpdataDest.Stride;
-				unsafe {
-					byte* bypDest = (byte*)bmpdataDest.Scan0;
-					fixed (byte* bypSrc=byarrData) {
-					byte* bypSrcNow=bypSrc;
-						for (y=0; y<Height; y++) {
-							//iSrc=iLineStart;
-							try {
-								RMemory.Copy(bypDest,bypSrcNow,iMinStride);
-								bypDest+=bmpdataDest.Stride;
-								bypSrcNow+=iStride;
-							}
-							catch (Exception exn) { exn2=exn; iExceptions++;}
-							//iLineStart+=iStride;
-						}//end for y
-					}//end fixed *
-				}//end unsafe
+				
+				int iMinW=bmpDest.Width<Width?bmpDest.Width:Width;
+				int iMinH=bmpDest.Height<Height?bmpDest.Height:Height;
+				if (this.iBytesPP==riDest_iBytesPP) {
+					int iMinStride=iStride<bmpdataDest.Stride?iStride:bmpdataDest.Stride;
+					unsafe {
+						fixed (byte* bypSrc=byarrData) {
+							//fixed (IntPtr bypDest=bmpdataDest.Scan0) {
+								byte* bypSrcNow=bypSrc;
+								byte* bypDestLine=(byte*)bmpdataDest.Scan0;//NOTE: bmpdataDest.Scan0 is already fixed
+								iSrcLineStartNow=0;
+								for (y=0; y<iMinH; y++) {
+									try {
+										RMemory.Copy(bypDestLine,bypSrcNow,iMinStride);
+										bypDestLine+=bmpdataDest.Stride;
+										bypSrcNow+=iStride;
+										iSrcLineStartNow+=iStride;
+									}
+									catch (Exception exn) { exn2=exn; iExceptions++;}
+									//iLineStart+=iStride;
+								}//end for y
+							//}//end fixed dest *
+						}//end fixed source *
+					}//end unsafe
+				}
+				else {
+					unsafe {
+						fixed (byte* bypSrc=byarrData) {
+							//fixed (IntPtr bypDest=bmpdataDest.Scan0) {
+								byte* bypSrcNow;
+								byte* bypSrcLine=bypSrc;
+								byte* bypDestNow;
+								byte* bypDestLine=(byte*)bmpdataDest.Scan0;//NOTE: bmpdataDest.Scan0 is already fixed
+								int iChanRel;
+								iSrcLineStartNow=0;
+								//int riDest_LastChannel=riDest_iBytesPP-1;
+								int riSrc_LastChannel=iBytesPP-1;
+								int riSrc_ChannelJumpNowLastToNextFirst=iBytesPP-riDest_iBytesPP;
+								if (riSrc_ChannelJumpNowLastToNextFirst<1) riSrc_ChannelJumpNowLastToNextFirst=1;
+								//int iDestChannelsRemainder=riDest_iBytesPP-iBytesPP;
+								//if (iDestChannelsRemainder<0) iDestChannelsRemainder=0;
+								//TODO: fix channel overstep problem with src3 dest4
+								for (y=0; y<iMinH; y++) {
+									bypSrcNow=bypSrcLine;
+									bypDestNow=bypDestLine;
+									//	RMemory.Copy(bypDest,bypSrcNow,iMinStride);
+									//	bypSrcNow+=iStride;
+									for (x=0; x<Width; x++) {
+										try {
+											for (iChanRel=0; iChanRel<riDest_iBytesPP; iChanRel++) {
+												if (iChanRel==3&&riDest_iBytesPP==4&&iBytesPP==3) *bypDestNow=255;
+												else *bypDestNow=*bypSrcNow;
+												bypDestNow++;
+												if (iChanRel<riSrc_LastChannel) bypSrcNow++;
+											}
+										}
+										catch (Exception exn) { exn2=exn; iExceptions++;}
+										//iLineStart+=iStride;
+										bypSrcNow+=riSrc_ChannelJumpNowLastToNextFirst;
+									}
+									bypDestLine+=bmpdataDest.Stride;
+									bypSrcLine+=iStride;
+									iSrcLineStartNow+=iStride;
+								}//end for y
+							//}//end fixed dest *
+						}//end fixed source *
+					}//end unsafe
+				}//else iBytesPP!=4
+				
 			}
 			catch (Exception exn) { exn2=exn; iExceptions++;}
 			if (exn2!=null) {
 				bGood=false;
-				RReporting.ShowExn(exn2,"drawing RImage to Bitmap object using fast pointers","RImage DrawAs(Bitmap) {x:"+x.ToString()+"; y:"+y.ToString()+"; iSrc:"+iSrc.ToString()+"; "+DumpStyle(false)+"; iExceptions:"+iExceptions.ToString()+"}");
+				RReporting.ShowExn(exn2,"drawing RImage to Bitmap object using fast pointers","RImage DrawAs(Bitmap) {x:"+x.ToString()+"; y:"+y.ToString()+"; iSrcLineStartNow:"+iSrcLineStartNow.ToString()+"; iSrcLineStartNow/iBytesPP:"+(iSrcLineStartNow/iBytesPP).ToString()+"; "+DumpStyle(false)+"; iExceptions:"+iExceptions.ToString()+"}");
 			}
 			try {if (bmpDest!=null) bmpDest.UnlockBits(bmpdataDest);}
 			catch {}
@@ -4353,9 +5059,11 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 			Color colorNow=new Color();
 			int y=0, x=0;
 			int iLineStart=0;
-			int iSrc=-1;
+			int iSrc=int.MinValue;
 			int iExceptions=0;
 			try {
+				if (bmpDest==null) throw new ApplicationException("destination bitmap is null");
+				if (byarrData==null) throw new ApplicationException("source RImage has null buffer");
 				//debug performance--try:
 				//using(Graphics gNow = Graphics.FromImage(bmpDest)) {//do drawing here}
 				for (y=0; y<Height; y++) {
@@ -4558,4 +5266,175 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 			return riarrReturn;
 		}
 	}//end RImageStack created 2007-10-03
+	public class ROverlay {
+		public const int ColorDestMode_AlphaBlend		= 0;
+		public const int ColorDestMode_AlphaQuickEdge	= 1;
+		public const int ColorDestMode_AlphaHardEdge	= 2;
+		public const int ColorDestMode_Copy				= 3;
+		
+		public const int AlphaDestMode_KeepGreater		= 0;
+		public const int AlphaDestMode_KeepDestAlpha	= 1;
+		public const int AlphaDestMode_AlphaBlend		= 2;
+		public const int AlphaDestMode_Copy				= 3;
+		
+		/// <summary>
+		/// NOTE: GrayToColor_ constants are used as byte offset if less than 4
+		/// Ignored channels are left same if buffer is initialized,
+		/// but left as 0 if was uninitialized and receiving method initializes buffers.
+		/// </summary>
+		public const int GrayToColor_ToB_IgnoreOtherChannels=0;
+		public const int GrayToColor_ToG_IgnoreOtherChannels=1;
+		public const int GrayToColor_ToR_IgnoreOtherChannels=2;
+		public const int GrayToColor_ToA_IgnoreOtherChannels=3;
+		public const int GrayToColor_ToA_SetOtherChannelsTo255=4;
+		public const int GrayToColor_ToAllNonAlphaColorChannels_IgnoreA=5;
+		public const int GrayToColor_ToAllNonAlphaColorChannels_SetATo255=6;
+		public const int GrayToColor_ToAllColorsAndAlpha=7;
+		/// <summary>
+		/// NOTE: ColorToGray_ constants are used as byte offset if less than 4
+		/// </summary>
+		public const int ColorToGray_B=0;
+		public const int ColorToGray_G=1;
+		public const int ColorToGray_R=2;
+		public const int ColorToGray_A=3;
+		public const int ColorToGray_AverageColor=4;
+		
+		public int AlphaDestMode;
+		public int ColorDestMode;
+		public int GrayToColorMode;
+		public int ColorToGrayMode;
+		public bool NeedsSourceAlpha {
+			get {
+				return (
+					ColorDestMode!=ROverlay.ColorDestMode_Copy
+					||AlphaDestMode!=ROverlay.AlphaDestMode_KeepDestAlpha
+				);
+			}
+		}
+		public ROverlay() {
+			From(ColorDestMode_AlphaBlend,AlphaDestMode_KeepGreater);
+		}
+		public ROverlay(int AffectDestColorNow, int AffectDestAlphaNow) {
+			From(AffectDestColorNow,AffectDestAlphaNow);
+		}
+		public static ROverlay CopyChannels() {
+			return new ROverlay(ROverlay.ColorDestMode_Copy,ROverlay.AlphaDestMode_Copy);
+		}
+		public static int ToAlphaDestMode(string sVarName) {
+			int iReturn=-1;
+			if (sVarName=="AlphaDestMode_KeepGreater") iReturn=AlphaDestMode_KeepGreater;
+			else if (sVarName=="AlphaDestMode_KeepDestAlpha") iReturn=AlphaDestMode_KeepDestAlpha;
+			else if (sVarName=="AlphaDestMode_AlphaBlend") iReturn=AlphaDestMode_AlphaBlend;
+			else if (sVarName=="AlphaDestMode_Copy") iReturn=AlphaDestMode_Copy;
+			return iReturn;
+		}//end ToAlphaDestMode
+		public static int ToColorDestMode(string sVarName) {
+			int iReturn=-1;
+			if (sVarName=="ColorDestMode_AlphaBlend") iReturn=ColorDestMode_AlphaBlend;
+			else if (sVarName=="ColorDestMode_AlphaQuickEdge") iReturn=ColorDestMode_AlphaQuickEdge;
+			else if (sVarName=="ColorDestMode_AlphaHardEdge") iReturn=ColorDestMode_AlphaHardEdge;
+			else if (sVarName=="ColorDestMode_Copy") iReturn=ColorDestMode_Copy;
+			return iReturn;
+		}//end ToColorDestMode
+		public void From(int AffectDestColorNow, int AffectDestAlphaNow) {
+			ColorDestMode=AffectDestColorNow;
+			AlphaDestMode=AffectDestAlphaNow;
+		}
+
+		public void FromLegacyDrawMode(int iDrawMode) {
+			AlphaDestMode=AlphaDestMode_KeepDestAlpha;
+			if (iDrawMode==RImage.DrawMode_CopyColor_CopyAlpha) {
+				AlphaDestMode=AlphaDestMode_Copy;
+			}
+			else if (iDrawMode==RImage.DrawMode_AlphaColor_KeepGreaterAlpha) {
+				AlphaDestMode=AlphaDestMode_KeepGreater;
+			}
+			//UNUSED in DrawMode version: AlphaDestMode_AlphaBlend;
+			
+			ColorDestMode=ROverlay.ColorDestMode_AlphaBlend;
+			//if (iDrawMode==RImage.DrawMode_AlphaColor_KeepDestAlpha
+			//	||iDrawMode==RImage.DrawMode_AlphaColor_KeepGreaterAlpha) ColorDestMode=ROverlay.ColorDestMode_AlphaBlend;
+			if (iDrawMode==RImage.DrawMode_CopyColor_CopyAlpha
+				||iDrawMode==RImage.DrawMode_CopyColor_KeepDestAlpha) ColorDestMode=ROverlay.ColorDestMode_Copy;
+			else if (iDrawMode==RImage.DrawMode_AlphaQuickEdgeColor_KeepDestAlpha) ColorDestMode=ROverlay.ColorDestMode_AlphaQuickEdge;
+			else if (iDrawMode==RImage.DrawMode_AlphaHardEdgeColor_KeepDestAlpha) ColorDestMode=ROverlay.ColorDestMode_AlphaHardEdge;
+		}
+		/// <summary>
+		/// Converts GrayToColor using overlay object 
+		/// </summary>
+		/// <param name="paintReturn">If non-null, values must be set to something already since certain channels could be skipped.  Created and starts at argb(0,0,0,0) if null.</param>
+		/// <param name="byGrayValue">The gray value to convert to color</param>
+		/// <param name="GrayHandling_Overlay_OrNull">options for converting gray to color.  All channels will be set to byGrayValue if null.</param>
+		public static void GrayToColor(ref RPaint paintReturn, byte byGrayValue, ROverlay GrayHandling_Overlay_OrNull) {
+			byte a,r,g,b;
+			if (paintReturn!=null) {
+				a=paintReturn.A; r=paintReturn.R; g=paintReturn.G; b=paintReturn.B;
+			}
+			else {
+				a=0; r=0; g=0; b=0;
+			}
+			if (GrayHandling_Overlay_OrNull!=null) {
+				switch (GrayHandling_Overlay_OrNull.GrayToColorMode) {
+					case ROverlay.GrayToColor_ToA_IgnoreOtherChannels:
+						a=byGrayValue; break;
+					case ROverlay.GrayToColor_ToA_SetOtherChannelsTo255:
+						a=byGrayValue; r=255; g=255; b=255; break;
+					case ROverlay.GrayToColor_ToAllColorsAndAlpha:
+						a=byGrayValue; r=byGrayValue; g=byGrayValue; b=byGrayValue; break;
+					case ROverlay.GrayToColor_ToAllNonAlphaColorChannels_IgnoreA:
+						r=byGrayValue; g=byGrayValue; b=byGrayValue; break;
+					case ROverlay.GrayToColor_ToAllNonAlphaColorChannels_SetATo255:
+						a=255; r=byGrayValue; g=byGrayValue; b=byGrayValue; break;
+					case ROverlay.GrayToColor_ToB_IgnoreOtherChannels:
+						b=byGrayValue; break;
+					case ROverlay.GrayToColor_ToG_IgnoreOtherChannels:
+						g=byGrayValue; break;
+					case ROverlay.GrayToColor_ToR_IgnoreOtherChannels:
+						r=byGrayValue; break;
+					default:break;
+				}//end switch GrayHandling_Overlay_OrNull.GrayToColorMode
+			}
+			else {//default to GrayToColor_ToAllColorsAndAlpha
+				a=byGrayValue; r=byGrayValue; g=byGrayValue; b=byGrayValue;
+			}
+			if (paintReturn==null) paintReturn=RPaint.FromArgb(a,r,g,b);
+			else paintReturn.SetArgb(a,r,g,b);
+		}//end GrayToColor(RPaint,...)
+		/// <summary>
+		/// Converts GrayToColor using overlay object 
+		/// </summary>
+		/// <param name="a">Must be set to something already since certain channels could be skipped.</param>
+		/// <param name="r">Must be set to something already since certain channels could be skipped.</param>
+		/// <param name="g">Must be set to something already since certain channels could be skipped.</param>
+		/// <param name="b">Must be set to something already since certain channels could be skipped.</param>
+		/// <param name="byGrayValue">The gray value to convert to color</param>
+		/// <param name="GrayHandling_Overlay_OrNull">options for converting gray to color.  All channels will be set to byGrayValue (GrayToColor_ToAllColorsAndAlpha option will be used) if null.</param>
+		public static void GrayToColorArgb(ref byte a, ref byte r, ref byte g, ref byte b, byte byGrayValue, ROverlay GrayHandling_Overlay_OrNull) {
+			if (GrayHandling_Overlay_OrNull!=null) {
+				switch (GrayHandling_Overlay_OrNull.GrayToColorMode) {
+					case ROverlay.GrayToColor_ToA_IgnoreOtherChannels:
+						a=byGrayValue; break;
+					case ROverlay.GrayToColor_ToA_SetOtherChannelsTo255:
+						a=byGrayValue; r=255; g=255; b=255; break;
+					case ROverlay.GrayToColor_ToAllColorsAndAlpha:
+						a=byGrayValue; r=byGrayValue; g=byGrayValue; b=byGrayValue; break;
+					case ROverlay.GrayToColor_ToAllNonAlphaColorChannels_IgnoreA:
+						r=byGrayValue; g=byGrayValue; b=byGrayValue; break;
+					case ROverlay.GrayToColor_ToAllNonAlphaColorChannels_SetATo255:
+						a=255; r=byGrayValue; g=byGrayValue; b=byGrayValue; break;
+					case ROverlay.GrayToColor_ToB_IgnoreOtherChannels:
+						b=byGrayValue; break;
+					case ROverlay.GrayToColor_ToG_IgnoreOtherChannels:
+						g=byGrayValue; break;
+					case ROverlay.GrayToColor_ToR_IgnoreOtherChannels:
+						r=byGrayValue; break;
+					default:break;
+				}//end switch GrayHandling_Overlay_OrNull.GrayToColorMode
+			}
+			else {//default to GrayToColor_ToAllColorsAndAlpha
+				a=byGrayValue; r=byGrayValue; g=byGrayValue; b=byGrayValue;
+			}
+		}//end GrayToColor(RPaint,...)
+	}//end ROverlay class created 2009-12-23	
+	
 }//end namespace

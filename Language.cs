@@ -30,6 +30,26 @@ using System.Windows.Forms;
 //TODO: 
 //--tell user to make retorical questions with a period or exclaimation point.
 //--allow "?!","!?" and other repetitions or combinations.
+//--allow tion to be "sh"-"UH"-"n" anywhere not just endswith
+//-fix other silent 'e's e.g. bones, lines, times
+//  -fix words like hoped (silent 'e' then 'd' [or any where d follows a non-vocalized consonant sound] becomes vocalized 'd' a.k.a. hard 'z')
+//  e.g. && [Length-2,1]='e'
+//--silent 'e' if ends with VOWEL-CONSONANT-VOWEL-CONSONANT
+//--fix "sion" (anywhere in word)
+//  -soft  's' IF (vowel or 'r') is before 's'
+//  -soft 's' shoudl become 'zh'
+//  -always FORCE SHORT 'i' (AND silent 'o' unless 'one', then long 'o'  and latinized 'i')
+//--silent 'u' if before 'e' (e.g. guest)
+//-fix pony
+//-fix baba
+//-silent "gh" and long "i" if "igh" unless "eigh" then latinize (already long just silence "gh")
+//-fix "ie" (anywhere) latinize 'i', silence 'e' except pie/magpie*/*pied/me
+//-fix select or stay at stylable to de-select silent letters 
+//-latinized 'y' (ah ^ee) if sty*/*cry
+//-silent 'c' if "ck"
+//-fix "Chloe" (OH ^ee) (non-diphthong, two blends)
+
+
 namespace ExpertMultimedia {
 	//VISUALLY unique phonemes
 	public class Language {

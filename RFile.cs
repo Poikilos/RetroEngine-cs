@@ -39,9 +39,9 @@ namespace ExpertMultimedia {
 		public string sFileNow="1.Noname.RFile.raw";
 		public char[] carrChunkType=new char[] {'R','I','F','F'};
 		public string[] sarrKnownType=null; //TODO: when setting this, automatically change byte[] to byte[numberofbytesgohere] as necessary.  The array would, for example, contain new string[]{uint,uint,ushort,ushort}
-		//TODO: finish this (all 3 arrays must match):
 		public static readonly RDataSet[] riffKnownLeaf=new RDataSet[]{new RDataSet("FMT ", new string[]{"ushort","ushort","uint","uint","ushort","ushort","ushort"}, new string[]{"AudioMethod","ChannelCount","SampleRate","AverageBytesPerSecond","Chunks Per Sample Slice aka BlockAlign (= SignificantBitsPerSample / 8 * NumChannels)","SignificantBitsPerSample","Number of Method Bytes That Follow (always padded to multiple of 2)"}),new RDataSet("DATA",new string[]{"byte[]"},new string[]{"RawWaveData"})};
 		public RDataSet dataset=null;//this class describes an array of raw data
+		//all 3 arrays must match REPLACED BY riffKnownLeaf:
 		//public static readonly string[] sarrKnownRiffLeaf=new string[]{
 		//	"FMT ",
 		//	"DATA"
@@ -56,8 +56,9 @@ namespace ExpertMultimedia {
 		//};
 		
 		public static readonly string[] sarrKnownRiffBranch=new string[]{"WAVE"};//TODO: finish this (and implement, considering any leaves and/or branches found under it.
+		//TODO: also make constants for WAVE_LENGTHVAR_START WAVE_LENGTHVAR_SIZE in wave chunk relative to file start?
 		
-		bool bOverflow=false;//tracks whether the last variable saved was too big/small and set to max/min
+		bool bOverflow=false;//TODO: implement this -- tracks whether the last variable saved was too big/small and set to max/min
 		public FileStream fsSave=null;
 		public FileInfo fiLoad=null;
 		public FileStream fsLoad=null;
@@ -209,7 +210,7 @@ namespace ExpertMultimedia {
 		
 		#region utility methods
 		public char[] ToBase64() {
-			return Base.ToBase64(byarr);///TODO: Output all Riff chunks
+			return RConvert.ToBase64(byarr);///TODO: Output all Riff chunks
 		}
 		public bool ResetTo(int iNumOfBytes) {
 			try {
@@ -704,7 +705,10 @@ namespace ExpertMultimedia {
 			if (RMemory.CopyFast(ref byarrVar, ref byarr, 0, iPlace, iBytes)) {
 				iLastCount=iBytes;
 			}
-			else iLastCount=0;
+			else {
+				RReporting.ShowErr("Couldn't peek at file location","attempting CopyFast","RFile PeekFast");
+				iLastCount=0;
+			}
 		}
 		public bool Peek(ref byte[][][] by3dArray, int iDim1, int iDim2, int iDim3) {
 			iPlaceTemp=iPlace;
@@ -763,8 +767,8 @@ namespace ExpertMultimedia {
 			iPlaceTemp=iPlace;
 			string sReturn="";
 			try {
-				if (iCharsAreBytesDividedByTwo*2>Base.iMaxAllocation) {
-					throw new ApplicationException("Peek Unicode length of "+iCharsAreBytesDividedByTwo.ToString()+" chars times 2 was greater than Base.MaxAllocation of "+Base.iMaxAllocation.ToString());
+				if (iCharsAreBytesDividedByTwo*2>RMemory.iMaxAllocation) {
+					throw new ApplicationException("Peek Unicode length of "+iCharsAreBytesDividedByTwo.ToString()+" chars times 2 was greater than MaxAllocation of "+RMemory.iMaxAllocation.ToString());
 				}
 				ushort wChar;
 				for (int iChar=0; iChar<iLastCountDesired/2; iChar++) {
@@ -1223,7 +1227,10 @@ namespace ExpertMultimedia {
 			if (RMemory.CopyFast(ref byarr, ref byarrVar, iAtByterLoc, 0, iBytes)) {
 				iLastCount=iBytes;
 			}
-			else iLastCount=0;
+			else {
+				RReporting.ShowErr("Couldn't poke at file location","attempting CopyFast","RFile PokeFast");
+				iLastCount=0;
+			}
 			UsedCountAtLeast(iPlaceTemp);
 		}
 		public void PokeAscii(ref string val) {
@@ -1373,7 +1380,10 @@ namespace ExpertMultimedia {
 			if (RMemory.CopyFast(ref byarr, ref byarrVar, iPlace, 0, iBytes)) {
 				iLastCount=iBytes;
 			}
-			else iLastCount=0;
+			else {
+				RReporting.ShowErr("Couldn't read at file location","attempting CopyFast","RFile ReadFast");
+				iLastCount=0;
+			}
 			iPlace+=iLastCount;
 		}
 		public void Read(ref byte[] byarrVar, int iBytes) {

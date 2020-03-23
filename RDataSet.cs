@@ -27,7 +27,7 @@ namespace ExpertMultimedia {
 			else if (sNow=="double") iReturn=8;
 			else if (sNow=="decimal") iReturn=16;
 			else if (sNow.StartsWith("byte[")) {
-				iReturn=Convert.ToInt32(Base.SafeSubstring(sNow,5,sNow.Length-(5+1)));
+				iReturn=Convert.ToInt32(RString.SafeSubstring(sNow,5,sNow.Length-(5+1)));
 			}
 			return iReturn;
 		}

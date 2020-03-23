@@ -1168,7 +1168,7 @@ namespace ExpertMultimedia {
 			int iTemp=0;
 			string sTemp="";
 			if (sLine!=null) {
-				Base.RemoveEndsSpacing(ref sLine);
+				Base.RemoveEndsWhiteSpace(ref sLine);
 				if (sLine.EndsWith(";")) sLine=Base.SafeSubstring(sLine,0,sLine.Length-1);
 				if (sLine!="") {
 					try {

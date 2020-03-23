@@ -26,6 +26,7 @@ namespace ExpertMultimedia {
 		//TODO: use these when needed:
 			//Sdl.FRAMES_TO_MSF(iFrames, m, s, f);
 			//iFrames=Sdl.MSF_TO_FRAMES(m,s,f);.
+		
 		private Bitmap bmpLoaded=null;
 		private BitmapData bmpdata=null;
 		private GraphicsUnit gunit;
@@ -34,6 +35,10 @@ namespace ExpertMultimedia {
 		public long lFramesCached;
 		private string sPathFileBaseName="";
 		private string sFileExt="";
+		public string sParticiple {
+			set {RReporting.sParticiple=value;}
+			get {return RReporting.sParticiple;}
+		}
 		private string sPathFileNonSeq {
 			get {
 				return sPathFileBaseName+"."+sFileExt;
@@ -44,7 +49,7 @@ namespace ExpertMultimedia {
 				try {
 					if (riFrame!=null) return riFrame.iWidth;
 				}
-				catch (Exception exn) {
+				catch {
 				}
 				return 0;
 			}
@@ -54,7 +59,7 @@ namespace ExpertMultimedia {
 				try {
 					if (riFrame!=null) return riFrame.iHeight;
 				}
-				catch (Exception exn) {
+				catch {
 				}
 				return 0;
 			}
@@ -80,7 +85,7 @@ namespace ExpertMultimedia {
 		#region constructors
 		public RAnim Copy() {
 			RAnim animReturn=null;
-			string sParticiple="copying anim frame bitmap";
+			sParticiple="copying anim frame bitmap";
 			try {
 				animReturn=new RAnim();
 				if (bmpLoaded!=null) animReturn.bmpLoaded=(Bitmap)bmpLoaded.Clone();
@@ -105,10 +110,19 @@ namespace ExpertMultimedia {
 					if (lFramesCached>0) {
 						if (riarrAnim!=null) {
 							animReturn.riarrAnim=new RImage[lFramesCached];
+							int iDestFailed=0;
+							int iSourceFailed=0;
 							for (long lNow=0; lNow<lFramesCached; lNow++) {
 								sParticiple="copying anim frame ["+lNow.ToString()+"] (in "+lFramesCached+"-frame animation)";
-								animReturn.riarrAnim[lNow]=riarrAnim[lNow].Copy();
+								if (this.riarrAnim[lNow]!=null) animReturn.riarrAnim[lNow]=riarrAnim[lNow].Copy();
+								else {
+									animReturn.riarrAnim[lNow]=null;
+									iSourceFailed++;
+								}
+								if (animReturn.riarrAnim[lNow]==null) iDestFailed++;
 							}
+							if (iSourceFailed>0) RReporting.ShowErr("Some source frames were null!","copying ranim","{null-source-frames:"+iSourceFailed+"}");
+							else if (iDestFailed>0) RReporting.ShowErr("Some destination frames were null!","copying ranim","{null-dest-frames:"+iDestFailed+"; null-source-frames:"+iSourceFailed+"}");
 						}
 						else RReporting.ShowErr("Copying null animation ("+lFramesCached+" frames).");
 					}
@@ -140,7 +154,8 @@ namespace ExpertMultimedia {
 		/// <returns></returns>
 		public RAnim CopyAsGray(int iChannelOffset) {
 			RAnim animReturn=null;
-			string sParticiple="creating anim";
+			sParticiple="creating anim";
+			int FrameConvertNowIndex=0;
 			try {
 				animReturn=new RAnim();
 				sParticiple="copying bitmaploaded";
@@ -163,21 +178,42 @@ namespace ExpertMultimedia {
 				animReturn.iMaxEffects=iMaxEffects;
 				animReturn.lFramesCached=lFramesCached;
 				sParticiple="checking frame cache status";
+				
 				if (lFramesCached==lFrames) {
-					Console.Error.Write("CopyAsGray {frames:"+lFramesCached);
-					Console.Error.WriteLine("}");
+					//Console.Error.Write("CopyAsGray {frames:"+lFramesCached);
+					//Console.Error.WriteLine("}");
 					sParticiple="creating destination riarrAnim";
 					animReturn.riarrAnim=new RImage[lFramesCached];
+					sParticiple="copying frames to destination riarrAnim";
 					if (iChannelOffset<0) {
-						for (long l=0; l<lFrames; l++) {
-							sParticiple="getting mask from value for frame "+l.ToString();
-							RImage.MaskFromValue(ref animReturn.riarrAnim[l], ref riarrAnim[l]);
+						for (FrameConvertNowIndex=0; FrameConvertNowIndex<lFrames; FrameConvertNowIndex++) {
+							sParticiple="getting mask from value for frame "+FrameConvertNowIndex.ToString();
+							if (riarrAnim==null) {
+								throw new ApplicationException("this.riarrAnim is null (self-generated exception)");
+							}
+							else if (FrameConvertNowIndex>=riarrAnim.Length) {
+								throw new ApplicationException("FrameConvertNowIndex exceeds frame array Length of this animation (self-generated exception)");
+							}
+							else if (riarrAnim[FrameConvertNowIndex]==null) {
+								throw new ApplicationException("this animation's frame is null at current index (self-generated exception)");
+							}
+							if (animReturn.riarrAnim==null) {
+								throw new ApplicationException("animReturn.riarrAnim is null (self-generated exception)");
+							}
+							else if (FrameConvertNowIndex>=animReturn.riarrAnim.Length) {
+								throw new ApplicationException("FrameConvertNowIndex exceeds animReturn frame array Length (self-generated exception)");
+							}
+							//animReturn.riarrAnim[FrameConvertNowIndex] is allowed to be null:
+							bool bTest=RImage.MaskFromValue(ref animReturn.riarrAnim[FrameConvertNowIndex], ref this.riarrAnim[FrameConvertNowIndex]);
+							if (!bTest) {
+								throw new ApplicationException("MaskFromValue returned false (self-generated exception)");
+							}
 						}
 					}
 					else {
-						for (long l=0; l<lFrames; l++) {
-							sParticiple="getting mask from channel for frame "+l.ToString();
-							RImage.MaskFromChannel(ref animReturn.riarrAnim[l], ref riarrAnim[l], iChannelOffset);
+						for (FrameConvertNowIndex=0; FrameConvertNowIndex<lFrames; FrameConvertNowIndex++) {
+							sParticiple="getting mask from channel for frame "+FrameConvertNowIndex.ToString();
+							RImage.MaskFromChannel(ref animReturn.riarrAnim[FrameConvertNowIndex], ref riarrAnim[FrameConvertNowIndex], iChannelOffset);
 						}
 					}
 				}
@@ -191,7 +227,35 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,sParticiple,"RAnim CopyAsGray");
+				string sDebugMethod="CopyAsGray(){";
+				sDebugMethod+="LastFile:"+RReporting.sLastFile;
+				sDebugMethod+="; iChannelOffset="+(iChannelOffset<0?"[negative offset used as averaging mode flag]":iChannelOffset.ToString())+"; Frame:"+FrameConvertNowIndex.ToString()+"; lFramesCached:"+lFramesCached+"; lFrames:"+lFrames;
+				if (this.riarrAnim!=null) {
+					sDebugMethod+="; this.riarrAnim.Length:"+this.riarrAnim.Length.ToString();
+					if (FrameConvertNowIndex<this.riarrAnim.Length) {
+						sDebugMethod+="; this.riarrAnim["+FrameConvertNowIndex+"]:"+(this.riarrAnim[FrameConvertNowIndex]!=null?this.riarrAnim[FrameConvertNowIndex].Description():"null");
+					}
+					else sDebugMethod+="; FrameConvertNowIndex:beyond-range";
+				}
+				else sDebugMethod+="; this.riarrAnim:null";
+				if (animReturn!=null) {
+					if (animReturn.riarrAnim!=null) {
+						sDebugMethod+="; animReturn.riarrAnim.Length:"+animReturn.riarrAnim.Length.ToString();
+						if (FrameConvertNowIndex<animReturn.riarrAnim.Length) {
+							sDebugMethod+="; animReturn.riarrAnim["+FrameConvertNowIndex+"]:"+(animReturn.riarrAnim[FrameConvertNowIndex]!=null?animReturn.riarrAnim[FrameConvertNowIndex].Description():"null");
+						}
+						else sDebugMethod+="; FrameConvertNowIndex:beyond-range";
+					}
+					else sDebugMethod+="; this.riarrAnim:null";
+				}
+				else sDebugMethod+="; animReturn:null";
+				sDebugMethod+="; this.lFrames:"+this.lFrames;
+				sDebugMethod+="; this.lFramesCached:"+this.lFramesCached;
+				
+				sDebugMethod+="}";
+				//RReporting.ShowErr("Could not convert frame",sParticiple,sDebugMethod);
+				if (FrameConvertNowIndex==0) animReturn=null;
+				RReporting.ShowExn(exn,sParticiple,sDebugMethod);
 			}
 			return animReturn;
 		}//end CopyAsGray
@@ -207,62 +271,88 @@ namespace ExpertMultimedia {
 			int iRows=RMath.ICeiling((double)riSrc.iHeight/(double)iCellHeight);
 			int iLocLine=0;
 			int iSrc=iLocLine;
-			int iLine=0;
+			//int iLine=0;
 			int x=0,y=0;
 			int xStartNow=0;
-			bool bFoundStart=false;
-			//string sDebugFile="0.SplitFromFixedHeightStaggered"+iDebug.ToString()+".log.txt";
-			//string sDebugZonesFile="0.SplitFromFixedHeightStaggered"+iDebug.ToString()+".Zones.log.txt";
-			//string sDebugCharsBase="/home/Owner/Projects/RetroEngine/bin/fonts/etc/font"+RString.sarrAlphabetUpper[iDebug];
-			//iDebug++;
-			//RString.SafeDelete(sDebugFile);
-			//RString.SafeDelete(sDebugZonesFile);
-			//RImage riTemp=riSrc.Copy();
-			for (int iRow=0; iRow<iRows&&iLocLine<riSrc.iBytesTotal; iRow++) {
-				x=0;
-				iSrc=iLocLine;
-				if (y+iCellHeight>riSrc.iHeight) {
-					//fixes if has odd end
-					RReporting.Warning(String.Format("Warning: fixed odd end in SplitFromFixedHeightStaggered ({0}x{1} image's height is not evenly divisible by cellheight:{2})",
-						riSrc.iWidth,riSrc.iHeight,iCellHeight)
-					);
-					iCellHeight=riSrc.iHeight-y;
-				}
-				while (x<riSrc.iWidth) {
-					//bFoundStart=false;
-					while (x<riSrc.iWidth&&riSrc.IsTransparentVLine(x,y,iCellHeight)) {
-						//RString.AppendForeverWrite(sDebugFile,"0");//debug only
-						x++;
+			//bool bFoundStart=false;
+			int iRow=0;
+			RImage riCharNow=null;
+			int iFoundChars=0;
+			int iSavedChars=0;
+			try {
+				//string sDebugFile="0.SplitFromFixedHeightStaggered"+iDebug.ToString()+".log.txt";
+				//string sDebugZonesFile="0.SplitFromFixedHeightStaggered"+iDebug.ToString()+".Zones.log.txt";
+				//string sDebugCharsBase="/home/Owner/Projects/RetroEngine/bin/fonts/etc/font"+RString.sarrAlphabetUpper[iDebug];
+				//iDebug++;
+				//RString.SafeDelete(sDebugFile);
+				//RString.SafeDelete(sDebugZonesFile);
+				//RImage riTemp=riSrc.Copy();
+				
+				for (iRow=0; iRow<iRows&&iLocLine<riSrc.iBytesTotal; iRow++) {
+					x=0;
+					iSrc=iLocLine;
+					if (y+iCellHeight>riSrc.iHeight) {
+						//fixes if has odd end
+						RReporting.Warning(String.Format("Warning: fixed odd end in SplitFromFixedHeightStaggered ({0}x{1} image's height is not evenly divisible by cellheight:{2})",
+							riSrc.iWidth,riSrc.iHeight,iCellHeight)
+						);
+						iCellHeight=riSrc.iHeight-y;
 					}
-					xStartNow=x;
-					if (xStartNow<riSrc.iWidth) {
-						//bFoundStart=true;
-						while (x<riSrc.iWidth&&!riSrc.IsTransparentVLine(x,y,iCellHeight)) {
-							//RString.AppendForeverWrite(sDebugFile,"1");//debug only
+					while (x<riSrc.iWidth) {
+						//bFoundStart=false;
+						while (x<riSrc.iWidth&&riSrc.IsTransparentVLine(x,y,iCellHeight)) {
+							//RString.AppendForeverWrite(sDebugFile,"0");//debug only
 							x++;
 						}
-						
-						//riTemp.SetPixelG(xStartNow,y,255);//debug only
-						//riTemp.SetPixelR(x-1,(y+iCellHeight)-1,255);//debug only
-						RImage riChar=riSrc.CreateFromZoneEx(xStartNow,y,x,y+iCellHeight);
-						//riChar.Save(sDebugCharsBase+RString.FixedWidth(ristackNow.Count.ToString(),3,"0")+".png"); //debug only
-						ristackNow.Push(riChar);
-						//RString.AppendForeverWrite(sDebugZonesFile,"("+RString.FixedWidth(xStartNow.ToString(),3)+","+RString.FixedWidth(y.ToString(),3)+","+RString.FixedWidth(x.ToString(),3)+","+RString.FixedWidth((y+iCellHeight).ToString(),3)+")");
-						
-						
+						xStartNow=x;
+						if (xStartNow<riSrc.iWidth) {
+							//bFoundStart=true;
+							while (x<riSrc.iWidth&&!riSrc.IsTransparentVLine(x,y,iCellHeight)) {
+								//RString.AppendForeverWrite(sDebugFile,"1");//debug only
+								x++;
+							}
+							
+							//riTemp.SetPixelG(xStartNow,y,255);//debug only
+							//riTemp.SetPixelR(x-1,(y+iCellHeight)-1,255);//debug only
+							iFoundChars++;
+							riCharNow=riSrc.CreateFromZoneEx(xStartNow,y,x,y+iCellHeight);
+							if (riCharNow!=null) iSavedChars++;
+							//riCharNow.Save(sDebugCharsBase+RString.FixedWidth(ristackNow.Count.ToString(),3,"0")+".png"); //debug only
+							else {//if (riCharNow==null) {
+								throw new ApplicationException("Could not get font glyph while creating image from zone (self-generated exception)");
+							}
+							ristackNow.Push(riCharNow);
+							//RString.AppendForeverWrite(sDebugZonesFile,"("+RString.FixedWidth(xStartNow.ToString(),3)+","+RString.FixedWidth(y.ToString(),3)+","+RString.FixedWidth(x.ToString(),3)+","+RString.FixedWidth((y+iCellHeight).ToString(),3)+")");
+						}
+						//RString.AppendForeverWrite(sDebugFile,IZone.Description(xStartNow,y,x,y+iCellHeight));
 					}
-					//RString.AppendForeverWrite(sDebugFile,IZone.Description(xStartNow,y,x,y+iCellHeight));
+					y+=iCellHeight;//y++;
+					iLocLine+=riSrc.iStride*iCellHeight;//riSrc.iStride;
+					//RString.AppendForeverWriteLine(sDebugFile);
+					//RString.AppendForeverWriteLine(sDebugZonesFile);
 				}
-				y+=iCellHeight;//y++;
-				iLocLine+=riSrc.iStride*iCellHeight;//riSrc.iStride;
-				//RString.AppendForeverWriteLine(sDebugFile);
-				//RString.AppendForeverWriteLine(sDebugZonesFile);
+				//riTemp.Save(sDebugZonesFile+".png");//debug only
+				if (ristackNow.Count>0) bGood=true;
+				lFrames=(long)ristackNow.Count;
+				lFramesCached=lFrames;
+				riarrAnim=ristackNow.ToArrayByReferences();
+				if (riarrAnim==null) {
+					throw new ApplicationException("returning null riarrAnim (self-generated exception)");
+				}
 			}
-			//riTemp.Save(sDebugZonesFile+".png");//debug only
-			if (ristackNow.Count>0) bGood=true;
-			lFrames=(long)ristackNow.Count;
-			lFramesCached=lFrames;
-			riarrAnim=ristackNow.ToArrayByReferences();
+			catch (Exception exn) {
+				bGood=false;
+				string sDebugMethod="SplitFromFixedHeightStaggered(riSrc:";
+				sDebugMethod+=(riSrc!=null?"non-null":"null")+",iCellHeight="+iCellHeight.ToString()+"){";
+				if (riSrc!=null) {
+					sDebugMethod+="riSrc.Description:"+RReporting.StringMessage(riSrc.Description(),true)+"; riSrc.sPathFileBaseName:"+RReporting.StringMessage(riSrc.sPathFileBaseName,true)+"; riSrc.sFileExt:"+RReporting.StringMessage(riSrc.sFileExt,true);
+				}
+				sDebugMethod+="; iRow:"+iRow.ToString()+"; iFoundChars:"+iFoundChars.ToString()+"; iSavedChars:"+iSavedChars.ToString()+"; iLocLine:"+iLocLine.ToString()+" coords in this anim:("+x.ToString()+","+y.ToString()+"); xStartNow:"+xStartNow.ToString();
+				sDebugMethod+="; ristackNow"+(ristackNow!=null?(".Count:"+ristackNow.Count.ToString()):":null");
+				sDebugMethod+="; riCharNow"+(riCharNow!=null?(".Description:"+riCharNow.Description()):":null");
+				sDebugMethod+="} ";
+				RReporting.ShowExn(exn,"getting sprite frames from image",sDebugMethod);
+			}
 			return bGood;
 		}//end SplitFromFixedHeightStaggered
 		public bool SplitFromImage32(ref RImage riSrc, int iCellWidth, int iCellHeight, int iRows, int iColumns, IPoint ipAsCellSpacing, IZone izoneAsMargins) {
@@ -306,7 +396,7 @@ namespace ExpertMultimedia {
 						iSrcByte=iSrcByteOfCellNow;
 						GotoFrame(lFrameLoad);
 						for (int iLine=0; iLine<iHeight; iLine++) {
-							if (RMemory.CopyFast(ref riFrame.byarrData, ref riSrc.byarrData, iDestByte, iSrcByte, iDestStride)==false)
+							if (!RMemory.CopyFast(ref riFrame.byarrData, ref riSrc.byarrData, iDestByte, iSrcByte, iDestStride))
 								bGood=false;
 							iDestByte+=iDestStride;
 							iSrcByte+=iSrcStride;
@@ -495,7 +585,7 @@ namespace ExpertMultimedia {
 						iDestByteOfCellNow=iDestByteOfCellTopLeft + yCell*iCellPitchY + xCell*iCellPitchX;
 						iDestByte=iDestByteOfCellNow;
 						GotoFrame(lFrameLoad);
-						//riFrame.Save("debugToOneImage"+Base.SequenceDigits(lFrameLoad)+".png",ImageFormat.Png);
+						//riFrame.Save("debugToOneImage"+RString.SequenceDigits(lFrameLoad)+".png",ImageFormat.Png);
 						for (int iLine=0; iLine<iHeight; iLine++) {
 							if (!RMemory.CopyFast(ref riNew.byarrData, ref riFrame.byarrData, iDestByte, iSrcByte, iSrcStride))
 								bGood=false;
@@ -519,7 +609,7 @@ namespace ExpertMultimedia {
 		
 		#region utilities
 		public string SourceToRegExString() {
-			return sPathFileBaseName+"*."+sFileExt;
+			return RString.SafeString(sPathFileBaseName)+"*."+RString.SafeString(sFileExt);
 		}
 		public string ToString(bool bDumpVars) {
 			if (bDumpVars) {
@@ -529,9 +619,9 @@ namespace ExpertMultimedia {
 						+"lFrames:"+this.lFrames
 						+"; lFramesCached:"+this.lFramesCached
 						+"; lFrameNow:"+this.lFrameNow
-						+"; sFileExt:"+this.sFileExt
+						+"; sFileExt:"+RReporting.StringMessage(this.sFileExt,true)
 						//+"; sPathFile:"+this.sPathFile
-						+"; sPathFileBaseName:"+this.sPathFileBaseName
+						+"; sPathFileBaseName:"+RReporting.StringMessage(this.sPathFileBaseName,true)
 						+"; bFileSequence:"+this.bFileSequence.ToString()
 						+"; iEffects:"+this.iEffects
 						+"; iMaxEffects:"+this.iMaxEffects
@@ -630,7 +720,7 @@ namespace ExpertMultimedia {
 						byte* lpbyNow = (byte*) bmpdata.Scan0.ToPointer();
 						int iDestPixel=0;
 						int iSrcByte=0;
-						int iDestByte=0;
+						//int iDestByte=0;
 						int iDestBytesTotal=bmpdata.Stride*rectNow.Height;
 						int iDestBytesPP=bmpdata.Stride/rectNow.Width;
 						int iDestPixelsTotal=rectNow.Width*rectNow.Height;
@@ -712,17 +802,27 @@ namespace ExpertMultimedia {
 									(int)rectNowF.Width, (int)rectNowF.Height);
 				bmpdata = bmpLoaded.LockBits(rectNow, ImageLockMode.ReadOnly, PixelFormatNow());
 				if (  (riFrame.iStride!=bmpdata.Stride)
-				   || (riFrame.iWidth!=rectNow.Width)
-				   || (riFrame.iHeight!=rectNow.Height)
+				   || (riFrame.Width!=rectNow.Width)
+				   || (riFrame.Height!=rectNow.Height)
 				   || (riFrame.iBytesPP!=bmpdata.Stride/rectNow.Width)
 				   || (riFrame.iBytesTotal!=(bmpdata.Stride*rectNow.Height)) ) {
-					riFrame.iStride=bmpdata.Stride;
-					riFrame.iWidth=rectNow.Width;
-					riFrame.iHeight=rectNow.Height;
-					riFrame.iBytesPP=riFrame.iStride/riFrame.iWidth;
-					riFrame.iBytesTotal=riFrame.iStride*riFrame.iHeight;
-					riFrame.byarrData=new byte[riFrame.iBytesTotal];
+					riFrame.iBytesPP=bmpdata.Stride/rectNow.Width;
+					bool bInitBuffer  =  (  (riFrame.byarrData==null)  ||  ( riFrame.byarrData.Length != (rectNow.Width*rectNow.Height*riFrame.iBytesPP) )  );
+					riFrame.Init(rectNow.Width,rectNow.Height,riFrame.iBytesPP,bInitBuffer,true,false);
+					//riFrame.iStride=bmpdata.Stride;
+					//riFrame.iWidth=rectNow.Width;
+					//riFrame.iHeight=rectNow.Height;
+					//riFrame.iBytesTotal=riFrame.iStride*riFrame.Height;
+					//if (bInitBuffer) riFrame.byarrData=new byte[riFrame.iBytesTotal];
 				}
+				
+				//fixed (byte* lpbySrc=(byte*)bmpdata.Scan0.ToPointer()) {
+				//	byte* lpbyNow=lpbySrc;
+				//	for (int iBy=0; iBy<riFrame.iBytesTotal; iBy++) {
+				//		riFrame.byarrData[iBy]=*lpbyNow;
+				//		lpbyNow++;
+				//	}
+				//}
 				byte* lpbyNow = (byte*) bmpdata.Scan0.ToPointer();
 				for (int iBy=0; iBy<riFrame.iBytesTotal; iBy++) {
 					riFrame.byarrData[iBy]=*lpbyNow;
@@ -739,6 +839,9 @@ namespace ExpertMultimedia {
 		public RImage Frame(long lFrameX) {
 			GotoFrame(lFrameX);
 			return riFrame;
+		}
+		public bool FrameIsCached(long FrameNum) {
+			return riarrAnim!=null&&this.lFramesCached>(int)FrameNum&&FrameNum>=0&&riarrAnim[FrameNum]!=null;
 		}
 		public bool GotoFrame(long lFrameX) {
 			//refers to a file if a file is used.\
@@ -824,7 +927,7 @@ namespace ExpertMultimedia {
 			return bGood;
 		}
 		public bool DrawFrameOverlay(ref RImage riDest, ref IPoint ipDest) {
-			return RImage.OverlayNoClipToBigCopyAlpha(ref riDest, ref ipDest, ref riFrame);
+			return RImage.DrawToLargerNoClipCopyAlpha(ref riDest, ipDest, ref riFrame);
 		}
 		#endregion draw methods
 	}//end class RAnim;
@@ -836,7 +939,7 @@ namespace ExpertMultimedia {
 		public long lFrameNow;
 		public Effect[] effectarr; //remember to also process animarr[iParent].effectarr[]
 		public int iEffects;
-		private int iMaxEffects;
+		//private int iMaxEffects;
 	}
 	
 	public class Effect {
@@ -883,10 +986,10 @@ namespace ExpertMultimedia {
 			Init();
 		}
 		private void Init() {
-			try {
+			//try {
 				//varsFX=new Vars(); //TODO: re-implment FX vars
-			}
-			catch (Exception exn) {}
+			//}
+			//catch (Exception exn) {}
 		}
 		//public bool FromHorzSkew(int iAnim, double dAngle, int iWidthSrc, int iHeightSrc) {
 		//	varsFX.SetOrCreate("angle",dAngle);

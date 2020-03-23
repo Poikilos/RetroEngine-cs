@@ -1,0 +1,11 @@
+@echo off
+rem CLEAN:
+del ExpertMultimedia.Script.dll
+del ExpertMultimedia.DataTypes.dll
+del ExpertMultimedia.HTMLTool.dll
+del ExpertMultimedia.HTMLPost.dll
+del ExpertMultimedia.Port.dll
+del ExpertMultimedia.Client.dll
+del ServerStart.exe
+del RetroEngine.exe
+del 1.built.txt

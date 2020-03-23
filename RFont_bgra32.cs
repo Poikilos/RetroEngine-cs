@@ -30,7 +30,7 @@ namespace ExpertMultimedia {
 		private RGradient gradNow=null;
 		public static RFont rfontDefault=null;//set by static constructor
 // 				settings.CreateOrIgnore("DefaultFont","./Library/Fonts/thepixone-12x16");
-		private static string sFontDefault="./Library/Fonts/thepixone-12x16";
+		private static string DefaultFontFile_FullName=RApplication.ProgramFolderThenSlash+"Library"+RString.sDirSep+"Fonts"+RString.sDirSep+"thepixone-12x16";
 		private static int iFontHeightDefault=16;
 		//public int Width {
 		//	get {
@@ -56,9 +56,11 @@ namespace ExpertMultimedia {
 		#region constructors
 		static RFont() {//static constructor
 			rfontDefault=new RFont();
-			//sFontDefault=settings.GetForcedString("DefaultFont");
+			//DefaultFontFile_FullName=settings.GetForcedString("DefaultFont");
 			//iFontHeightDefault=settings.GetForcedInt("DefaultFontHeight");
-			rfontDefault.FromFixedHeightStaggered(sFontDefault,iFontHeightDefault);
+			if (!rfontDefault.FromFixedHeightStaggered(DefaultFontFile_FullName,iFontHeightDefault)) {
+				RReporting.ShowErr("Cannot load default font image","loading \""+DefaultFontFile_FullName+"\" png frames","RFont static constructor");
+			}
 		}
 		#endregion constructors
 		
@@ -82,36 +84,49 @@ namespace ExpertMultimedia {
 			}
 			return bGood;
 		}//end SaveSeq
+		/// <summary>
+		/// Renders a line or returns false.
+		/// </summary>
+		/// <param name="riDest"></param>
+		/// <param name="xDest"></param>
+		/// <param name="yDest"></param>
+		/// <param name="sText"></param>
+		/// <param name="iGlyphType"></param>
+		/// <param name="iCursor"></param>
+		/// <param name="bAllowLineBreaking"></param>
+		/// <returns></returns>
 		public bool RenderLine(ref RImage riDest, int xDest, int yDest, string sText, int iGlyphType, ref int iCursor, bool bAllowLineBreaking) {
-			//TODO: really, this should return a rect (e.g. html-style stretching of container)
-			bool bGood=true;
+			//TODO: really, this should also output a rect (e.g. html-style stretching of container)
+			bool bMore=false;
 			bool bSpacing;
 			int xNow=xDest;
 			int iWidthNow;
 			try {
-				int iNewLine=RString.IsNewLineAndGetLength(sText,iCursor);
-				while (iNewLine==0&&iCursor<sText.Length) {
-					iWidthNow=WidthOf(sText[iCursor],iGlyphType);
-					if (xNow+iWidthNow<riDest.Width) {
-						if (!RString.IsSpacingExceptNewLine(sText[iCursor])) {
-							RImage.brushFore.SetRgb(0,0,0);
-							riDest.DrawSmallerWithoutCropElseCancel(xNow,yDest,Glyph(sText[iCursor],iGlyphType),RImage.DrawModeAlphaHardEdge);
+				if (iCursor<sText.Length) {
+					int iNewLine=RString.IsNewLineAndGetLength(sText,iCursor);
+					while (iNewLine==0&&iCursor<sText.Length) {
+						iWidthNow=WidthOf(sText[iCursor],iGlyphType);
+						if (xNow+iWidthNow<riDest.Width) {
+							if (!RString.IsHorizontalSpacingChar(sText[iCursor])) {
+								riDest.DrawFromSmallerWithoutCropElseCancel(xNow,yDest,Glyph(sText[iCursor],iGlyphType),RImage.DrawMode_AlphaHardEdgeColor_KeepDestAlpha);
+							}
 						}
+						else {
+							if (bAllowLineBreaking) break;
+						}
+						xNow+=iWidthNow;
+						iCursor++;
+						iNewLine=RString.IsNewLineAndGetLength(sText,iCursor);
 					}
-					else {
-						if (bAllowLineBreaking) break;
-					}
-					xNow+=iWidthNow;
-					iCursor++;
-					iNewLine=RString.IsNewLineAndGetLength(sText,iCursor);
+					iCursor+=iNewLine;
+					bMore=iCursor<sText.Length;
 				}
-				iCursor+=iNewLine;
 			}
 			catch (Exception exn) {
 				RReporting.ShowExn(exn,"","RenderLine(...,\""+RString.ElipsisIfOver(sText,10)+"\")");
-				bGood=false;
+				bMore=false;
 			}
-			return bGood;
+			return bMore;
 		}//end RenderLine
 		public bool Render(ref RImage riDest, IRect rectDest, string sText, int iGlyphType, int LineBreaking) { //formerly typefast
 			//TODO: really, this should return a rect (e.g. html-style stretching of container)
@@ -130,7 +145,7 @@ namespace ExpertMultimedia {
 				int yDest=rectDest.Y;
 				int iLineHeight=GlyphHeight(iGlyphType);
 				int iLine=0;
-				//RImage.brushFore.SetRgb(0,0,0);
+				//RImage.rpaintFore.SetRgb(0,0,0);
 				//riDest.DrawRectCropped(rectDest);
 				//string sDebugReadLineFile="0.debug-Typing.txt";//debug only
 				//bool bDebug=!File.Exists(sDebugReadLineFile);
@@ -183,7 +198,7 @@ namespace ExpertMultimedia {
 				for (int iChar=0; iChar<sText.Length; iChar++) {
 					RImage riNow=Glyph(sText[iChar],iGlyphType);
 					if (xNow+riNow.Width<riDest.Width) {
-						if (!RString.IsSpacing(sText[iChar])) riDest.DrawSmallerWithoutCropElseCancel(xNow,yDest,riNow,RImage.DrawModeAlphaHardEdge);
+						if (!RString.IsWhiteSpace(sText[iChar])) riDest.DrawFromSmallerWithoutCropElseCancel(xNow,yDest,riNow,RImage.DrawMode_AlphaHardEdgeColor_KeepDestAlpha);
 					}
 					else break;
 					xNow+=WidthOf(sText[iChar],iGlyphType);
@@ -195,6 +210,14 @@ namespace ExpertMultimedia {
 			}
 			return bGood;
 		}//end TypeOnOneLine
+		public static string ToString(RFont rfontNow) {
+			string sReturn="";
+			if (rfontNow!=null) {
+				sReturn="[current-method:RFont.ToString(rfont:"+((rfontNow!=null)?("non-null"):("null"))+"; GlyphTypeNormal A width:"+rfontNow.WidthOf('A',GlyphTypeNormal).ToString()+"]";
+			}
+			else sReturn="null";
+			return sReturn;
+		}
 		public bool Render(ref RImage riDest, IPoint ipDest, string sText) {
 			return Render(ref riDest, ipDest, sText, GlyphTypeNormal);
 		}
@@ -216,7 +239,7 @@ namespace ExpertMultimedia {
 					if (iChar<sLine.Length) xSparse+=this.WidthOf(sLine[iChar],iGlyphTypeParent)-this.WidthOf(sLine[iChar],iGlyphTypeParent)/2;
 					iChar++;
 				}
-				Console.WriteLine(String.Format("XPixelToChar{{xPixel:{0};iChar:{1}}}",xPixel,iChar));//debug only
+				//Console.Error.WriteLine(String.Format("XPixelToChar{{xPixel:{0};iChar:{1}}}",xPixel,iChar));//debug only
 				//iChar--; //so clicking a char (after it starts) selects it
 				if (iChar>sLine.Length) iChar=sLine.Length;//select at line end
 				if (iChar<0) iChar=0;
@@ -328,7 +351,7 @@ namespace ExpertMultimedia {
 		private IRect rectDefault=new IRect();
 		public bool Render(ref RImage riDest, IPoint ipDest, string sText, int iGlyphType) {
 			try {
-				rectDefault.Set(ipDest.X,ipDest.Y,riDest.iWidth-ipDest.X,riDest.iHeight-ipDest.Y);
+				rectDefault.Set(ipDest.X,ipDest.Y,riDest.Width-ipDest.X,riDest.Height-ipDest.Y);
 				return Render(ref riDest, rectDefault, sText, iGlyphType);
 			}
 			catch (Exception exn) {
@@ -341,7 +364,7 @@ namespace ExpertMultimedia {
 		}
 		public bool Render(ref RImage riDest, int x, int y, string sText, int iGlyphType) {
 			try {
-				rectDefault.Set(x,y,riDest.iWidth-x,riDest.iHeight-y);
+				rectDefault.Set(x,y,riDest.Width-x,riDest.Height-y);
 				return Render(ref riDest, rectDefault, sText, iGlyphType);
 			}
 			catch (Exception exn) {
@@ -349,13 +372,13 @@ namespace ExpertMultimedia {
 			}
 			return false;
 		}
-		public bool NeedsToBreakBeforeLineBreaker(string sText, int iCursor, int xPixel, IRect rectDest, int iGlyphType) {
+		public bool NeedsToBreakBeforeWordBreaker(string sText, int iCursor, int xPixel, IRect rectDest, int iGlyphType) {
 			bool bReturn=false;
 			try {
 				if (rectDest!=null) {
 					if (sText!=null&&iCursor>=0&&iCursor<sText.Length) {
 						int zone_Right=rectDest.X+rectDest.Width;
-						while (!RString.IsLineBreaker(sText[iCursor])) {//while (!RString.IsSpacing(sText[iCursor])) {
+						while (!RString.IsWordBreaker(sText[iCursor])) { //while (!RString.IsSpacing(sText[iCursor])) {
 							xPixel+=WidthOf(sText[iCursor],iGlyphType);
 							if (xPixel>=zone_Right) {
 								bReturn=true;
@@ -365,10 +388,10 @@ namespace ExpertMultimedia {
 						}
 					}
 				}
-				else RReporting.ShowErr("Cannot check line breaking using null rect.","","NeedsToBreakBeforeLineBreaker");
+				else RReporting.ShowErr("Cannot check line breaking using null rect.","","NeedsToBreakBeforeWordBreaker");
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn( exn, "checking for line break", String.Format("NeedsToBreakBeforeLineBreaker {{{0}{1}{2}rectDest:{3}}}",
+				RReporting.ShowExn( exn, "checking for line break", String.Format("NeedsToBreakBeforeWordBreaker {{{0}{1}{2}rectDest:{3}}}",
 					RReporting.DebugStyle("sText",sText,false,true),
 					RReporting.DebugStyle("iCursor",iCursor,true),
 					RReporting.DebugStyle("xPixel",xPixel,true),
@@ -406,7 +429,7 @@ namespace ExpertMultimedia {
 					else if (xPixel+WidthOf(sText[iMoveMe],iGlyphType)>=zone_Right) {
 						int iLastBreaker=iMoveMe;
 						bool bVisibleBreaker=false;
-						bool bTest=RString.PreviousLineBreakerExceptNewLine(sText, ref iLastBreaker, out bVisibleBreaker);
+						bool bTest=RString.PreviousWordBreakerExceptNewLine(sText, ref iLastBreaker, out bVisibleBreaker);
 						if (iLastBreaker>iStartLine) {
 							if (bVisibleBreaker) {
 								iSkipper=0;//says not to skip any characters
@@ -424,7 +447,7 @@ namespace ExpertMultimedia {
 						bBreakable=true;//says to not skip to end of sText
 						break;
 					}
-					//else if (NeedsToBreakBeforeLineBreaker(sText, iMoveMe+1, xPixel, rectDest, iGlyphType) && RString.IsLineBreakerExceptNewLine(sText,iMoveMe)) {
+					//else if (NeedsToBreakBeforeWordBreaker(sText, iMoveMe+1, xPixel, rectDest, iGlyphType) && RString.IsWordBreakerExceptNewLine(sText,iMoveMe)) {
 					//	bBreakable=true;
 					//	iSkipper=1;
 					//	bTypeableNewLine=true;
@@ -488,6 +511,9 @@ namespace ExpertMultimedia {
 			bool bGood=false;
 			try {
 				animarrGlyphType=new RAnim[iGlyphTypes];
+				for (int i=0; i<iGlyphTypes; i++) {
+					animarrGlyphType[i]=null;
+				}
 				bGood=true;
 			}
 			catch (Exception exn) {
@@ -532,6 +558,10 @@ namespace ExpertMultimedia {
 			iPixelsSpace=(int)( (double)WidthOf('|',iGlyphType)*1.5 );
 			iPixelsTab=iPixelsSpace*5;
 			iLineSpacing=(int)( (double)Height*1.5 );
+			if (iLineSpacing<1) {
+				iLineSpacing=1;
+				RReporting.Warning("Line spacing (calculated from height) was less than 1 so was set to 1","calculating line spacing","RFont_bgra32 CalculateSpacing");
+			}
 		}
 		public bool FromFixedHeightStaggered(string sFile, int iCharHeight) {//this is named FromFixedHeightStaggered while the function it called anim.SplitFromFixedHeightStaggered
 			RReporting.sLastFile=sFile+"...";
@@ -544,39 +574,81 @@ namespace ExpertMultimedia {
 					RImage riNormal=new RImage();
 					RReporting.sLastFile=sFile+".png";
 					if (!riNormal.Load(sFile+".png",4)) { //assumes 32-bit is needed
-						RReporting.ShowErr("Cannot load font file","","RAnim FromFixedHeightStaggered(\""+sFile+".png\")");
+						RReporting.ShowErr("Cannot load font file","","RAnim FromFixedHeightStaggered(\""+RString.SafeString(sFile)+".png\")");
 					}
-					
-					
+					RReporting.sParticiple="splitting normal font image";
 					bGood=animNormal.SplitFromFixedHeightStaggered(riNormal, iCharHeight);
 					if (bGood) {
 						Normal=animNormal;
+						bGood=Normal!=null;
+						if (Normal==null) RReporting.ShowErr("failed to load normal font though split image returned true","checking loaded normal font","rfont_bgra32 FromFixedHeightStaggered");
 						if (File.Exists(sFile+"-bold.png")) {
 							RReporting.sLastFile=sFile+"-bold.png";
 							if (animarrGlyphType[RFont.GlyphTypeBold]==null) Bold=new RAnim();
 							RImage riBold=new RImage();
+							RReporting.sParticiple="loading bold font image";
 							riBold.Load(sFile+"-bold.png",4);//assumes 32-bit is needed
-							Bold.SplitFromFixedHeightStaggered(riBold, iCharHeight);
+							if (!Bold.SplitFromFixedHeightStaggered(riBold, iCharHeight)) {
+								RReporting.sParticiple="falling back to generated bold font";
+								bGood=false;
+								RReporting.ShowErr("Could not split image to bold font frames","separating bold font frames","rfont_bgra32 FromFixedHeightStaggered");
+								Bold=animNormal.Copy();
+								//TODO: embolden font manually
+							}
 						}
-						else Bold=animNormal.Copy();
+						else {
+							RReporting.sParticiple="getting bold font image from normal";
+							Bold=animNormal.Copy();
+							if (Bold!=null) {
+								//TODO: embolden font manually
+							}
+							else {
+								bGood=false;
+								RReporting.ShowErr("Could not copy font frames","copying font frames to bold font frames","rfont_bgra32 FromFixedHeightStaggered");
+							}
+						}
+						RReporting.sParticiple="getting italic font image from normal";
 						Italic=Normal.Copy();
+						if (Italic!=null) {
+							//TODO: italicize font manually
+						}
+						else {
+							bGood=false;
+							RReporting.ShowErr("Could not copy font frames","copying font frames to italic font frames","rfont_bgra32 FromFixedHeightStaggered");
+						}
+						RReporting.sParticiple="getting bold italic font image from bold";
 						BoldItalic=Bold.Copy();
-						//TODO: finish this -- modifying the Glyph Types -- italics via image manip
+						if (BoldItalic!=null) {
+							//TODO: italicize bold font manually
+						}
+						else {
+							bGood=false;
+							RReporting.ShowErr("Could not copy font frames","copying font frames to bold italic font frames","rfont_bgra32 FromFixedHeightStaggered");
+						}
 						CalculateSpacing(GlyphTypeNormal);
-						bGood=true;
+					}
+					else {
+						RReporting.ShowErr("Could not split image to font frames","separating font frames","rfont_bgra32 FromFixedHeightStaggered");
 					}
 				}
 				else {
 					bGood=false;
-					RReporting.ShowErr("RFont FromFixedHeightStaggered file must not end with extension--must have assumed png extension.");
+					RReporting.ShowErr("Font file base name must not end with extension--must have assumed png extension.","checking raster font file","rfont_bgra32 FromFixedHeightStaggered");
 				}
 			}
 			catch (Exception exn) {
 				bGood=false;
 				RReporting.ShowExn(exn,"Splitting Proportional Font Glyphs", "FromFixedHeightStaggered("+sFile+","+iCharHeight.ToString()+")");
 			}
+			if (this.animarrGlyphType!=null) {
+				for (int i=0; i<RFont.iGlyphTypes; i++) {
+					if (animarrGlyphType[i]==null) RReporting.ShowErr("Null glyph type "+RFont.GlyphTypeToString(i),"getting glyphs from images","FromFixedHeightStaggered(sFile="+RReporting.StringMessage(sFile,true)+",iCharHeight="+iCharHeight+")");
+					else if (!animarrGlyphType[i].FrameIsCached(0)) RReporting.ShowErr("First glyph is null in glyph type "+RFont.GlyphTypeToString(i),"getting glyphs from images","FromFixedHeightStaggered(sFile="+RReporting.StringMessage(sFile,true)+",iCharHeight="+iCharHeight+")");
+				}
+			}
+			else RReporting.ShowErr("Null glyph type array","getting glyphs from images","FromFixedHeightStaggered(sFile="+RReporting.StringMessage(sFile,true)+",iCharHeight="+iCharHeight+")");
 			return bGood;
-		}
+		}//end FromFixedHeightStaggered
 		public bool FromImageValue(string sFile, int iCharWidth, int iCharHeight, int iRows, int iColumns) {
 			bool bGood=false;
 			RAnim animNormal;
@@ -585,9 +657,12 @@ namespace ExpertMultimedia {
 				animNormal=new RAnim();
 				bGood=Init();
 				if (bGood) {
+					Console.Error.WriteLine("FromImageValue...");
 					bGood=animNormal.SplitFromImage32(sFile, iCharWidth, iCharHeight, iRows, iColumns);
+					if (animNormal.Frame(0)==null) Console.Error.WriteLine("SplitFromImage32...FAILED -- Null frame zero upon splitting image in "+String.Format("rfont FromImageValue(sFile={0},iCharWidth={1},iCharHeight={2},iRows={3},iColumns={4})",RReporting.StringMessage(sFile,true),iCharWidth,iCharHeight,iRows,iColumns));
+					else Console.Error.WriteLine("SplitFromImage32...OK "+String.Format("rfont FromImageValue(sFile={0},iCharWidth={1},iCharHeight={2},iRows={3},iColumns={4})",RReporting.StringMessage(sFile,true),iCharWidth,iCharHeight,iRows,iColumns));
 					//animNormal.SaveSeq("etc/test/0.debug-glyph", "png");
-					//RImage.RawOverlayNoClipToBig(ref riTarget, ref ipAt, ref animNormal.riFrame.byarrData, iCharWidth, iCharHeight, 4);
+					//RImage.OverlayToBigNoClipRaw(ref riTarget, ref ipAt, ref animNormal.riFrame.byarrData, iCharWidth, iCharHeight, 4);
 					if (bGood) {
 						Normal=animNormal.CopyAsGray();
 						Bold=Normal.Copy();
@@ -595,9 +670,9 @@ namespace ExpertMultimedia {
 						BoldItalic=Normal.Copy();
 						//TODO: finish modifying the Glyph Types -- italics using image manip
 					}
-					//else RReporting.ShowErr("RFont failed to split image","","RFont FromImageValue");//already shown by anim
+					else RReporting.ShowErr("Failed to split image","splitting image from value","rfont FromImageValue("+RReporting.StringMessage(sFile,true)+",...) {}");
 					//ShowAsciiTable();
-					//Console.WriteLine("Normal.ToString(true):"+Normal.ToString(true));
+					//Console.Error.WriteLine("Normal.ToString(true):"+Normal.ToString(true));
 				}
 				else RReporting.ShowErr("Couldn't initialize font glyph graphics buffer","initializing font graphics","RFont FromImageValue");
 			}
@@ -616,7 +691,7 @@ namespace ExpertMultimedia {
 				if (bGood) {
 					bGood=animNormal.SplitFromImage32(sFile, iCharWidth, iCharHeight, iRows, iColumns);
 					//animNormal.SaveSeq("etc/test/0.debug-glyph", "png");
-					//RImage.RawOverlayNoClipToBig(ref riTarget, ref ipAt, ref animNormal.riFrame.byarrData, iCharWidth, iCharHeight, 4);
+					//RImage.OverlayToBigNoClipRaw(ref riTarget, ref ipAt, ref animNormal.riFrame.byarrData, iCharWidth, iCharHeight, 4);
 					if (bGood) {
 						Normal=animNormal;
 						Bold=Normal.Copy();
@@ -626,7 +701,7 @@ namespace ExpertMultimedia {
 					}
 					//else RReporting.ShowErr("RFont failed to split image","","RFont FromImage");//already shown by anim
 					//ShowAsciiTable();
-					//Console.WriteLine("Normal.ToString(true):"+Normal.ToString(true));
+					//Console.Error.WriteLine("Normal.ToString(true):"+Normal.ToString(true));
 				}
 				else RReporting.ShowErr("Couldn't initialize font glyph graphics buffer","initializing font graphics","RFont FromImage");
 			}
@@ -644,33 +719,56 @@ namespace ExpertMultimedia {
 					ipAt.X=xAt;
 					for (int xChar=0; xChar<16; xChar++) {
 						animarrGlyphType[RFont.GlyphTypeNormal].GotoFrame(lChar);
-						RImage.RawOverlayNoClipToBig(ref riTarget, ref ipAt, 
+						RImage.DrawToLargerNoClipBitdepthInsensitive(ref riTarget, ref ipAt, 
 						                              ref animarrGlyphType[RFont.GlyphTypeNormal].riFrame.byarrData,
-						                              animarrGlyphType[RFont.GlyphTypeNormal].riFrame.iWidth,
-						                              animarrGlyphType[RFont.GlyphTypeNormal].riFrame.iHeight, 1);
-						ipAt.X+=animarrGlyphType[RFont.GlyphTypeNormal].riFrame.iWidth;
+						                              animarrGlyphType[RFont.GlyphTypeNormal].riFrame.Width,
+						                              animarrGlyphType[RFont.GlyphTypeNormal].riFrame.Height, 1);
+						ipAt.X+=animarrGlyphType[RFont.GlyphTypeNormal].riFrame.Width;
 						lChar++;
 					}
-					ipAt.Y+=animarrGlyphType[RFont.GlyphTypeNormal].riFrame.iHeight;
+					ipAt.Y+=animarrGlyphType[RFont.GlyphTypeNormal].riFrame.Height;
 				}
 			}
 			catch (Exception exn) {
 				RReporting.ShowExn(exn,"","ShowAsciiTable");
 			}
 		}//end ShowAsciiTable
-		public void ValueToAlpha() {
+		public bool ValueToAlpha() {
+			int iNow=0;
+			bool bGood=true;
+			RReporting.Debug("ValueToAlpha...");
 			try {
 				if (animarrGlyphType!=null) {
-					for (int iNow=0; iNow<animarrGlyphType.Length; iNow++) {
+					for (iNow=0; iNow<animarrGlyphType.Length; iNow++) {
 						if (animarrGlyphType[iNow]!=null) {
-							animarrGlyphType[iNow]=animarrGlyphType[iNow].CopyAsGray();
+							if (animarrGlyphType[iNow]==null)
+								throw new ApplicationException("current glyphtype was null (self-generated exception)");
+							else animarrGlyphType[iNow]=animarrGlyphType[iNow].CopyAsGray();
+							if (animarrGlyphType[iNow]==null)
+								throw new ApplicationException("current glyphtype copied as gray became null (self-generated exception)");
 						}
+						else RReporting.ShowErr("GlyphType is null","converting monochrome font to alpha font","");
 					}
 				}
+				RReporting.Debug("ValueToAlpha...OK");
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","ValueToAlpha");
+				RReporting.Debug("ValueToAlpha...FAILED");
+				bGood=false;
+				string sDebugMethod="ValueToAlpha() {iNow:"+iNow;
+				if (animarrGlyphType!=null) {
+					sDebugMethod+="; glyphtypes-array-length:"+animarrGlyphType.Length;
+					sDebugMethod+="; converting-glyphtype-number:"+iNow.ToString();
+					if (iNow<animarrGlyphType.Length) {
+						sDebugMethod+="animarrGlyphType["+iNow.ToString()+"]:"+animarrGlyphType[iNow].ToString(true);
+					}
+					else sDebugMethod+="[beyond maximum]";
+				}
+				else sDebugMethod+="; animarrGlyphType:null";
+				sDebugMethod+="}";
+				RReporting.ShowExn(exn,"copying value to alpha",sDebugMethod);
 			}
-		}
+			return bGood;
+		}//end ValueToAlpha
 	}//end class RFont
 }//end namespace
