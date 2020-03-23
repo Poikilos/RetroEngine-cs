@@ -1,0 +1,6 @@
+#!/bin/sh
+cd ../bin
+mono RetroEngine.exe
+cd ../src
+
+#konqueror /home/Owner/Projects/RetroEngine/bin

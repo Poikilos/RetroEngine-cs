@@ -1,0 +1,42 @@
+#!/bin/sh
+echo
+echo
+echo
+echo
+echo
+echo
+echo
+echo
+echo
+echo
+echo
+echo
+echo
+echo
+echo
+echo
+echo
+echo
+./clean
+
+mcs /target:library Base.cs Accountant.cs Anim32BGRA.cs AssemblyInfo-Base.cs Byter.cs Core.cs DataSet.cs Entity.cs Fractals.cs Gradient32BGRA.cs GBuffer32BGRA.cs GFont32BGRA.cs IAbstractor.cs Interaction.cs Keyboard.cs Liner.cs Mass3D.cs Memory.cs MyCallback.cs Packet.cs Packeter.cs Port.cs RForm.cs RForms.cs SafeConvert.cs Scene3D.cs Sprite.cs StringQ.cs StringStack.cs Var.cs Variables.cs WaveStream.cs -unsafe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Runtime.Remoting.dll
+mcs RetroEngine.cs AssemblyInfo-RetroEngine.cs -unsafe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:Base.dll /reference:../bin/Tao.Sdl.dll /reference:System.Web.dll
+#mcs Server.cs AssemblyInfo-Server.cs /reference:System.Drawing.dll /reference:System.Runtime.Remoting.dll /reference:Base.dll
+#NOW THE SERVER is something more abstract, and is created by RetroEngine.exe
+mv Base.dll ../bin
+#mv Server.exe ../bin
+mv RetroEngine.exe ../bin
+
+#deprecated:
+#build
+#mcs /target:library ExpertMultimedia.Script.cs
+#mcs /target:library ExpertMultimedia.DataTypes.cs Buffer.cs -unsafe /reference:System.Drawing.dll
+#mcs /target:library ExpertMultimedia.Port.cs ExpertMultimedia.Packet.cs ExpertMultimedia.Core.cs /reference:ExpertMultimedia.Script.dll
+#mcs ServerStart.cs /reference:ExpertMultimedia.Port.dll /reference:ExpertMultimedia.Script.dll /reference:System.Runtime.Remoting.dll
+#mcs /target:library ExpertMultimedia.Client.cs /reference:ExpertMultimedia.Port.dll /reference:ExpertMultimedia.Script.dll /reference:System.Runtime.Remoting.dll
+#mcs RetroEngine.cs /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:ExpertMultimedia.Script.dll /reference:ExpertMultimedia.DataTypes.dll /reference:ExpertMultimedia.Client.dll /reference:System.Data.dll
+#move binaries
+#mv ExpertMultimedia.Script.dll bin
+#mv ExpertMultimedia.Port.dll bin
+#mv ExpertMultimedia.Client.dll bin
+#mv ExpertMultimedia.DataTypes.dll bin

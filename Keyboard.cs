@@ -7,7 +7,7 @@
  */
 
 using System;
-using Tao.Sdl;
+//using Tao.Sdl;
 
 namespace ExpertMultimedia {
 	public class Key {
@@ -25,11 +25,14 @@ namespace ExpertMultimedia {
 			sym=0;
 			bAlive=false;
 		}
+		public override string ToString() {
+			return "unicode:"+unicode.ToString()+"; keysym:"+sym.ToString()+"; ";
+		}
 	}
 	/// <summary>
 	/// Description of Keyboard.
 	/// </summary>
-	public class Keyboard {
+	public class Keyboard { //TODO:? combine this into an all-encompassing controller class, to allow for multifunction devices?
 		//public const int Backspace=100;
 		//public const int PgUp=101;
 		//public const int PgDn=102;
@@ -54,6 +57,15 @@ namespace ExpertMultimedia {
 		private char cLastKeyUp;
 		private int iKeyDownDelayTickLast;
 		public int iKeyDownDelay;
+		public string StateToString() {
+			string sReturn="";
+			for (int iNow=0; iNow<keyarrDown.Length; iNow++) {
+				if (keyarrDown[iNow]!=null&&keyarrDown[iNow].bAlive) {
+					sReturn+=(sReturn=="")?keyarrDown[iNow].ToString():("+"+keyarrDown[iNow].ToString());
+				}
+			}
+			return "{"+sReturn+"}";
+		}
 		public int MaxKeysDown {
 			get {
 				return iMaxKeysDown;
@@ -72,6 +84,7 @@ namespace ExpertMultimedia {
 		public Keyboard() {
 			Init(8,256);
 		}
+		//TODO: Exception handling
 		/// <summary>
 		/// 
 		/// </summary>
@@ -175,7 +188,7 @@ namespace ExpertMultimedia {
 				//TypingBufferAdd(unicode);
 				//if (iKeysDown<iMaxKeysDown) {
 					for (int iKey=0; iKey<iMaxKeysDown; iKey++) {
-						if (keyarrDown[iKey].bAlive==false) {
+						if (!keyarrDown[iKey].bAlive) {
 							keyarrDown[iKey].bAlive=true;
 							keyarrDown[iKey].sym=sym;
 							keyarrDown[iKey].unicode=unicode;
@@ -239,5 +252,5 @@ namespace ExpertMultimedia {
 		public void TypingBufferAdd(string sAdd) {
 			if (sCharBuffer.Length+sAdd.Length<=iMaxCharBuffer) sCharBuffer+=sAdd;
 		}
-	}
-}
+	}//end class Keyboard
+}//end namespace

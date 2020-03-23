@@ -1,11 +1,13 @@
-﻿// created on 6/4/2005 at 4:49 AM
+// created on 6/4/2005 at 4:49 AM
 
 using System;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Threading; //for Sleep
-using System.Windows.Forms; //only for message box (remove)
+//using System.Windows.Forms; //only for message box (remove)
+
+//using REAL = System.Double;//System.Single //TODO:NEVER IMPLEMENT THIS IN BYTER OR BYTER-FILE-SAVING CHAOS WILL ENSUE!
 
 //variable suffixes:
 // U:uint L:long UL:ulong F:float D:double(optional,implied) M:decimal(128-bit)
@@ -27,8 +29,7 @@ namespace ExpertMultimedia {
 	#endregion Class Documentation
 	public class Byter {
 		
-		#region of Variables
-		//public static StatusQ statusq;//re-enable object, re-enable calls to it, and change calls to output to StatusWindow instead
+		#region of variables
 		
 		public int iLastFileSize;
 		public int iLastCount;
@@ -36,25 +37,76 @@ namespace ExpertMultimedia {
 		private int iPlace;
 		private int iPlaceTemp;
 		public string sFileNow="1.Noname.Byter.raw";
-		private static string sFuncNow="";//TODO: remove this
-		private static string sLastErr {
-			set {
-				Console.Error.WriteLine(sFuncNow+": "+value);
-			}
-		}
+		public char[] carrChunkType=new char[] {'R','I','F','F'};
+		public string[] sarrKnownType=null; //TODO: when setting this, automatically change byte[] to byte[numberofbytesgohere] as necessary.  The array would, for example, contain new string[]{uint,uint,ushort,ushort}
+		//TODO: finish this (all 3 arrays must match):
+		public static readonly DataSet[] riffKnownLeaf=new DataSet[]{new DataSet("FMT ", new string[]{"ushort","ushort","uint","uint","ushort","ushort","ushort"}, new string[]{"AudioMethod","ChannelCount","SampleRate","AverageBytesPerSecond","Chunks Per Sample Slice aka BlockAlign (= SignificantBitsPerSample / 8 * NumChannels)","SignificantBitsPerSample","Number of Method Bytes That Follow (always padded to multiple of 2)"}),new DataSet("DATA",new string[]{"byte[]"},new string[]{"RawWaveData"})};
+		public DataSet dataset=null;//this class describes an array of raw data
+		//public static readonly string[] sarrKnownRiffLeaf=new string[]{
+		//	"FMT ",
+		//	"DATA"
+		//};
+		//public static readonly string[][] s2dKnownRiffLeafFormat=new string[][] {
+		//	{"ushort","ushort","uint","uint","ushort","ushort","ushort"},
+		//	{"byte[]"}
+		//};
+		//public static readonly string[][] s2dKnownRiffLeafEasyName=new string[][] {
+		//	{"AudioMethod","ChannelCount","SampleRate","AverageBytesPerSecond","BlockAlign","SignificantBitsPerSample","Unused"},
+		//	{"RawWaveData"}
+		//};
+		
+		public static readonly string[] sarrKnownRiffBranch=new string[]{"WAVE"};//TODO: finish this (and implement, considering any leaves and/or branches found under it.
+		
 		bool bOverflow=false;//tracks whether the last variable saved was too big/small and set to max/min
+		public FileStream fsSave=null;
+		public FileInfo fiLoad=null;
+		public FileStream fsLoad=null;
 		public int Position {
 			get {
 				return iPlace;
 			}
 			set {
-				if (Seek(value)==false) {
-					//sLastErr="Can't seek to position "+value.ToString()+".";
-				}
+				Seek(value);
 			}
 		}
+		public string ChunkType {
+			get {
+				string sCumulative="";
+				if (carrChunkType!=null) {
+					for (int iNow=0; iNow<4; iNow++) { 
+						if (iNow<carrChunkType.Length) sCumulative+=char.ToString(carrChunkType[iNow]); //ok since length is enforced below
+					}
+				}
+				else sCumulative="????";//should never happen
+				if (sCumulative.Length<4) {
+					int iAdder=4-sCumulative.Length;
+					for (int iNow=0; iNow<iAdder; iNow++) {
+						sCumulative+=" ";
+					}
+				}
+				return sCumulative;
+			}
+			set {
+				if (carrChunkType==null || carrChunkType.Length!=4) {
+					carrChunkType=new char[4];
+				}
+				if (value!=null) {
+					for (int iNow=0; iNow<4; iNow++) {
+						if (iNow<value.Length) carrChunkType[iNow]=value[iNow];
+						else carrChunkType[iNow]=' ';
+					}
+				}
+				else carrChunkType=new char[]{'?','?','?','?'};//should NEVER happen
+			}
+		}//end ChunkType
 		private int iBuffer; //Buffer size as written to the file.
-		public byte[] byarr; //Buffer
+		public byte[] byarr=null; //Buffer
+		public Byter[] byterarr=null; //riff chunks (if null assume IsLeaf)
+		public bool IsLeaf {//IsRiffLeaf
+			get {
+				return byterarr==null;
+			}
+		}
 		/// <summary>
 		/// The length of the buffer.  If you want to change the maximum
 		/// length, save this value, increase it to your maximum,
@@ -66,22 +118,21 @@ namespace ExpertMultimedia {
 				return iBuffer;
 			}
 			set {
-					sFuncNow="setting Length to "+value.ToString();
-					try {
-						if (value>byarr.Length) {
-							byte[] byarrTemp=new byte[value];
-							if (CopyFast(ref byarrTemp, ref byarr,0,0,(byarr.Length<value)?byarr.Length:value)) {
-								byarrTemp[value-1]=byarrTemp[value-1]; //test for exception
-								byarr=byarrTemp;
-								byarr[value-1]=byarr[value-1]; //test for exception
-							}
-							//sLastErr="Can't copy old buffer to new buffer.";
+				try {
+					if (value>byarr.Length) {
+						byte[] byarrTemp=new byte[value];
+						if (Memory.CopyFast(ref byarrTemp, ref byarr,0,0,(byarr.Length<value)?byarr.Length:value)) {
+							byarrTemp[value-1]=byarrTemp[value-1]; //test for exception
+							byarr=byarrTemp;
+							byarr[value-1]=byarr[value-1]; //test for exception
 						}
-						iBuffer=byarr.Length;
+						else Base.ShowErr("Can't copy old buffer to new buffer.","set Byter Length");
 					}
-					catch (Exception exn) {
-						//sLastErr="Exception error resizing Byter to "+value.ToString()+" bytes--"+exn.ToString();
-					}
+					iBuffer=byarr.Length;
+				}
+				catch (Exception exn) {
+					Base.ShowExn(exn,"set byter Length","resizing to "+value.ToString()+" bytes");
+				}
 				
 			}
 		}
@@ -124,20 +175,20 @@ namespace ExpertMultimedia {
 		public bool ValidWritePosition(int iPosition) {
 			return (iPosition<byarr.Length)?((iPosition>=0)?true:false):false;
 		}
-		#endregion
+		#endregion variables
 		
-		#region of Utility Functions
+		#region constructors
 		public Byter() {
 			Init(1024*1024); //1MB default size
 		}
 		public Byter(int iBytesTotalDesired) {
 			Init(iBytesTotalDesired);
 		}
-		public static Byter FromFile(string sFileToLoadAllImmediately) {
+		public static Byter Create(string sFileToLoadCompletelyToMemory) {//formerly FromFile
 			Byter byterNew=null;
 			//try {
 				byterNew=new Byter();
-				byterNew.Load(sFileToLoadAllImmediately);
+				byterNew.Load(sFileToLoadCompletelyToMemory);
 			//}
 			//catch (Exception exn) {
 				//TODO: handle exception
@@ -147,254 +198,20 @@ namespace ExpertMultimedia {
 		public void Init(int iBytesTotalDesired) {
 			iPlace=0;
 			try {
-				sFuncNow="Init(iBuffer="+iBytesTotalDesired.ToString()+")";
 				byarr=new byte[iBytesTotalDesired];
 				iBuffer=0;
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error--"+exn.ToString();
+				Base.ShowExn(exn,"Init(iBuffer="+iBytesTotalDesired.ToString()+")");
 			}
-
 		}
-		public byte[] SubArray(ref byte[] byarrNow, int iLocNow, int iLen) {
-			byte[] byarrNew=null;
-			try {
-				byarrNew=new byte[iLen];
-				int iByteNew=0;
-				//TODO: check for bad values
-				while (iByteNew<iLen) {
-					byarrNew[iByteNew]=byarrNow[iLocNow];
-					iByteNew++;
-					iLocNow++;
-				}
-			}
-			catch (Exception exn) {
-				//TODO: handle exception
-			}
-			return byarrNew;
-		}//end SubArray
-		public byte[] SubArrayReversed(ref byte[] byarrNow, int iLocNow, int iLen) {
-			byte[] byarrNew=null;
-			try {
-				byarrNew=new byte[iLen];
-				int iByteNew=0;
-				//TODO: check for bad values
-				int iLastIndex=iLen-1;
-				while (iByteNew<iLen) {
-					byarrNew[iLastIndex-iByteNew]=byarrNow[iLocNow];
-					iByteNew++;
-					iLocNow++;
-				}
-			}
-			catch (Exception exn) {
-				//TODO: handle exception
-			}
-			return byarrNew;
-		}//end SubArrayReversed
-		//base64 vars:
-		int iBuffer64;
-		int iBlocks64;
-		int iPadding64;
-		public static readonly char[] carrBase64=new char[] {
-			'A','B','C','D','E','F','G','H','I','J','K','L','M',
-			'N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
-			'a','b','c','d','e','f','g','h','i','j','k','l','m',
-			'n','o','p','q','r','s','t','u','v','w','x','y','z',
-			'0','1','2','3','4','5','6','7','8','9','+','/'
-		};
-		public static readonly char[] carrBase16=new char[] {
-			'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'
-		};
-		public char GetBase64CharFromSixBits(byte byNow) {
-			if((byNow>=0) &&(byNow<=63)) return carrBase64[(int)byNow];//good
-			else return ' '; //bad
-		}
-		public void InitBase64() {
-			if((iBuffer64 % 3)==0) {
-				iPadding64=0;
-				iBlocks64=iBuffer64/3;
-			}
-			else {
-				iPadding64=3-(iBuffer64 % 3);
-				iBlocks64=(iBuffer64+iPadding64)/3;
-			}
-			iBuffer64=iBuffer64+iPadding64;//iBlocks64*3			
-		}
+		#endregion constructors
+		
+		#region utility methods
 		public char[] ToBase64() {
-			InitBase64();
-			//TODO: optionally use framework method (make separate function)
-	
-			byte[] byarrPadded;
-			byarrPadded=new byte[iBuffer64];
-			for (int iBlockNow=0; iBlockNow<iBuffer64; iBlockNow++) {
-				if (iBlockNow<iBlocks64) {
-					byarrPadded[iBlockNow]=byarr[iBlockNow];
-				}
-				else {
-					byarrPadded[iBlockNow]=0;
-				}
-			}
-			
-			byte byChomp1, byChomp2, byChomp3;
-			byte byTemp, byBits1, byBits2, byBits3, byBits4;
-			byte[] byarrSparsenedBits=new byte[iBlocks64*4];
-			char[] byReturn=new char[iBlocks64*4];
-			for (int iBlockNow=0; iBlockNow<iBlocks64; iBlockNow++) {
-				byChomp1=byarrPadded[iBlockNow*3];
-				byChomp2=byarrPadded[iBlockNow*3+1];
-				byChomp3=byarrPadded[iBlockNow*3+2];
-		
-				byBits1=(byte)((byChomp1 & 0xF0)>>2);
-		
-				byTemp=(byte)((byChomp1 & 0x3)<<4);
-				byBits2=(byte)((byChomp2 & 0xF0)>>4);
-				byBits2+=byTemp;
-		
-				byTemp=(byte)((byChomp2 & 0xF)<<2);
-				byBits3=(byte)((byChomp3 & 0xC0)>>6);
-				byBits3+=byTemp;
-		
-				byBits4=(byte)(byChomp3 & 0x3F);
-		
-				byarrSparsenedBits[iBlockNow*4]=byBits1;
-				byarrSparsenedBits[iBlockNow*4+1]=byBits2;
-				byarrSparsenedBits[iBlockNow*4+2]=byBits3;
-				byarrSparsenedBits[iBlockNow*4+3]=byBits4;
-			}
-		
-			for (int iBlockNow=0; iBlockNow<iBlocks64*4;iBlockNow++) {
-				byReturn[iBlockNow]=GetBase64CharFromSixBits(byarrSparsenedBits[iBlockNow]);
-			}
-		
-			//covert last "A"s to "=", based on iPadding64
-			switch (iPadding64) {
-				case 0: break;
-				case 1: byReturn[iBlocks64*4-1]='=';
-					break;
-				case 2: byReturn[iBlocks64*4-1]='=';
-					byReturn[iBlocks64*4-2]='=';
-					break;
-				default: break;
-			}
-			return byReturn;
-	
-		}	//end ToBase64
-		
-		public static byte ByteFromHexChars(string sTwoChars) {
-			byte byReturn=0;
-			try {
-				char[] carrHex=sTwoChars.ToCharArray();
-				//Now assemble the two nibbles:
-				byReturn=(byte)(ByteFromHexCharNibble(carrHex[0])<<4);
-				byReturn &= ByteFromHexCharNibble(carrHex[1]);
-			}
-			catch (Exception exn) {
-				sFuncNow="ByteFromHexChars("+sTwoChars+")";
-				sLastErr="Exception error interpreting data received--"+exn.ToString();
-			}
-			return byReturn;
-		}
-		public static int ValueFromHexCharNibble(string sOneChar) {
-			char cHex='0';
-			try {
-				char[] carrHex=sOneChar.ToCharArray();
-				cHex=carrHex[0];
-				//The rest of the work is done by the function in the return statement
-			}
-			catch (Exception exn) {
-				sFuncNow="ValueOfHexChar("+sOneChar+")";
-				sLastErr="Exception error--"+exn.ToString();
-			}
-			return ValueFromHexCharNibble(cHex);
-		}
-		public const byte byLowNibble = 15; //4 bits!
-		public static bool HexOfByte(char[] carrDest, ref int iDestCharCursorToMove, byte byValue) {
-			bool bGood=true;
-			try {
-				carrDest[iDestCharCursorToMove]=HexCharOfNibble(byValue>>4);
-				iDestCharCursorToMove++;
-				carrDest[iDestCharCursorToMove]=HexCharOfNibble(byValue&byLowNibble);
-				iDestCharCursorToMove++;
-			}
-			catch (Exception exn) {
-				sFuncNow="HexOfByte("+byValue.ToString()+")";
-				sLastErr="Exception error interpreting data received--"+exn.ToString();
-				bGood=false;
-			}
-			return bGood;
-		}
-		public static string HexOfByte(byte byValue) {
-			try {
-				return StringHexCharOfNibble(byValue>>4)+StringHexCharOfNibble(byValue&byLowNibble);
-			}
-			catch (Exception exn) {
-				sFuncNow="HexOfByte("+byValue.ToString()+")";
-				sLastErr="Exception error interpreting data received--"+exn.ToString();
-				return "00";
-			}
-		}
-		public static string HexOfBytes(byte[] byarrData, int iStart, int iLength, int iChunkBytes) {
-			string sReturn="";
-			int iChunkPlace=0;
-			int iByte=iStart;
-			for (int iRelative=0; iRelative<iLength; iRelative++, iByte++) {
-				if (iChunkBytes>0 && iChunkPlace==iChunkBytes) {
-					sReturn+=" ";
-					iChunkPlace=0;
-				}
-				sReturn+=HexOfByte(byarrData[iByte]);
-				iChunkPlace++;
-			}
-			return sReturn;
-		}
-
-		public static string StringHexCharOfNibble(byte byValue) {
-			char cNow=HexCharOfNibble(byValue);
-			return char.ToString(cNow);
-		}
-		
-		public static string StringHexCharOfNibble(int iValue) {
-			char cNow=HexCharOfNibble(iValue);
-			return char.ToString(cNow);
-		}
-		public static char HexCharOfNibble(byte byValue) {
-			char cNow='0';
-			if (byValue<10) {
-				cNow=(char)(byValue+48); //i.exn. changes 0 to 48 ('0')
-			}
-			else {
-				cNow=(char)(byValue+55); //i.exn. changes 10 to 65 ('A')
-			}
-			return cNow;
-		}
-		public static char HexCharOfNibble(int iValue) {
-			char cNow='0';
-			if (iValue<10) {
-				cNow=(char)(iValue+48); //i.exn. changes 0 to 48 ('0')
-			}
-			else {
-				cNow=(char)(iValue+55); //i.exn. changes 10 to 65 ('A')
-			}
-			return cNow;
-		}
-		public static int ValueFromHexCharNibble(char cHex) {
-			if (cHex<58) {
-				return ((int)cHex)-48; //i.exn. changes 48 ('0') to 0
-			}
-			else {
-				return ((int)cHex)-55; //i.exn. changes 65 ('A') to  10
-			}
-		}
-		public static byte ByteFromHexCharNibble(char cHex) {
-			if (cHex<58) {
-				return (byte)(cHex-48); //i.exn. changes 48 ('0') to 0
-			}
-			else {
-				return (byte)(cHex-55); //i.exn. changes 65 ('A') to  10
-			}
+			return Base.ToBase64(byarr);///TODO: Output all Riff chunks
 		}
 		public bool ResetTo(int iNumOfBytes) {
-			sFuncNow="ResetTo("+iNumOfBytes.ToString()+")";
 			try {
 				byte[] byarrTemp=new byte[iNumOfBytes];
 				byarrTemp[iNumOfBytes-1]=byarrTemp[iNumOfBytes-1]; //test for exception
@@ -403,119 +220,259 @@ namespace ExpertMultimedia {
 				iBuffer=0;
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error resizing Byter to "+iNumOfBytes.ToString()+" bytes--"+exn.ToString();
+				Base.ShowExn(exn,"ResetTo("+iNumOfBytes.ToString()+")","resizing to "+iNumOfBytes.ToString()+" bytes");
 				return false;
 			}
 			return true;
 		}
-		public bool Load(string sPathFile) {
-			bool bErr=false;
+		private bool OpenLoad(string sPathFile) {
+			bool bGood=false;
+			try {
+				fiLoad=new FileInfo(sPathFile);
+				iLastFileSize=(int)fiLoad.Length; //convert from Long
+				if ((long)iLastFileSize!=fiLoad.Length)
+					Base.ShowErr("File length exceeded 32-bit integer!");
+				fsLoad = new FileStream(sPathFile, 
+					FileMode.Open, FileAccess.Read);
+				bGood=true;
+			}
+			catch (Exception exn) {
+				bGood=false;
+				Base.ShowExn(exn,"OpenLoad(\""+sPathFile+"\")","open file for reading \""+sPathFile+"\"");
+			}
+			return bGood;
+		}
+		private bool CloseLoad(string sPathFile) {//argument is for REFERENCE ONLY
+			bool bGood=false;
+			try {
+				fsLoad.Close();
+				fsLoad=null;
+				bGood=true;
+			}
+			catch (Exception exn) {
+				bGood=false;
+				fsLoad=null;
+				Base.ShowExn(exn,"CloseLoad(\""+sPathFile+"\")","closing file after reading \""+sPathFile+"\"");
+			}
+			return bGood;
+		}
+		private bool LoadBytes(string sPathFile, int iBytes) {//argument is for REFERENCE ONLY
+			bool bGood=false;
+			try {
+				byarr=new byte[iBytes];//TODO: make this optional???
+				int iTest=fsLoad.Read(byarr,0,iBytes);
+				if (iTest<iBytes) {
+					bGood=false;
+					Base.ShowErr("Only "+iTest.ToString()+" of "+iBytes.ToString()+" found in file.");
+				}
+			}
+			catch (Exception exn) {
+				bGood=false;
+				fsLoad=null;
+				iLastFileSize=0;
+				Base.ShowExn(exn,"LoadBytes(\""+sPathFile+"\","+iBytes.ToString()+")","closing file after reading \""+sPathFile+"\"");
+			}
+			return bGood;
+		}
+		public bool LoadRiff(string sPathFile) {
+			bool bGood=false;
+			bool bGoodRiff=false;
 			sFileNow=sPathFile;
-			sFuncNow="Load("+sPathFile+")";
-			if (File.Exists(sPathFile)==false) {
-				sLastErr="File doesn't exist: \""+sPathFile+"\"";
+			if (!File.Exists(sPathFile)) {
+				Base.ShowErr("File doesn't exist: \""+sPathFile+"\"","byter Load","loading sPathFile");
 				return false;
 			}
-			FileInfo fi;
-			FileStream fs;
 			try {
-				
-				fi=new FileInfo(sPathFile);
-				iLastFileSize=(int)fi.Length; //convert from Long
-				if ((long)iLastFileSize!=fi.Length)
-					sLastErr="File length exceeded 32-bit integer.  Please notify us using www.expertmultimedia.com";
-				fs = new FileStream(sPathFile, 
-					FileMode.Open, FileAccess.Read);
-				byarr=new byte[iLastFileSize];
-				fs.Read(byarr,0,iLastFileSize);
-				fs.Close();
+				bGood=OpenLoad(sPathFile);
+				Byter byterHeader=new Byter(8);
+				if (byterHeader.LoadBytes(sPathFile+" (header)",8)) {
+					byterHeader.Position=0;
+					string sType=byterHeader.GetForcedAscii(4);
+					uint dwExpect=byterHeader.GetForcedUint();
+					if (sType.ToUpper()!="RIFF") {
+						Base.ShowErr("No riff header.");
+						bGoodRiff=false;
+					}
+					else if (dwExpect!=(uint)iLastFileSize-8) {
+						Base.ShowErr("Riff bytes do not match file size (8+"+dwExpect.ToString()+" not equal to "+iLastFileSize+").");
+						bGoodRiff=false;
+					}
+					if (bGoodRiff) {
+						Position=8;
+						bGoodRiff=LoadBytes(sPathFile,iLastFileSize-8);
+					}
+					else {
+						Position=0;
+						Base.ShowErr("Loading using old (raw non-riff) method.");
+						bGood=LoadBytes(sPathFile,iLastFileSize);
+					}
+					if (!CloseLoad(sPathFile)) bGood=false;
+				}
+				else bGoodRiff=false;
 				this.Position=0;
 				this.iBuffer=iLastFileSize;
 			}
 			catch (Exception exn) {
+				bGood=false;
+				bGoodRiff=false;
 				byarr=null;
-				sLastErr="Exception error writing file--"+exn.ToString();
+				Base.ShowExn(exn,"Load("+sPathFile+")","writing file");
+			}
+			return bGoodRiff;
+		}
+		public bool Load(string sPathFile) {
+			bool bGood=false;
+			sFileNow=sPathFile;
+			if (!File.Exists(sPathFile)) {
+				Base.ShowErr("File doesn't exist: \""+sPathFile+"\"","byter Load","loading sPathFile");
 				return false;
 			}
-			return bErr;
+			try {
+				if (!OpenLoad(sPathFile)) bGood=false;
+				if (!LoadBytes(sPathFile,iLastFileSize)) bGood=false;
+				if (!CloseLoad(sPathFile)) bGood=false;
+				this.Position=0;
+				this.iBuffer=iLastFileSize;
+			}
+			catch (Exception exn) {
+				bGood=false;
+				byarr=null;
+				Base.ShowExn(exn,"Load("+sPathFile+")","writing file");
+			}
+			return bGood;
 		}
 		public bool Save() {
 			return Save(sFileNow);
 		}
+		private bool OpenSaveForceRecreate(string sPathFile) {
+			bool bGood=false;
+			try {
+				if (File.Exists(sPathFile)) File.Delete(sPathFile);
+				fsSave = new FileStream(sPathFile, 
+					FileMode.Create, FileAccess.Write);
+				bGood=true;
+			}
+			catch (Exception exn) {
+				bGood=false;
+				Base.ShowExn(exn,"OpenSaveForceRecreate(\""+sPathFile+"\")","open file for writing \""+sPathFile+"\"");
+			}
+			return bGood;
+		}
+		private bool CloseSave(string sPathFile) {//argument is for REFERENCE ONLY
+			bool bGood=false;
+			try {
+				fsSave.Close();
+				fsSave=null;
+				bGood=true;
+			}
+			catch (Exception exn) {
+				bGood=false;
+				Base.ShowExn(exn,"CloseSave(\""+sPathFile+"\")","closing file after writing \""+sPathFile+"\"");
+			}
+			return bGood;
+		}
+		private bool SaveBytes(string sPathFile) {//argument is for REFERENCE ONLY
+			bool bGood=false;
+			try {
+				fsSave.Write(byarr,0,iBuffer);
+				iLastFileSize=iBuffer;
+				bGood=true;
+			}
+			catch (Exception exn) {
+				bGood=false;
+				iLastFileSize=0;
+				Base.ShowExn(exn,"SaveBytes(\""+sPathFile+"\")","closing file after writing \""+sPathFile+"\"");
+			}
+			return bGood;
+		}
 		public bool Save(string sPathFile) {
-			sFuncNow="Save("+sPathFile+")";
-			FileStream fs;
-			//int i;
+			bool bGood=false;
 			try {
 				iLastFileSize=0;
-				fs = new FileStream(sPathFile, 
-					FileMode.Create, FileAccess.Write);
-				fs.Write(byarr,0,iBuffer);
-				iLastFileSize=iBuffer;
-				fs.Close();
+				bGood=OpenSaveForceRecreate(sPathFile);//debug overwrites always
+				bGood=SaveBytes(sPathFile);
+				bGood=CloseSave(sPathFile);
 				if (iLastFileSize==0) {
-					sLastErr="iLastFileSize is zero!";
+					Base.ShowErr("last file size is zero!","byter Save","saving file");
 				}
 			}
 			catch (Exception exn) {
-				//try {
-				//	fs.Close();
-				//}
-				//catch (Exception e2) { e2=e2; //prevents unused exn warning
-				//	return false;
-				//}
-				sLastErr="Exception error writing file--"+exn.ToString();
-				return false;
+				bGood=false;
+				Base.ShowExn(exn,"Save("+sPathFile+")","writing file");
 			}
-			return true;
+			return bGood;
 		}
-		public bool AppendToFile(string sPathFile) {
-			sFuncNow="AppendToFile("+sPathFile+")";
-			if (File.Exists(sPathFile)==false) return false;
-			FileStream fs;
-			//int i;
+		public bool SaveRiffTree(string sPathFile) {//sPathFile is FOR REFERENCE ONLY
+			bool bGood=false;
+			if (IsLeaf) {
+				//save chunk opener
+				Byter byterHeader=new Byter(8);
+				string sChunkType=ChunkType;
+				byterHeader.WriteAscii(ref sChunkType);//i.e. RIFF
+				byterHeader.Write((uint)iBuffer);
+				byterHeader.fsSave=fsSave;
+				bGood=byterHeader.SaveBytes(sPathFile+" (chunk opener)");
+				//save data
+				bGood=SaveBytes(sPathFile);//DOES set iLastFileSize
+				if (iLastFileSize==0) {
+					Base.ShowErr("last file size is zero!","byter SaveRiffTree","saving file chunk");
+				}
+				else if (iLastFileSize!=iBuffer) {
+					Base.ShowErr("incorrect file chunk length saved!","byter SaveRiffTree","saving file chunk ("+iLastFileSize.ToString()+", expected "+iBuffer.ToString()+")");
+				}
+			}
+			else {
+				for (int iNow=0; iNow<byterarr.Length; iNow++) {
+					if (!byterarr[iNow].SaveRiffTree(sPathFile)) bGood=false;
+				}
+			}
+			return bGood;
+		}
+		public bool SaveRiff(string sPathFile) {
+			bool bGood=false;
 			try {
 				iLastFileSize=0;
-				fs = new FileStream(sPathFile, 
-					FileMode.Append, FileAccess.Write);
-				fs.Write(byarr,0,iBuffer);
-				iLastFileSize=iBuffer;
-				fs.Close();
+				bGood=OpenSaveForceRecreate(sPathFile);//debug: overwrites always
+				bGood=SaveRiffTree(sPathFile);
+				bGood=CloseSave(sPathFile);
 			}
 			catch (Exception exn) {
-				//try {
-				//	fs.Close();
-				//}
-				//catch (Exception e2) { e2=e2; //prevents unused exn warning
-				//	return false;
-				//}
-				sLastErr="Exception error writing file--"+exn.ToString();
+				bGood=false;
+				Base.ShowExn(exn,"Save("+sPathFile+")","writing file");
+			}
+			return bGood;
+		}
+		public bool AppendToFile(string sPathFile) {
+			if (!File.Exists(sPathFile)) return false;
+			FileStream fsAppend;
+			try {
+				iLastFileSize=0;
+				fsAppend = new FileStream(sPathFile, 
+					FileMode.Append, FileAccess.Write);
+				fsAppend.Write(byarr,0,iBuffer);
+				iLastFileSize=iBuffer;
+				fsAppend.Close();
+			}
+			catch (Exception exn) {
+				Base.ShowExn(exn,"AppendToFile("+sPathFile+")","writing file");
 				return false;
 			}
 			return true;
 		}
 		public bool AppendToFileOrCreate(string sPathFile) {
-			//sFuncNow="AppendOnly("+sPathFile+")";
-			FileStream fs;
-			//int i;
+			FileStream fsAppendOrCreate;
 			try {
-				//FileInfo fi;
-				//fi.Position=
+				//FileInfo fiAppend;
+				//fiAppend.Position=
 				iLastFileSize=0;
-				fs = new FileStream(sPathFile, 
+				fsAppendOrCreate = new FileStream(sPathFile, 
 					FileMode.Append, FileAccess.Write);
-				fs.Write(byarr,0,iBuffer);
+				fsAppendOrCreate.Write(byarr,0,iBuffer);
 				iLastFileSize=iBuffer;
-				fs.Close();
+				fsAppendOrCreate.Close();
 			}
 			catch (Exception exn) {
-				//try {
-				//	fs.Close();
-				//}
-				//catch (Exception e2) { e2=e2; //prevents unused exn warning
-				//	return false;
-				//}
-				sLastErr="Exception error writing file--"+exn.ToString();
+				Base.ShowExn(exn,"AppendOnly("+sPathFile+")","writing file");
 				return false;
 			}
 			return true;
@@ -527,273 +484,52 @@ namespace ExpertMultimedia {
 				return true;
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error during Seek("+iByte.ToString()+")--"+exn.ToString();
+				Base.ShowExn(exn,"Seek("+iByte.ToString()+")");
 			}
 			return false;
 		}
-		public static bool CopySafe(ref byte[] byarrDest, ref byte[] byarrSrc, int iDestByte, int iSrcByte, int iBytes) {
-			try {
-				for (int iByteNow=0; iByteNow<iBytes; iByteNow++) {
-					byarrDest[iDestByte]=byarrSrc[iSrcByte];
-					iDestByte++;
-					iSrcByte++;
-				}
-			}
-			catch (Exception exn) {
-				sLastErr="Exception error during CopySafe(...)--"+exn.ToString();
-				return false;
-			}
-			return true;
-		}
-		public static unsafe bool CopyFast(ref byte[] byarrDest, ref byte[] byarrSrc, int iDestByte, int iSrcByte, int iBytes) {
-			try {
-				fixed (byte* lpDest=byarrDest, lpSrc=byarrSrc) { //keeps GC at bay
-					byte* lpDestNow=lpDest;
-					byte* lpSrcNow=lpSrc;
-					lpSrcNow+=iSrcByte;
-					lpDestNow+=iDestByte;
-					for (int i=iBytes>>3; i!=0; i--) {
-						*((ulong*)lpDestNow) = *((ulong*)lpSrcNow); //64bit chunks
-						lpDestNow+=8;
-						lpSrcNow+=8;
-					}
-					//remainder<64bits:
-					for (iBytes&=7; iBytes!=0; iBytes--) {
-						*lpDestNow=*lpSrcNow;
-						lpDestNow++;
-						lpSrcNow++;
-					}
-				}
-			}
-			catch (Exception exn) {
-				sLastErr="Exception error during CopyFast(.....)--"+exn.ToString();
-				return false;
-			}
-			return true;
-		}
-		public static unsafe bool CopyFast(ref byte[] byarrDest, ref byte[] byarrSrc, int iBytes) {
-			try {
-				fixed (byte* lpDest=byarrDest, lpSrc=byarrSrc) { //keeps GC at bay
-					byte* lpDestNow=lpDest;
-					byte* lpSrcNow=lpSrc;
-					for (int i=iBytes>>3; i!=0; i--) {
-						*((ulong*)lpDestNow) = *((ulong*)lpSrcNow); //64bit chunks
-						lpDestNow+=8;
-						lpSrcNow+=8;
-					}
-					//remainder<64bits:
-					for (iBytes&=7; iBytes!=0; iBytes--) {
-						*lpDestNow=*lpSrcNow;
-						lpDestNow++;
-						lpSrcNow++;
-					}
-				}
-			}
-			catch (Exception exn) {
-				sLastErr="Exception error during CopyFast(...)--"+exn.ToString();
-				return false;
-			}
-			return true;
-		}
-		public static unsafe void CopyFastVoid(ref byte[] byarrDest, ref byte[] byarrSrc, int iDestByte, int iSrcByte, int iBytes) {
-			try {
-				fixed (byte* lpDest=byarrDest, lpSrc=byarrSrc) { //keeps GC at bay
-					byte* lpDestNow=lpDest;
-					byte* lpSrcNow=lpSrc;
-					lpDestNow+=iDestByte;
-					lpSrcNow+=iSrcByte;
-					for (int i=iBytes>>3; i!=0; i--) {
-						*((ulong*)lpDestNow) = *((ulong*)lpSrcNow); //64bit chunks
-						lpDestNow+=8;
-						lpSrcNow+=8;
-					}
-					//remainder<64bits:
-					for (iBytes&=7; iBytes!=0; iBytes--) {
-						*lpDestNow=*lpSrcNow;
-						lpDestNow++;
-						lpSrcNow++;
-					}
-				}
-			}
-			catch (Exception exn) {
-				sLastErr="Exception error during CopyFastVoid(.....)--"+exn.ToString();
-				return;
-			}
-			return;
-		}
-		public static unsafe void CopyFastVoid(ref byte[] byarrDest, ref byte[] byarrSrc, int iBytes) {
-			try {
-				fixed (byte* lpDest=byarrDest, lpSrc=byarrSrc) { //keeps GC at bay
-					byte* lpDestNow=lpDest;
-					byte* lpSrcNow=lpSrc;
-					for (int i=iBytes>>3; i!=0; i--) {
-						*((ulong*)lpDestNow) = *((ulong*)lpSrcNow); //64bit chunks
-						lpDestNow+=8;
-						lpSrcNow+=8;
-					}
-					//remainder<64bits:
-					for (iBytes&=7; iBytes!=0; iBytes--) {
-						*lpDestNow=*lpSrcNow;
-						lpDestNow++;
-						lpSrcNow++;
-					}
-				}
-			}
-			catch (Exception exn) {
-				sLastErr="Exception error during CopyFastVoid(...) array version--"+exn.ToString();
-				return;
-			}
-			return;
-		}
-		public static unsafe void CopyFastVoid(IntPtr byarrDest, ref byte[] byarrSrc, int iDestByte, int iSrcByte, int iBytes) {
-			try {
-				fixed (byte* lpSrc=byarrSrc) { //keeps GC at bay
-					byte* lpDestNow=(byte*)byarrDest;
-					byte* lpSrcNow=lpSrc;
-					lpDestNow+=iDestByte;
-					lpSrcNow+=iSrcByte;
-					for (int i=iBytes>>3; i!=0; i--) {
-						*((ulong*)lpDestNow) = *((ulong*)lpSrcNow); //copy in fast 64-bit chunks
-						lpDestNow+=8;
-						lpSrcNow+=8;
-					}
-					//remainder<64bits:
-					for (iBytes&=7; iBytes!=0; iBytes--) {
-						*lpDestNow=*lpSrcNow;
-						lpDestNow++;
-						lpSrcNow++;
-					}
-				}
-			}
-			catch (Exception exn) {
-				sLastErr="Exception error during CopyFastVoid(.....) version with Int Pointer destination--"+exn.ToString();
-				return;
-			}
-			return;
-		}//end CopyFastVoid
-		//vars for SetLittleEndianBit
-		public static readonly byte[] byarrBit=new byte[] {1,2,4,8,16,32,64,128};
-		private int iByte;
-		private int iBit;
-		/// <summary>
-		/// Sets a bit in the array, as if the array were a huge
-		/// unsigned integer.
-		/// </summary>
-		/// <param name="byarrSignificund"></param>
-		/// <param name="val"></param>
-		/// <param name="iAtBit"></param>
-		public void SetLittleEndianBit(ref byte[] byarrAsHugeUint, bool bBitState, int iAtBit) {
-		//note: big-endian : big units first :: little-endian : little units first
-			try {
-				iByte=iAtBit/8;
-				iBit=iAtBit%8;
-				if (bBitState) byarrAsHugeUint[iByte]|=byarrBit[iAtBit];
-				else byarrAsHugeUint[iByte]&=(byte)(byarrBit[iAtBit]^0xFF);
-			}
-			catch (Exception exn) {
-				sLastErr="Exception setting bit #"+iAtBit+" to "+((bBitState)?"true":"false")+": "+exn.ToString();
-			}
-		}
-		//note: big-endian : big units first :: little-endian : little units first
-		public bool GetLittleEndianBit(ref byte[] byarrAsHugeUint, int iFromBit) {
-			try {
-				return ((byarrAsHugeUint[(int)(iFromBit/8)] & byarrBit[iFromBit%8]) > 0);
-			}
-			catch (Exception exn) {
-				sLastErr="Exception getting bit #"+iFromBit+"; bit state was presumably nonexistant: "+exn.ToString();
-			}
-			return false;
-		}
-#endregion
+#endregion utility methods
 
-		#region of Peek Functions
-		
-		public void Peek(ref byte var) {
-			iLastCountDesired=1;
-			iLastCount=0;
-			try {
-				var=byarr[iPlace];
-				iLastCount++;
-			}
-			catch (Exception exn) {
-				 sLastErr="Exception error during Peek byte--"+exn.ToString();
-			}
-		}
-		public void Peek(ref ushort var) {
-			iLastCountDesired=2;//SizeOf(var);
+		#region peek methods
+		public void Peek(ref float val) { //Single, float, float32
+			iLastCountDesired=4;//SizeOf(val);
 			iLastCount=0;
 			iPlaceTemp=iPlace;
 			try {
 				if (BitConverter.IsLittleEndian) {
-					var=BitConverter.ToUInt16(byarr, iPlaceTemp);
+					val=BitConverter.ToSingle(byarr, iPlaceTemp);
 				}
 				else {
-					byte[] byarrNow=SubArrayReversed(ref byarr, iPlaceTemp, iLastCountDesired);
-					var=BitConverter.ToUInt16(byarrNow, 0);
+					byte[] byarrNow=Base.SubArrayReversed(byarr, iPlaceTemp, iLastCountDesired);
+					val=BitConverter.ToSingle(byarrNow, 0);
 				}
 				iPlaceTemp+=iLastCountDesired;
 			}
 			catch (Exception exn) {
-				 sLastErr="Exception error during Peek ushort--"+exn.ToString();
+				 Base.ShowExn(exn,"Peek float");
 			}
 			iLastCount=iPlaceTemp-iPlace;
 		}
-		public void PeekUInt24(ref uint var) {
-			iLastCountDesired=3;//SizeOf(var);
-			iLastCount=0;
-			iPlaceTemp=iPlace;
-			try {
-				var=(uint)byarr[iPlaceTemp];
-				iPlaceTemp++;
-				var+=((uint)byarr[iPlaceTemp])*256U;
-				iPlaceTemp++;
-				var+=((uint)byarr[iPlaceTemp])*65536U;
-				iPlaceTemp++;
-			}
-			catch (Exception exn) {
-				 sLastErr="Exception error during Peek UInt24--"+exn.ToString();
-			}
-			iLastCount=iPlaceTemp-iPlace;
-		}
-		public void Peek(ref uint var) {
-			iLastCountDesired=4;//SizeOf(var);
+		public void Peek(ref double val) { //Double, double, float64
+			iLastCountDesired=8;//SizeOf(val);
 			iLastCount=0;
 			iPlaceTemp=iPlace;
 			try {
 				if (BitConverter.IsLittleEndian) {
-					var=BitConverter.ToUInt32(byarr, iPlaceTemp);
+					val=BitConverter.ToDouble(byarr, iPlaceTemp);
 				}
 				else {
-					byte[] byarrNow=SubArrayReversed(ref byarr, iPlaceTemp, iLastCountDesired);
-					var=BitConverter.ToUInt32(byarrNow, 0);
+					byte[] byarrNow=Base.SubArrayReversed(byarr, iPlaceTemp, iLastCountDesired);
+					val=BitConverter.ToDouble(byarrNow, 0);
 				}
 				iPlaceTemp+=iLastCountDesired;
 			}
 			catch (Exception exn) {
-				 sLastErr="Exception error during Peek uint--"+exn.ToString();
+				 Base.ShowExn(exn,"Peek double");
 			}
 			iLastCount=iPlaceTemp-iPlace;
 		}
-		public void Peek(ref ulong var) {
-			iLastCountDesired=8;//SizeOf(var);
-			iLastCount=0;
-			iPlaceTemp=iPlace;
-			try {
-				if (BitConverter.IsLittleEndian) {
-					var=BitConverter.ToUInt64(byarr, iPlaceTemp);
-				}
-				else {
-					byte[] byarrNow=SubArrayReversed(ref byarr, iPlaceTemp, iLastCountDesired);
-					var=BitConverter.ToUInt64(byarrNow, 0);
-				}
-				iPlaceTemp+=iLastCountDesired;
-			}
-			catch (Exception exn) {
-				 sLastErr="Exception error during Peek ulong--"+exn.ToString();
-			}
-			iLastCount=iPlaceTemp-iPlace;
-		}
-		public void PeekInt24(ref int var) {
+		public void PeekInt24(ref int val) {
 			iLastCountDesired=3;
 			iLastCount=0;
 			iPlaceTemp=iPlace;
@@ -801,128 +537,149 @@ namespace ExpertMultimedia {
 			try {
 				if ((byarr[iPlaceTemp+2]&(byte)0x80) != (byte)0) bCompliment=true;
 
-				var=(bCompliment)?(int)(byarr[iPlaceTemp]^(byte)0xFF):(int)byarr[iPlaceTemp];
+				val=(bCompliment)?(int)(byarr[iPlaceTemp]^(byte)0xFF):(int)byarr[iPlaceTemp];
 				iPlaceTemp++;
-				var+=(bCompliment)?((int)(byarr[iPlaceTemp]^(byte)0xFF))*256:((int)byarr[iPlaceTemp])*256;
+				val+=(bCompliment)?((int)(byarr[iPlaceTemp]^(byte)0xFF))*256:((int)byarr[iPlaceTemp])*256;
 				iPlaceTemp++;
-				var+=(bCompliment)?((int)(byarr[iPlaceTemp]^(byte)0xFF))*65536:((int)byarr[iPlaceTemp])*65536;
+				val+=(bCompliment)?((int)(byarr[iPlaceTemp]^(byte)0xFF))*65536:((int)byarr[iPlaceTemp])*65536;
 				iPlaceTemp++;
 				if (bCompliment) {
-					var*=-1;
-					var-=1;
+					val*=-1;
+					val-=1;
 					//(AFTER loading, so that the resulting absolute value is now one higher than 
 					// the stored absolute value of a negative number,
 					// which is stored in twos compliment)				
-				}			}
+				}
+			}
 			catch (Exception exn) {
-				 sLastErr="Exception error during Peek int--"+exn.ToString();
+				 Base.ShowExn(exn,"Peek int24");
 			}
 			iLastCount=iPlaceTemp-iPlace;
 		}
-		public void Peek(ref int var) {
+		public void Peek(ref int val) {
 			iLastCountDesired=4;
 			iLastCount=0;
 			iPlaceTemp=iPlace;
-			bool bCompliment=false;
+			//bool bCompliment=false;
 			try {
 				if (BitConverter.IsLittleEndian) {
-					var=BitConverter.ToInt32(byarr, iPlaceTemp);
+					val=BitConverter.ToInt32(byarr, iPlaceTemp);
 				}
 				else {
-					byte[] byarrNow=SubArrayReversed(ref byarr, iPlaceTemp, iLastCountDesired);
-					var=BitConverter.ToInt32(byarrNow, 0);
+					byte[] byarrNow=Base.SubArrayReversed(byarr, iPlaceTemp, iLastCountDesired);
+					val=BitConverter.ToInt32(byarrNow, 0);
 				}
 				iPlaceTemp+=iLastCountDesired;
 			}
 			catch (Exception exn) {
-				 sLastErr="Exception error during Peek int--"+exn.ToString();
+				 Base.ShowExn(exn,"Peek int");
 			}
 			iLastCount=iPlaceTemp-iPlace;
 		}
-		public void Peek(ref long var) {
-			iLastCountDesired=8;//SizeOf(var);
+		public void Peek(ref long val) {
+			iLastCountDesired=8;//SizeOf(val);
 			iLastCount=0;
 			iPlaceTemp=iPlace;
-			bool bCompliment=false;
+			//bool bCompliment=false;
 			try {
 				if (BitConverter.IsLittleEndian) {
-					var=BitConverter.ToInt64(byarr, iPlaceTemp);
+					val=BitConverter.ToInt64(byarr, iPlaceTemp);
 				}
 				else {
-					byte[] byarrNow=SubArrayReversed(ref byarr, iPlaceTemp, iLastCountDesired);
-					var=BitConverter.ToInt64(byarrNow, 0);
+					byte[] byarrNow=Base.SubArrayReversed(byarr, iPlaceTemp, iLastCountDesired);
+					val=BitConverter.ToInt64(byarrNow, 0);
 				}
 				iPlaceTemp+=iLastCountDesired;
 			}
 			catch (Exception exn) {
-				 sLastErr="Exception error during Peek long--"+exn.ToString();
+				 Base.ShowExn(exn,"Peek long");
 			}
 			iLastCount=iPlaceTemp-iPlace;
 		}
-		public void Peek(ref float var) { //Single, float, float32
-			iLastCountDesired=4;//SizeOf(var);
+		public void Peek(ref byte val) {
+			iLastCountDesired=1;
 			iLastCount=0;
-			iPlaceTemp=iPlace;
 			try {
-				if (BitConverter.IsLittleEndian) {
-					var=BitConverter.ToSingle(byarr, iPlaceTemp);
-				}
-				else {
-					byte[] byarrNow=SubArrayReversed(ref byarr, iPlaceTemp, iLastCountDesired);
-					var=BitConverter.ToSingle(byarrNow, 0);
-				}
-				iPlaceTemp+=iLastCountDesired;
+				val=byarr[iPlace];
+				iLastCount++;
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error during Peek float--"+exn.ToString();
+				 Base.ShowExn(exn,"Peek byte");
 			}
-			iLastCount=iPlaceTemp-iPlace;
 		}
-		public void Peek(ref double var) { //Double, double, float64
-			iLastCountDesired=8;//SizeOf(var);
+		public void Peek(ref ushort val) {
+			iLastCountDesired=2;//SizeOf(val);
 			iLastCount=0;
 			iPlaceTemp=iPlace;
 			try {
 				if (BitConverter.IsLittleEndian) {
-					var=BitConverter.ToDouble(byarr, iPlaceTemp);
+					val=BitConverter.ToUInt16(byarr, iPlaceTemp);
 				}
 				else {
-					byte[] byarrNow=SubArrayReversed(ref byarr, iPlaceTemp, iLastCountDesired);
-					var=BitConverter.ToDouble(byarrNow, 0);
+					byte[] byarrNow=Base.SubArrayReversed(byarr, iPlaceTemp, iLastCountDesired);
+					val=BitConverter.ToUInt16(byarrNow, 0);
 				}
 				iPlaceTemp+=iLastCountDesired;
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error during Peek double--"+exn.ToString();
+				 Base.ShowExn(exn,"Peek ushort");
 			}
 			iLastCount=iPlaceTemp-iPlace;
 		}
-		public bool Peek(ref byte[][][] by3dArray, int iDim1, int iDim2, int iDim3) {
-			sFuncNow="Peek(by3dArray...)";
+		public void PeekUint24(ref uint val) {
+			iLastCountDesired=3;//SizeOf(val);
+			iLastCount=0;
 			iPlaceTemp=iPlace;
-			int iCount=0;
-			iLastCountDesired=iDim1*iDim2*iDim3;
-			int iLast=iPlace+iLastCountDesired;
-			if (ValidReadPosition(iLast)==false) {
-				sLastErr="Invalid buffer not available at "+iLast.ToString();
-			}
 			try {
-				for (int iD1=0; iD1<iDim1; iD1++) {
-					for (int iD2=0; iD2<iDim2; iD2++) {
-						for (int iD3=0; iD3<iDim3; iD3++) {
-							by3dArray[iD1][iD2][iD3]=byarr[iPlaceTemp];
-							iPlaceTemp++;
-							iCount++;
-						}
-					}
-				}
+				val=(uint)byarr[iPlaceTemp];
+				iPlaceTemp++;
+				val+=((uint)byarr[iPlaceTemp])*256U;
+				iPlaceTemp++;
+				val+=((uint)byarr[iPlaceTemp])*65536U;
+				iPlaceTemp++;
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error {iCount:"+iCount.ToString()+"}--"+exn.ToString();
-				return false;
+				 Base.ShowExn(exn,"Peek uint24");
 			}
-			iLastCount=iCount;
-			return (iLastCount==iLastCountDesired)?true:false;
+			iLastCount=iPlaceTemp-iPlace;
+		}
+		public void Peek(ref uint val) {
+			iLastCountDesired=4;//SizeOf(val);
+			iLastCount=0;
+			iPlaceTemp=iPlace;
+			try {
+				if (BitConverter.IsLittleEndian) {
+					val=BitConverter.ToUInt32(byarr, iPlaceTemp);
+				}
+				else {
+					byte[] byarrNow=Base.SubArrayReversed(byarr, iPlaceTemp, iLastCountDesired);
+					val=BitConverter.ToUInt32(byarrNow, 0);
+				}
+				iPlaceTemp+=iLastCountDesired;
+			}
+			catch (Exception exn) {
+				 Base.ShowExn(exn,"Peek uint");
+			}
+			iLastCount=iPlaceTemp-iPlace;
+		}
+		public void Peek(ref ulong val) {
+			iLastCountDesired=8;//SizeOf(val);
+			iLastCount=0;
+			iPlaceTemp=iPlace;
+			try {
+				if (BitConverter.IsLittleEndian) {
+					val=BitConverter.ToUInt64(byarr, iPlaceTemp);
+				}
+				else {
+					byte[] byarrNow=Base.SubArrayReversed(byarr, iPlaceTemp, iLastCountDesired);
+					val=BitConverter.ToUInt64(byarrNow, 0);
+				}
+				iPlaceTemp+=iLastCountDesired;
+			}
+			catch (Exception exn) {
+				 Base.ShowExn(exn,"Peek ulong");
+			}
+			iLastCount=iPlaceTemp-iPlace;
 		}
 		public void Peek(ref byte[] byarrVar, int iByteFromByter, int iBytes) {
 			iPlaceTemp=iByteFromByter;
@@ -941,10 +698,37 @@ namespace ExpertMultimedia {
 		}
 		public void PeekFast(ref byte[] byarrVar, int iByteFromByter, int iBytes) {
 			iLastCountDesired=iBytes;
-			if (CopyFast(ref byarrVar, ref byarr, 0, iPlace, iBytes)) {
+			if (byarrVar==null) byarrVar=new byte[iBytes];
+			if (Memory.CopyFast(ref byarrVar, ref byarr, 0, iPlace, iBytes)) {
 				iLastCount=iBytes;
 			}
 			else iLastCount=0;
+		}
+		public bool Peek(ref byte[][][] by3dArray, int iDim1, int iDim2, int iDim3) {
+			iPlaceTemp=iPlace;
+			int iCount=0;
+			iLastCountDesired=iDim1*iDim2*iDim3;
+			int iLast=iPlace+iLastCountDesired;
+			if (!ValidReadPosition(iLast)) {
+				Base.ShowErr("Invalid buffer or not available at "+iLast.ToString(),"Peek by3dArray");
+			}
+			try {
+				for (int iD1=0; iD1<iDim1; iD1++) {
+					for (int iD2=0; iD2<iDim2; iD2++) {
+						for (int iD3=0; iD3<iDim3; iD3++) {
+							by3dArray[iD1][iD2][iD3]=byarr[iPlaceTemp];
+							iPlaceTemp++;
+							iCount++;
+						}
+					}
+				}
+			}
+			catch (Exception exn) {
+				Base.ShowExn(exn,"Peek(by3dArray...){iCount:"+iCount.ToString()+"}");
+				return false;
+			}
+			iLastCount=iCount;
+			return (iLastCount==iLastCountDesired)?true:false;
 		}
 		public string PeekAscii(int iChars) {
 			iLastCountDesired=iChars;
@@ -953,14 +737,15 @@ namespace ExpertMultimedia {
 			try {
 				for (int iChar=0; iChar<iChars; iChar++) {
 					if (iPlaceTemp>=byarr.Length) {
-						throw new ApplicationException("PeekAscii is Beyond byarr length, at "+iChar.ToString());
+						Base.ShowErr("PeekAscii is Beyond byarr length, at "+iChar.ToString());
+						break;
 					}
 					sReturn+=Char.ToString((char)byarr[iPlaceTemp]);
 					iPlaceTemp++;
 				}
 			}
 			catch (Exception exn) {
-				//TODO: handle exception
+				Base.IgnoreExn(exn,"Byter PeekAscii");//TODO: handle exception
 			}
 			iLastCount=iPlaceTemp-iPlace;
 			return sReturn;
@@ -975,7 +760,6 @@ namespace ExpertMultimedia {
 			iLastCountDesired=iCharsAreBytesDividedByTwo*2;
 			iPlaceTemp=iPlace;
 			string sReturn="";
-			char[] carr;
 			try {
 				if (iCharsAreBytesDividedByTwo*2>Base.iMaxAllocation) {
 					throw new ApplicationException("Peek Unicode length of "+iCharsAreBytesDividedByTwo.ToString()+" chars times 2 was greater than Base.MaxAllocation of "+Base.iMaxAllocation.ToString());
@@ -990,171 +774,181 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error during Peek Unicode--"+exn.ToString();
+				Base.ShowExn(exn,"Peek unicode");
 			}
 			iLastCount=iPlaceTemp-iPlace;
 			return sReturn;
 		}
-		public unsafe bool PeekBitmap32BGRA(ref Bitmap bmpToCreate, int iWidth, int iHeight) {
-			sFuncNow="PeekBitmap32BGRA";
+		public bool PeekBitmap32BGRA(out Bitmap bmpReturn, int iWidth, int iHeight) {
+			bool bGood=false;
+			bmpReturn=null;
 			try {
-				bmpToCreate=new Bitmap(iWidth, iHeight, PixelFormat.Format32bppArgb);
-				GraphicsUnit unit = GraphicsUnit.Pixel;
-				RectangleF rectNowF = bmpToCreate.GetBounds(ref unit);
-				Rectangle rectNow = new Rectangle((int) rectNowF.X,
-					(int) rectNowF.Y,
-					(int) rectNowF.Width,
-					(int) rectNowF.Height);
-				int iStride = (int) rectNowF.Width * 4; //assumes 32-bit
-				if (iStride % 4 != 0) { //assumes 32-bit
-					iStride = 4 * (iStride / 4 + 1);
-				}
-				BitmapData bmpdata = bmpToCreate.LockBits(rectNow, ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb); //assume 32bit
+				bmpReturn=new Bitmap(iWidth, iHeight, PixelFormat.Format32bppArgb);
+				GraphicsUnit unit=GraphicsUnit.Pixel;
+				RectangleF rectNowF=bmpReturn.GetBounds(ref unit);
+				Rectangle rectNow=new Rectangle((int) rectNowF.X, (int)rectNowF.Y, (int)rectNowF.Width, (int)rectNowF.Height);
 				
-				byte* lpbyNow = (byte*) bmpdata.Scan0.ToPointer();
+				int iStride=rectNow.Width*4; //assumes 32-bit
+				if (iStride%4!=0) { //assumes 32-bit
+					iStride=4*(iStride/4+1);
+				}				//BitmapData bmpdata = bmpReturn.LockBits(rectNow, ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb); //assume 32bit
+				//int iDest=0; //byte* lpbyNow = (byte*) bmpdata.Scan0.ToPointer();
 				iLastCountDesired=(int)rectNowF.Width*(int)rectNowF.Height*4; //assume 32bit
 				int iByteEOF=Position+iLastCountDesired;
 				int iByteLast=iByteEOF-1;
 				iLastCount=0;
-				if (ValidReadPosition(iByteLast)==false) {
-					sLastErr="Byter used buffer area of "+iBuffer.ToString()+" is too small to read bitmap data that would end at position "+iByteLast.ToString()+".";
+				if (!ValidReadPosition(iByteLast)) {
+					bGood=false;
+					Base.ShowErr("Buffer area of "+iBuffer.ToString()+" is too small to read bitmap data that would end at position "+iByteLast.ToString()+".","PeekBitmap32BGRA","trying to read the image from the data source");
 				}
-				else {
-					for (int iBy=Position; iBy<iByteEOF; iBy++) {
-						*lpbyNow=byarr[iBy];
-						lpbyNow++;
-						iLastCount++;
-						//debug performance, use CopyFastVoid?
+				else { //debug performance, use CopyFastVoid?
+					int iBy=Position;
+					for (int yNow=0; yNow<rectNow.Height; yNow++) {
+						for (int xNow=0; xNow<rectNow.Width; xNow++) {
+							//if (iBy>=iByteEOF) { //this was already checked by ValidReadPosition(iByteLast)
+							//	bGood=false;
+							//	break;
+							//}
+							bmpReturn.SetPixel( xNow, yNow, Color.FromArgb( byarr[iBy+3],byarr[iBy+2],byarr[iBy+1],byarr[iBy] ) );
+							iLastCount+=4;
+							iBy+=4;
+							//iDest++;
+						}
 					}
+					bGood=true;
 				}
-				bmpToCreate.UnlockBits(bmpdata);
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error--"+exn.ToString();
-				return false;
+				bGood=false;
+				Base.ShowExn(exn,"PeekBitmap32BGRA");
 			}
-			if (iLastCount!=iLastCountDesired) sLastErr="Not all of bitmapdata was written.";
-			return (iLastCount==iLastCountDesired);
+			if (iLastCount!=iLastCountDesired) {
+				bGood=false;
+				Base.ShowErr("The image data was incomplete.","PeekBitmap32BGRA");
+			}
+			return bGood;
 		}
 
-		#endregion
+		#endregion peek methods
 	
-		#region of Poke Functions
+		#region poke methods
 		
-		public void Poke(ref byte var) {
+		public void Poke(ref byte val) {
 			iLastCountDesired=1;
 			iLastCount=0;
 			try {
-				byarr[iPlace]=var;
+				byarr[iPlace]=val;
 				iLastCount=1;
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error during Poke byte--"+exn.ToString();
+				Base.ShowExn(exn,"Poke byte");
 				iLastCount=0;
 			}
 			UsedCountAtLeast(iPlace+1);
 		}
-		public void Poke(ref ushort var) {
-			iLastCountDesired=2;//sizeof(var);
+		public void Poke(ref ushort val) {
+			iLastCountDesired=2;//sizeof(val);
 			iPlaceTemp=iPlace;
 			try {
-				byarr[iPlaceTemp]=(byte)(var%256);
+				byarr[iPlaceTemp]=(byte)(val&0xFF);
 				iPlaceTemp++;
-				byarr[iPlaceTemp]=(byte)(var/256);//truncates to correct value
+				byarr[iPlaceTemp]=(byte)(val>>8);
 				iPlaceTemp++;
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error during Poke ushort--"+exn.ToString();
+				Base.ShowExn(exn,"Poke ushort");
 			}
-			UsedCountAtLeast(iPlaceTemp); //OK to call after increment since adjusts a length var
+			UsedCountAtLeast(iPlaceTemp); //OK to call after increment since adjusts a length val
 			iLastCount=iPlaceTemp-iPlace;
 		}  
-		public void PokeUInt24(ref uint var) {
-			iLastCountDesired=3;//sizeof(var);
+		public void PokeUint24(ref uint val) {
+			iLastCountDesired=3;//sizeof(val);
 			iPlaceTemp=iPlace;
 			bOverflow=false;
 			try {
-				if (var>16777215) {
+				if (val>16777215) {
 					bOverflow=true;
-					var=16777215;
+					val=16777215;
 				}
-				byarr[iPlaceTemp]=(byte)(var%256);
+				byarr[iPlaceTemp]=(byte)(val&0xFF);
 				iPlaceTemp++;
-				byarr[iPlaceTemp]=(byte)((uint)(var/256)%256);
+				byarr[iPlaceTemp]=(byte)((val>>8)&0xFF);
 				iPlaceTemp++;
-				byarr[iPlaceTemp]=(byte)(var/65536);
+				byarr[iPlaceTemp]=(byte)((val>>16)&0xFF);
 				iPlaceTemp++;
 			}
 			catch (Exception exn) {
 				string sTest="";
+				Base.StyleBegin(ref sTest);
 				Base.StyleAppend(ref sTest, "iLastCount", iPlaceTemp-iPlace);
-				Base.StyleAppend(ref sTest, "var", var);
+				Base.StyleAppend(ref sTest, "val", val);
 				Base.StyleEnd(ref sTest);
-				sLastErr="Exception error during Poke UInt24--"+exn.ToString();
+				Base.ShowExn(exn,"Poke Uint24");
 			}
 			UsedCountAtLeast(iPlaceTemp);
 			iLastCount=iPlaceTemp-iPlace;
 		}
-		public void Poke(ref uint var) {
-			iLastCountDesired=4;//sizeof(var);
+		public void Poke(ref uint val) {
+			iLastCountDesired=4;//sizeof(val);
 			iPlaceTemp=iPlace;
 			try {
-				byte[] byarrNow=BitConverter.GetBytes(var);
+				byte[] byarrNow=BitConverter.GetBytes(val);
 				if (BitConverter.IsLittleEndian) {
 					Poke(ref byarrNow);
 				}
 				else {
-					byarrNow=SubArrayReversed(ref byarrNow, 0, iLastCountDesired);
+					byarrNow=Base.SubArrayReversed(byarrNow, 0, iLastCountDesired);
 					Poke(ref byarrNow);
 				}
 				//iPlaceTemp+=iLastCountDesired;//done by Poke byte[]
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error during Poke uint--"+exn.ToString();
+				Base.ShowExn(exn,"Poke uint");
 			}
 			UsedCountAtLeast(iPlaceTemp);
 			iLastCount=iPlaceTemp-iPlace;
 			string sTest="";
 			if (iLastCount!=iLastCountDesired) { //debug only
+				Base.StyleBegin(ref sTest);
 				Base.StyleAppend(ref sTest, "iLastCount", iLastCount);
 				Base.StyleAppend(ref sTest, "iLastCountDesired", iLastCountDesired);
 				Base.StyleEnd(ref sTest);
-				MessageBox.Show(sTest,"Poke uint");
+				//MessageBox.Show(sTest,"Poke uint");
 			}
 		}
-		public void Poke(ref ulong var) {
-			iLastCountDesired=8;//sizeof(var);
+		public void Poke(ref ulong val) {
+			iLastCountDesired=8;//sizeof(val);
 			iPlaceTemp=iPlace;
 			try {
-				byte[] byarrNow=BitConverter.GetBytes(var);
+				byte[] byarrNow=BitConverter.GetBytes(val);
 				if (BitConverter.IsLittleEndian) {
 					Poke(ref byarrNow);
 				}
 				else {
-					byarrNow=SubArrayReversed(ref byarrNow, 0, iLastCountDesired);
+					byarrNow=Base.SubArrayReversed(byarrNow, 0, iLastCountDesired);
 					Poke(ref byarrNow);
 				}
 				//iPlaceTemp+=iLastCountDesired;//done by Poke byte[]
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error during Poke uint--"+exn.ToString();
+				Base.ShowExn(exn,"Poke ulong");
 			}
 			UsedCountAtLeast(iPlaceTemp);
 			iLastCount=iPlaceTemp-iPlace;
 		}
-		public void PokeInt24(ref int var) {
+		public void PokeInt24(ref int val) {
 			iLastCountDesired=3;
 			iPlaceTemp=iPlace;
 			bool bCompliment;
 			bOverflow=false;
 			try {
-				if (var<0) {
-					var*=-1;
-					var-=1;//makes it a twos compliment (since 11111111 11111111 11111111 will ==-1 instead of "-0")
+				if (val<0) {
+					val*=-1;
+					val-=1;//makes it a twos compliment (since 11111111 11111111 11111111 will ==-1 instead of "-0")
 					//-will later be complimented--0x7FFFFF becomes 0x800000
 					bCompliment=true;
 				}
-				else if (var>0) bCompliment=false;
+				else if (val>0) bCompliment=false;
 				else bCompliment=false;//if zero, still false
 				//Example -1:
 				//  11111111 11111111 11111111
@@ -1177,7 +971,7 @@ namespace ExpertMultimedia {
 				//Largest number:
 				//  01111111 11111111 11111111
 				//  equals 8388607
-				if (bCompliment && (var>8388608)) {
+				if (bCompliment && (val>8388608)) {
 					//save smallest number and mark as overflow:
 					bOverflow=true;
 					byarr[iPlaceTemp]=0x80;
@@ -1187,7 +981,7 @@ namespace ExpertMultimedia {
 					byarr[iPlaceTemp]=0x00;
 					iPlaceTemp++;
 				}
-				else if ((!bCompliment) && (var>8388607)) {
+				else if ((!bCompliment) && (val>8388607)) {
 					//save largest number and mark as overflow:
 					bOverflow=true;
 					byarr[iPlaceTemp]=0x7F;
@@ -1199,64 +993,64 @@ namespace ExpertMultimedia {
 				}
 				else { //else within range of signed 24-bit variable
 					//(Sign bit is added by xor operation
-					byarr[iPlaceTemp]=(byte)(var%256);//(byte)(var&255);
+					byarr[iPlaceTemp]=(byte)(val%256);//(byte)(val&255);
 					if (bCompliment) byarr[iPlaceTemp]=(byte)(byarr[iPlaceTemp]^(byte)0xFF);
 					iPlaceTemp++;
-					byarr[iPlaceTemp]=(byte)((int)(var/256)%256);//(byte)((int)(var>>8)&255);
+					byarr[iPlaceTemp]=(byte)((int)(val/256)%256);//(byte)((int)(val>>8)&255);
 					if (bCompliment) byarr[iPlaceTemp]=(byte)(byarr[iPlaceTemp]^(byte)0xFF);
 					iPlaceTemp++;
-					byarr[iPlaceTemp]=(byte)(var/65536);//(byte)((int)(var>>16)&255);
+					byarr[iPlaceTemp]=(byte)(val/65536);//(byte)((int)(val>>16)&255);
 					if (bCompliment) byarr[iPlaceTemp]=(byte)(byarr[iPlaceTemp]^(byte)0xFF);
 					iPlaceTemp++;
 				}
-				//if (bOverflow) throw new ApplicationException(var.ToString()+ " is to not within the (signed) int24 range (-8388608 to 8388607 inclusively) and was set to the closest value (either the maximum or minimum) instead.");
+				//if (bOverflow) throw new ApplicationException(val.ToString()+ " is to not within the (signed) int24 range (-8388608 to 8388607 inclusively) and was set to the closest value (either the maximum or minimum) instead.");
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error during PokeInt24--"+exn.ToString();
+				Base.ShowExn(exn,"Poke int24");
 			}
 			UsedCountAtLeast(iPlaceTemp);
 			iLastCount=iPlaceTemp-iPlace;
-		}
-		public void Poke(ref int var) {
+		}//end poke int24
+		public void Poke(ref int val) {
 			iLastCountDesired=4;
 			iPlaceTemp=iPlace;
 			try {
-				byte[] byarrNow=BitConverter.GetBytes(var);
+				byte[] byarrNow=BitConverter.GetBytes(val);
 				if (BitConverter.IsLittleEndian) {
 					Poke(ref byarrNow);
 				}
 				else {
-					byarrNow=SubArrayReversed(ref byarrNow, 0, iLastCountDesired);
+					byarrNow=Base.SubArrayReversed(byarrNow, 0, iLastCountDesired);
 					Poke(ref byarrNow);
 				}
 				//iPlaceTemp+=iLastCountDesired;//done by Poke byte[]
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error during Poke int--"+exn.ToString();
+				Base.ShowExn(exn,"Poke int");
 			}
 			UsedCountAtLeast(iPlaceTemp);
 			//iLastCount=iPlaceTemp-iPlace;//done by Poke byte[]
 		}
-		public void PokeInt48(ref long var) {
+		public void PokeInt48(ref long val) {
 			iLastCountDesired=6;
 			iPlaceTemp=iPlace;
 			bool bCompliment;
 			bOverflow=false;
 			ulong uvar=0;
 			try {
-				if (var<0) {
-					if (var<-140737488355328) {
-						var=-140737488355328;
+				if (val<0) {
+					if (val<-140737488355328) {
+						val=-140737488355328;
 						bOverflow=true;
 					}
-					uvar=(ulong)(((long)var+1L)*-1L);
+					uvar=(ulong)(((long)val+1L)*-1L);
 					//+1 lowers the absolute value to make a twos compliment (since 11111111 11111111 11111111 will ==-1 instead of "-0")
 					//-will later be complimented--0x7FFFFFFF becomes 0x80000000
 					bCompliment=true;
 				}
-				else if (var>0) {
-					if (var>140737488355327) {//7FFFFFFFFFFF) {
-						var=140737488355327;
+				else if (val>0) {
+					if (val>140737488355327) {//7FFFFFFFFFFF) {
+						val=140737488355327;
 						bOverflow=true;
 					}
 					bCompliment=false;
@@ -1284,97 +1078,96 @@ namespace ExpertMultimedia {
 					iPlaceTemp++;
 				}
 				else {
-					uvar=(ulong)var;
-					byarr[iPlaceTemp]=(byte)(uvar%256UL);//(byte)(var&255);
+					uvar=(ulong)val;
+					byarr[iPlaceTemp]=(byte)(uvar%256UL);//(byte)(val&255);
 					iPlaceTemp++;
-					byarr[iPlaceTemp]=(byte)(uvar/256UL%256UL);//(byte)((int)(var>>8)&255);
+					byarr[iPlaceTemp]=(byte)(uvar/256UL%256UL);//(byte)((int)(val>>8)&255);
 					iPlaceTemp++;
-					byarr[iPlaceTemp]=(byte)(uvar/65536UL%256UL);//(byte)((int)(var>>16)&255);
+					byarr[iPlaceTemp]=(byte)(uvar/65536UL%256UL);//(byte)((int)(val>>16)&255);
 					iPlaceTemp++;
-					byarr[iPlaceTemp]=(byte)(uvar/16777216UL%256UL);//(byte)((int)(var>>16)&255);
+					byarr[iPlaceTemp]=(byte)(uvar/16777216UL%256UL);//(byte)((int)(val>>16)&255);
 					iPlaceTemp++;
-					byarr[iPlaceTemp]=(byte)(uvar/4294967296UL%256UL);//(byte)((int)(var>>16)&255);
+					byarr[iPlaceTemp]=(byte)(uvar/4294967296UL%256UL);//(byte)((int)(val>>16)&255);
 					iPlaceTemp++;
-					byarr[iPlaceTemp]=(byte)(uvar/1099511627776UL);//(byte)((int)(var>>16)&255);
+					byarr[iPlaceTemp]=(byte)(uvar/1099511627776UL);//(byte)((int)(val>>16)&255);
 					iPlaceTemp++;
 				}
-				//if (bOverflow) throw new ApplicationException(var.ToString()+ " is to not within the (signed) int24 range (-8388608 to 8388607 inclusively) and was set to the closest value (either the maximum or minimum) instead.");
+				//if (bOverflow) throw new ApplicationException(val.ToString()+ " is to not within the (signed) int24 range (-8388608 to 8388607 inclusively) and was set to the closest value (either the maximum or minimum) instead.");
 				//TODO: note overflow as warning (not error)
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error during Poke int--"+exn.ToString();
+				Base.ShowExn(exn,"Poke int48");
 			}
 			UsedCountAtLeast(iPlaceTemp);
 			iLastCount=iPlaceTemp-iPlace;
 		}
-		public void Poke(ref long var) {
+		public void Poke(ref long val) {
 			iLastCountDesired=8;
 			iPlaceTemp=iPlace;
 			try {
-				byte[] byarrNow=BitConverter.GetBytes(var);
+				byte[] byarrNow=BitConverter.GetBytes(val);
 				if (BitConverter.IsLittleEndian) {
 					Poke(ref byarrNow);
 				}
 				else {
-					byarrNow=SubArrayReversed(ref byarrNow, 0, iLastCountDesired);
+					byarrNow=Base.SubArrayReversed(byarrNow, 0, iLastCountDesired);
 					Poke(ref byarrNow);
 				}
 				//iPlaceTemp+=iLastCountDesired;//done by Poke byte[]
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error during Poke int--"+exn.ToString();
+				Base.ShowExn(exn,"Poke long");
 			}
 			UsedCountAtLeast(iPlaceTemp);
 			//iLastCount=iPlaceTemp-iPlace;//done by Poke byte[]
 		}
-		public void Poke(ref float var) { //Single, float, float32
-			iLastCountDesired=4;//SizeOf(var);
+		public void Poke(ref float val) { //Single, float, float32
+			iLastCountDesired=4;//SizeOf(val);
 			iPlaceTemp=iPlace;
 			try {
-				byte[] byarrNow=BitConverter.GetBytes(var);
+				byte[] byarrNow=BitConverter.GetBytes(val);
 				if (BitConverter.IsLittleEndian) {
 					Poke(ref byarrNow);
 				}
 				else {
-					byarrNow=SubArrayReversed(ref byarrNow, 0, iLastCountDesired);
+					byarrNow=Base.SubArrayReversed(byarrNow, 0, iLastCountDesired);
 					Poke(ref byarrNow);
 				}
 				//iPlaceTemp+=iLastCountDesired;//done by Poke byte[]
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error during Poke float--"+exn.ToString();
+				Base.ShowExn(exn,"Poke float");
 			}
 			UsedCountAtLeast(iPlaceTemp);
 			//iLastCount=iPlaceTemp-iPlace;//done by Poke byte[]
 		}
-		public void Poke(ref double var) { //double, double, float64
-			iLastCountDesired=8;//SizeOf(var);
+		public void Poke(ref double val) { //double, double, float64
+			iLastCountDesired=8;//SizeOf(val);
 			iPlaceTemp=iPlace;
 			try {
-				byte[] byarrNow=BitConverter.GetBytes(var);
+				byte[] byarrNow=BitConverter.GetBytes(val);
 				if (BitConverter.IsLittleEndian) {
 					Poke(ref byarrNow);
 				}
 				else {
-					byarrNow=SubArrayReversed(ref byarrNow, 0, iLastCountDesired);
+					byarrNow=Base.SubArrayReversed(byarrNow, 0, iLastCountDesired);
 					Poke(ref byarrNow);
 				}
 				//iPlaceTemp+=iLastCountDesired;//done by Poke byte[]
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error during Poke double--"+exn.ToString();
+				Base.ShowExn(exn,"Poke double");
 			}
 			UsedCountAtLeast(iPlaceTemp);
 			//iLastCount=iPlaceTemp-iPlace;//done by Poke byte[]
 		}
 		public bool Poke(ref byte[][][] by3dArray, int iDim1, int iDim2, int iDim3) {
-			sFuncNow="Peek(by3dArray...)";
 			iPlaceTemp=iPlace;
 			int iCount=0;
 			iLastCountDesired=iDim1*iDim2*iDim3;
 			int iLast=iPlace+iLastCountDesired;
-			if (ValidWritePosition(iLast)==false) {
-				sLastErr="Invalid buffer not available at "+iLast.ToString();
+			if (!ValidWritePosition(iLast)) {
+				Base.ShowErr("Invalid buffer or not available at "+iLast.ToString(),"Poke by3dArray");
 			}
 			try {
 				for (int iD1=0; iD1<iDim1; iD1++) {
@@ -1388,7 +1181,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error {iCount:"+iCount.ToString()+"}--"+exn.ToString();
+				Base.ShowExn(exn,"Poke by3dArray","writing at location#"+iCount.ToString());
 				return false;
 			}
 			UsedCountAtLeast(iPlaceTemp);
@@ -1428,14 +1221,14 @@ namespace ExpertMultimedia {
 		}
 		public void PokeFast(ref byte[] byarrVar, int iAtByterLoc, int iBytes) {
 			iLastCountDesired=iBytes;
-			if (CopyFast(ref byarr, ref byarrVar, iAtByterLoc, 0, iBytes)) {
+			if (Memory.CopyFast(ref byarr, ref byarrVar, iAtByterLoc, 0, iBytes)) {
 				iLastCount=iBytes;
 			}
 			else iLastCount=0;
 			UsedCountAtLeast(iPlaceTemp);
 		}
-		public void PokeAscii(ref string var) {
-			char[] varr=var.ToCharArray();
+		public void PokeAscii(ref string val) {
+			char[] varr=val.ToCharArray();
 			PokeAscii(ref varr);
 		}
 		public void PokeAscii(ref char[] varr) {
@@ -1449,13 +1242,13 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error during PokeAscii--"+exn.ToString();
+				Base.ShowExn(exn,"Poke ascii");
 			}
 			UsedCountAtLeast(iPlaceTemp);
 			iLastCount=iPlaceTemp-iPlace;
 		}
-		public void PokeUnicode(ref string var) {
-			char[] varr=var.ToCharArray();
+		public void PokeUnicode(ref string val) {
+			char[] varr=val.ToCharArray();
 			PokeUnicode(ref varr);
 		}
 		public void PokeUnicode(ref char[] varr) {
@@ -1470,29 +1263,27 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error during PokeUnicode--"+exn.ToString();
+				Base.ShowExn(exn,"Poke unicode");
 			}
 			UsedCountAtLeast(iPlaceTemp);
 			iLastCount=iPlaceTemp-iPlace;
 		}
 		public unsafe bool PokeBitmap32BGRA(string sFile) {
 			bool bGood=true;
-			sFuncNow="PokeBitmap32BGRA(\""+sFile+"\")";
 			Bitmap bmpTemp;
 			try {
 				bmpTemp=new Bitmap(sFile);
 				bGood=PokeBitmap32BGRA(ref bmpTemp);
 			}
 			catch (Exception exn) {
-				sFuncNow="PokeBitmap32BGRA(\""+sFile+"\")";
-				sLastErr="Exception Error--"+exn.ToString();
+				Base.ShowExn(exn,"PokeBitmap32BGRA(\""+sFile+"\")");
 				bGood=false;
 			}
 			UsedCountAtLeast(iPlaceTemp);
 			return bGood;
 		}
 		public unsafe bool PokeBitmap32BGRA(ref Bitmap bmpLoaded) {
-			sFuncNow="PokeBitmap32BGRA";
+			//TODO: make safe since raw bitmap data should NOT be transmitted over internet
 			try {
 				GraphicsUnit unit = GraphicsUnit.Pixel;
 				RectangleF rectNowF = bmpLoaded.GetBounds(ref unit);
@@ -1511,8 +1302,8 @@ namespace ExpertMultimedia {
 				int iByteEOF=Position+iLastCountDesired;
 				int iByteLast=iByteEOF-1;
 				iLastCount=0;
-				if (ValidWritePosition(iByteLast)==false) {
-					sLastErr="Byter buffer of "+byarr.Length.ToString()+" is too small to fit bitmap data that would end at position "+iByteLast.ToString()+".";
+				if (!ValidWritePosition(iByteLast)) {
+					Base.ShowErr("Byter buffer of "+byarr.Length.ToString()+" is too small to fit bitmap data that would end at position "+iByteLast.ToString()+".","PokeBitmap32BGRA");
 				}
 				else {
 					for (int iBy=Position; iBy<iByteEOF; iBy++) {
@@ -1524,63 +1315,63 @@ namespace ExpertMultimedia {
 				bmpLoaded.UnlockBits(bmpdata);
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error--"+exn.ToString();
+				Base.ShowExn(exn,"PokeBitmap32BGRA");
 				return false;
 			}
 			UsedCountAtLeast(iPlaceTemp);
-			if (iLastCount!=iLastCountDesired) sLastErr="Not all of bitmapdata was written.";
+			if (iLastCount!=iLastCountDesired) Base.ShowErr("Not all of bitmapdata was written.","PokeBitmap32BGRA");
 			return (iLastCount==iLastCountDesired);
-		}
+		}//end PokeBitmap32BGRA
 
-		#endregion
+		#endregion poke methods
 		
-		#region of Read Functions
+		#region read methods (get methods)
 
 		//Unsigned types
-		public void Read(ref byte var) {
-			Peek(ref var);
+		public void Read(ref byte val) {
+			Peek(ref val);
 			iPlace+=1;
-		}  
-		public void Read(ref ushort var) {
-			Peek(ref var);
+		}
+		public void Read(ref ushort val) {
+			Peek(ref val);
 			iPlace+=2;
 		}
-		public void ReadUInt24(ref uint var) {
-			PeekUInt24(ref var);
+		public void ReadUint24(ref uint val) {
+			PeekUint24(ref val);
 			iPlace+=3;
 		}
-		public void Read(ref uint var) {
-			Peek(ref var);
+		public void Read(ref uint val) {
+			Peek(ref val);
 			iPlace+=4;
 		}
-		public void Read(ref ulong var) {
-			Peek(ref var);
+		public void Read(ref ulong val) {
+			Peek(ref val);
 			iPlace+=8;
 		}
 		//Signed types:
-		public void ReadInt24(ref int var) {
-			PeekInt24(ref var);
+		public void ReadInt24(ref int val) {
+			PeekInt24(ref val);
 			iPlace+=3;
 		}
-		public void Read(ref int var) {
-			Peek(ref var);
+		public void Read(ref int val) {
+			Peek(ref val);
 			iPlace+=4;
 		}
-		public unsafe void Read(ref long var) {
-			Peek(ref var);
+		public unsafe void Read(ref long val) {
+			Peek(ref val);
 			iPlace+=8;
 		}
-		public unsafe void Read(ref float var) {//Single, float, float32
-			Peek(ref var);
+		public unsafe void Read(ref float val) {//Single, float, float32
+			Peek(ref val);
 			iPlace+=4;
 		}
-		public unsafe void Read(ref double var) {
-			Peek(ref var);
+		public unsafe void Read(ref double val) {
+			Peek(ref val);
 			iPlace+=8;
 		}
 		public void ReadFast(ref byte[] byarrVar, int iBytes) {
 			iLastCountDesired=iBytes;
-			if (CopyFast(ref byarr, ref byarrVar, iPlace, 0, iBytes)) {
+			if (Memory.CopyFast(ref byarr, ref byarrVar, iPlace, 0, iBytes)) {
 				iLastCount=iBytes;
 			}
 			else iLastCount=0;
@@ -1590,69 +1381,130 @@ namespace ExpertMultimedia {
 			Peek(ref byarrVar, iPlace, iBytes);
 			iPlace+=iLastCount;
 		}
-		public string ReadAscii(int iChars) {
-			string sReturn=PeekAscii(iChars);
-			iPlace+=iLastCount;
-			return (sReturn!=null)?sReturn:"";
-		}
-		public string ReadUnicode(int iCharsAreBytesDividedByTwo) {
-			string sReturn=PeekUnicode(iCharsAreBytesDividedByTwo);
-			iPlace+=iLastCount;
-			return (sReturn!=null)?sReturn:"";
-		}
 		//public bool ReadBitmap32BGRA(string sFile) {
 		//	if (PeekBitmap32BGRA(sFile)) iPlace+=iLastCount;
 		//	else return false;
 		//	return true;
 		//}
-		public bool ReadBitmap32BGRA(ref Bitmap bmpToCreate, int iWidth, int iHeight) {
-			if (PeekBitmap32BGRA(ref bmpToCreate, iWidth, iHeight)) iPlace+=iLastCount;
+		public bool ReadBitmap32BGRA(out Bitmap bmpReturn, int iWidth, int iHeight) {
+			if (PeekBitmap32BGRA(out bmpReturn, iWidth, iHeight)) iPlace+=iLastCount;
 			else return false;
 			return true;
 		}
-		#endregion Read
+		//non-reference read methods (get methods):
+		public uint GetForcedByte() {
+			byte valReturn=0;
+			Peek(ref valReturn);
+			iPlace+=iLastCount;
+			return valReturn;
+		}
+		public ushort GetForcedUshort() {
+			ushort valReturn=0;
+			Peek(ref valReturn);
+			iPlace+=iLastCount;
+			return valReturn;
+		}
+		public uint GetForcedUint24() {
+			uint valReturn=0;
+			PeekUint24(ref valReturn);
+			iPlace+=iLastCount;
+			return valReturn;
+		}
+		public uint GetForcedUint() {
+			uint valReturn=0;
+			Peek(ref valReturn);
+			iPlace+=iLastCount;
+			return valReturn;
+		}
+		public ulong GetForcedUlong() {
+			ulong valReturn=0;
+			Peek(ref valReturn);
+			iPlace+=iLastCount;
+			return valReturn;
+		}
+		//read signed types
+		public int GetForcedInt() {
+			int valReturn=0;
+			Peek(ref valReturn);
+			iPlace+=iLastCount;
+			return valReturn;
+		}
+		public int GetForcedInt24() {
+			int valReturn=0;
+			PeekInt24(ref valReturn);
+			iPlace+=iLastCount;
+			return valReturn;
+		}
+		public long GetForcedLong() {
+			long valReturn=0;
+			Peek(ref valReturn);
+			iPlace+=iLastCount;
+			return valReturn;
+		}
+		public byte[] GetForcedBytes(int iBytes) {
+			byte[] valReturn=null;
+			Peek(ref valReturn, iPlace, iBytes);
+			//if (iLastCount!=iBytes) valReturn=null;
+			iPlace+=iLastCount;
+			return valReturn;
+		}
+		//TODO: byte[][][], int iDim1, int iDim1, int iDim1
+		//text read methods
+		public string GetForcedAscii(int iChars) {
+			string sReturn=PeekAscii(iChars);
+			iPlace+=iLastCount;
+			return (sReturn!=null)?sReturn:"";
+		}
+		public string GetForcedUnicode(int iChars_BytesDividedByTwo) {
+			string sReturn=PeekUnicode(iChars_BytesDividedByTwo);
+			iPlace+=iLastCount;
+			return (sReturn!=null)?sReturn:"";
+		}
 		
-		#region of Write Functions
+		//
+		#endregion read methods (get methods)
+		
+		#region write methods
 		//Unsigned types
-		public void Write(ref byte var) {
-			Poke(ref var);
+		public void Write(ref byte val) {
+			Poke(ref val);
 			iPlace+=1;
 		}
-		public void Write(ref ushort var) {		
-			Poke(ref var);
+		public void Write(ref ushort val) {		
+			Poke(ref val);
 			iPlace+=2;
 		}
-		public void WriteUInt24(ref uint var) {
-			PokeUInt24(ref var);
+		public void WriteUint24(ref uint val) {
+			PokeUint24(ref val);
 			iPlace+=3;
 		}
-		public void Write(ref uint var) {
-			Poke(ref var);
+		public void Write(ref uint val) {
+			Poke(ref val);
 			iPlace+=4;
 		}
-		public void Write(ref ulong var) {		
-			Poke(ref var);
+		public void Write(ref ulong val) {		
+			Poke(ref val);
 			iPlace+=8;
 		}
 		//Signed types
-		public void WriteInt24(ref int var) {
-			PokeInt24(ref var);
+		public void WriteInt24(ref int val) {
+			PokeInt24(ref val);
 			iPlace+=3;
 		}
-		public void Write(ref int var) {
-			Poke(ref var);
+		public void Write(ref int val) {
+			Poke(ref val);
 			iPlace+=4;
 		}
-		public void Write(ref long var) {
-			Poke(ref var);
+		public void Write(ref long val) {
+			Poke(ref val);
 			iPlace+=8;
 		}
-		public void Write(ref float var) { //Single, float, float32
-			Poke(ref var);
+		public void Write(ref float val) { //Single, float, float32
+			Poke(ref val);
 			iPlace+=4;
 		}
-		public void Write(ref double var) { //Double, double, float64
-			Poke(ref var); //debug the function is unsafe so does
+		public void Write(ref double val) { //Double, double, float64
+			Poke(ref val); //debug the function is unsafe so does
 						//the calling function also have to be?
 			iPlace+=8;
 		}
@@ -1670,21 +1522,21 @@ namespace ExpertMultimedia {
 			PokeFast(ref byarrVar, iPlace, iBytes);
 			iPlace+=iLastCount;
 		}
-		public void WriteUnicode(ref string var) {
-			PokeUnicode(ref var);
+		public void WriteUnicode(ref string val) {
+			PokeUnicode(ref val);
 			iPlace+=iLastCount;
 		}
-		public void WriteAscii(ref string var) {
-			char[] varr=var.ToCharArray();
-			//if (var.Length!=varr.Length)
-			//	MessageBox.Show(var.Length.ToString()+"(string length) != varr Length"+varr.Length.ToString());//debug only
+		public void WriteAscii(ref string val) {
+			char[] varr=val.ToCharArray();
+			//if (val.Length!=varr.Length)
+			//	MessageBox.Show(val.Length.ToString()+"(string length) != varr Length"+varr.Length.ToString());//debug only
 			//else
-			//	MessageBox.Show(var.Length.ToString()+"(string length) == varr Length"+varr.Length.ToString());//debug only
+			//	MessageBox.Show(val.Length.ToString()+"(string length) == varr Length"+varr.Length.ToString());//debug only
 			PokeAscii(ref varr);
 			iPlace+=iLastCount;
 		}
-		public void WriteAscii(ref char[] var) {
-			PokeAscii(ref var);
+		public void WriteAscii(ref char[] val) {
+			PokeAscii(ref val);
 			iPlace+=iLastCount;
 		}
 		public bool WriteBitmap32BGRA(string sFile) {
@@ -1697,48 +1549,48 @@ namespace ExpertMultimedia {
 			else return false;
 			return true;
 		}
-		#endregion
+		#endregion write methods
 		
-		#region of Write Functions -- not by reference
+		#region write methods -- not by reference
 		
-		public void Write(byte var) {
-			Poke(ref var);
+		public void Write(byte val) {
+			Poke(ref val);
 			iPlace+=1; //iPlace+=iLastCount;
 		}
-		public void Write(ushort var) {		
-			Poke(ref var);
+		public void Write(ushort val) {		
+			Poke(ref val);
 			iPlace+=2;
 		}
-		public void WriteUInt24(uint var) {
-			PokeUInt24(ref var);
+		public void WriteUint24(uint val) {
+			PokeUint24(ref val);
 			iPlace+=3;
 		}
-		public void Write(uint var) {		
-			Poke(ref var);
+		public void Write(uint val) {		
+			Poke(ref val);
 			iPlace+=4;
 		}
-		public void Write(ulong var) {		
-			Poke(ref var);
+		public void Write(ulong val) {		
+			Poke(ref val);
 			iPlace+=8;
 		}
-		public void WriteInt24(int var) {
-			PokeInt24(ref var);
+		public void WriteInt24(int val) {
+			PokeInt24(ref val);
 			iPlace+=3;
 		}
-		public void Write(int var) {
-			Poke(ref var);
+		public void Write(int val) {
+			Poke(ref val);
 			iPlace+=4;
 		}
-		public void Write(long var) {
-			Poke(ref var);
+		public void Write(long val) {
+			Poke(ref val);
 			iPlace+=8;
 		}
-		public void Write(float var) { //Single, float, float32
-			Poke(ref var);
+		public void Write(float val) { //Single, float, float32
+			Poke(ref val);
 			iPlace+=4;
 		}
-		public void Write(double var) { //Double, double, float64
-			Poke(ref var); //debug the function is unsafe so does
+		public void Write(double val) { //Double, double, float64
+			Poke(ref val); //debug the function is unsafe so does
 						//the calling function also have to be?
 			iPlace+=8;
 		}
@@ -1748,7 +1600,7 @@ namespace ExpertMultimedia {
 				iPlace+=byarrVar.Length;
 			}
 			catch (Exception exn) {
-				//no need to report this
+				Base.IgnoreExn(exn,"Write","getting byarrVar Length");
 			}
 		}
 		public void Write(byte[] byarrVar, int iBytes) {
@@ -1759,16 +1611,16 @@ namespace ExpertMultimedia {
 			PokeFast(ref byarrVar, iPlace, iBytes);
 			iPlace+=iBytes;
 		}
-		public void WriteUnicode(String var) {
-			PokeUnicode(ref var);
-			iPlace+=var.Length;
+		public void WriteUnicode(String val) {
+			PokeUnicode(ref val);
+			iPlace+=val.Length;
 		}
 		
-		#endregion
+		#endregion write methods -- not by reference
 		
 		
-		//public void PokeFastNonIEEE(ref float var) {
-		//	double mSig=var;
+		//public void PokeFastNonIEEE(ref float val) {
+		//	double mSig=val;
 		//	int mExpOf10=0;
 		//	//bits: 8(bias=127, max=255) 24 (bias=8388608, max=16777215)
 		//	if (mSig==0) {
@@ -1779,8 +1631,8 @@ namespace ExpertMultimedia {
 		//		mExpOf10++;
 		//	}
 		//}
-		//public void PokeFastNonIEEE(ref double var) {
-		//	decimal mSig=var;
+		//public void PokeFastNonIEEE(ref double val) {
+		//	decimal mSig=val;
 		//	int mExpOf10=0;
 		//	//bits: 11(bias=1024, max=2047) 53(bias=4503599627370496, max=9007199254740991)
 		//	if (mSig==0) {

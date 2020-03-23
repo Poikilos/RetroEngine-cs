@@ -1,13 +1,13 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
-   
+
 //
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 //
-[assembly: AssemblyTitle("Expert Multimedia RetroEngine Base")]
-[assembly: AssemblyDescription("Contains algorithms, internal graphic buffer methods, imaging, etc. for ExpertMultimedia RetroEngine.  Builds to target ExpertMultimedia.Base.dll")]
+[assembly: AssemblyTitle("Expert Multimedia RetroEngine Server")]
+[assembly: AssemblyDescription("Server assembly for RetroEngine--compiles to RetroEngineServer.exe")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("ExpertMultimedia")]
 [assembly: AssemblyProduct("RetroEngine")]

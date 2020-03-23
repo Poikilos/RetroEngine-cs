@@ -1,0 +1,194 @@
+RetroEngine To-do
+x=done
+
+Urgent:
+-Make Var parse html non-closers by checking if a parent is closed before it (redundant but necessary unless XHTML--check for xhtml tag and ignore that slow check in that case)
+	-ONLY use non-required-closed-tag-name array when SAVING, and only when saving NON-XHTML (use setting, and turn on setting if loaded file is marked as such).
+		-BUT save bAlwaysSaveXHTML separately from bAsXHTML (which would be set to bAlwaysSaveXHTML upon load but before parsing)
+-Make a BUN editor (convert bundle to proprietary format in RIFF format with XML and flac [incrementally saved] data)
+-Combine all overlay functions to OverlayFrom() which calls Overlay() (both have gradient overload which uses last channel as input [i.e. gray if 1 bytespp else alpha])
+-add IPoly functions to debug
+-replace all uses of sLastErr and sLogLine with appropriate calls to Base
+-try compiling with /t:winexe to get rid of window, and try running exe on both OS's!
+-Finish LoadRiff and use new method LoadRiffTree
+	-make sure case-insensitive!
+	-only read s2dKnownRiffLeafFormat if under riff size, and don't report error!
+-replace gnoder with gnoderarr ("tabs") and allow "includes" via fake php function to allow other things (such as toolbar)
+
+Alpha:
+-Change Core init method!  Constructor should set up an IPC channel, so that the core can be initialized as master or slave AFTER being constructed.
+-Make a bKeyWord variable for Var class.  Upon creation, the var is checked against a list of keywords.  If it is a keyword, it is marked as such upon creation, and the corresponding engine variable is modified upon creation or update of the Var.
+-Server sends encryption key BEFORE user sends password, so user&pwd can be encrypted.
+-Use framework's hash function to checksum data AFTER changing size var to include CRC (and send hash instead of whole token!) and place at END of binary data.
+-Check for code usages of '&' that should be "&&"
+-Make sure Base and Byter file functions are used for everything, and that FileStream, StreamReader, StreamWriter nor any other stream do not appear elsewhere, in order to control file access and to prepare code for implementation of resource management.
+
+Beta:
+-use integers for ALL 3D work, and create a variable like:  Base.iSpacialQuantizer=1000; //treat locations divided by this as whole units
+-textarea tags do not have sub-tags (they can contain html as literal text)!  Only end if "</textarea>" is found!
+-spell check somehow
+	-common misspellings: {unkown:unknown;}
+-Make sure all file access is done through Byter or Base static functions.
+-Make sure System.IO.Path.DirectorySeparatorChar is always used
+-Modify ALL declarations of sErr to a get-set variable so as to all come from a central IPC object.
+	-somehow, server errors need to be detected using the same mechanism--the IPC object may have to remotely connect to the server.
+-Only show higher folder if ".." exists in listed files
+	
+Final:
+get free RAM: http://zamov.online.fr/EXHTML/CSharp/CSharp_927308.html
+-Remove settings from all static constructors of retroengine objects and move to base
+-record replays, or instant replay ("rewind", moving [animated slide] live game to smaller window in top-right)
+-does /etc/hosts need to be edited for linux machines??? (i.e. add line?: 10.0.0.2 computer1 )
+-Check spelling on error messages somehow
+-Use Sdl YUV overlay (convert from YHS then Sdl can DIRECTLY render YUV)
+OPTIONAL:
+-Change System.IO.Path.DirectorySeparatorChar to Base.DirectorySeparatorCharAsString (to allow reading from archive later easier)
+-Text-to-speech
+	-exclamation points  and question marks change emphasis and speed.
+	-use determiners instead of noun dictionaries (less accurate but faster and good enough for this)
+-Use a physical screen size for html sizes.  "What is your screen size?", show "Type your viewable screen size, which is the diagonal measurement. <br>For example:" then show picture of screen and ruler, and calculate HTML inches etc from that
+-calculate a default resolution from physical screen size
+-Improve error reporting by only writing errors for DEEPEST function call.  The calling functions should deal with the problem in their own way, leaving the error reporting to the deeper function that actually failed.
+-Make an index file (or index at beginning or end) of the resource file to speed up access.  It could be at the end as long as there is a var at the beginning that says where the index is located.
+-Use custom window events for everything to avoid threading issues etc?
+-How to override AND cancel window events (!): private void mainForm_FormClosing(object sender, FormClosingEventArgs e)
+    {e.Cancel = true;this.WindowState = FormWindowState.Minimized;/*this example forces minimize instead of close*/}
+-Invalidate rect so that gui above and below letterbox doesn't have to be written from amre.gui.byScreen every time.
+  -invalidate rect simply grows the rectInvalid, so that two rectangles make a square instead of a cross, making the programming simpler.
+-Make sure all StreamWriters and FileStreams are CLOSED immediately after finishing them, even if there is an exception.
+-XML for graphic FX plugin system (sets up vars in the XPlugin object, then then the program asks user for input such as the script vars that were added by the xml file's list of vars, which image (i.e. source, dest, imgInCache[x], imgInPool[x] or something like that--and which source channels, dest channels and mask channels to operate on--to use as a mask or something)
+-Keep list of rects for the overlay layer so that effects on it will not have to scan whole surface for used pixels but only in rects.
+-Tap back (i.e. down arrow key, i.e. 's') to get up off the ground during a fight.  (do not do repetition, since macros/turbo will easily disbalance that)
+-check spelling in string constants
+
+Installer:
+
+Code Editor
+-option to make non-whitespace show as 90% white or custom
+-"Search from beginning of files" option:
+	-make search from cursor default NO MATTER WHEN CLICKING IT, EVEN UPON CTRL+F OR F3, and replace from start default when REPLACING.
+	-FORCE search from beginning to be selected and greyed out when "in all files" is selected
+
+HTML Editor
+-show color block around "rgb([r][%],[g][%],[b][%])" and allow clicking to change, showing palette of all existing colors in document, with non-cascaded-over ones then a seperator then the rest!
+	
+Coding practices
+*If you need to get Base.sLastErr, set it to "" before calling the method in question.  This will insure that a previous irrelevant error will not be there when the method has completed.
+*Base.ShowErr and Base.ShowExn APPEND sLastErr.  Therefore sLastErr should be cleared by getting "string sPreviousResult_ExampleVariableName=sLastErr" BEFORE the method is called that you want to test.  Then sLastErr can be obtained again which then clears it again.
+
+Interface
+-Image Editing
+	-close polygon/curve by clicking start point, but:
+		-double-click would insert another point there after it is closed
+		-re-open polygon/curve button would then appear
+
+		
+Paletted Interface idea:
+-Use palette to render all interface objects.
+-Render border as as dwInterPal[this.iInterPal][iDistanceFromEdge/maxdistance*127]
+-Render inner as dwInterPal[this.iInterPal][iDistanceFromCornerTL/maxdistance*127+128]
+(i.e. 0 to 127 are black to color, the rest of the pallete is color to white)
+-The hue may be adjusted by the user in the game options.
+
+Sound:
+-A Sound object can be synth-based:
+	-multiple inputs, each with volume and fAnalogness fSecAnalogVelocityPreservation and fSecAnalogWarmth (for weighted moving average in the backward direction) and iCurveTypeAlalogWarmthFalloff
+		-inputs include noise, sine, tangent, square, sawtooth
+Music (Tracker):
+-Each track can use other tracks or samples as mixing or effect-variable sources, with volume automation
+-built-in and custom arpeggiators, capable of absolute AND optionally in-key arpegiations (i.e. Wesley Willis uses the absolute arpeggiation built into the synth)
+-can have octave or otherwise offset mixed tones, such as to allow a sine wave with little sawtooth patterns on it.
+-pseudorandom noise of different types (fibbonocci noise, psuedorandom, clock-based, etc--)
+	-per-vibration (with loopfade percentage?) or, optionally, continuous
+	-noise should ALL be based on time intrinsically so that it sounds the same independent of output sample rate!
+	-scalable
+
+
+GUI:
+-buttons don't go down, they just light up (on hover, only the border lights up)
+	-cloud covers button (underneath text layer), all buttons disappear text of other buttons disappear, then that button's text vanishes slightly after the cloud
+		-See 1.GUI-Gloss.xcf in [projectfolder]/etc
+-use symbols EVERYWHERE i.e. yes/no/cancel buttons have GreenCircleWithWhiteCheck/SlashedCircle/StopSign (ok/cancel have the checkmark and stopsign)
+-texturization: have large texturized offscreen gbuffer and pick a random starting location--to avoid re-generation and re-allocation
+-enter numbers like ATM: "00.02"->"00.20"->"02.00"
+-Make all icons 40x60! (save as 80x120 in case needed later)
+-Snap-to happens only if moving AWAY from snap-to target (this way it stops there instead of jumping, allowing for CONTROL!)
+
+
+Componentization:
+		
+		
+ExpertMultimedia.Base.dll = Anim.cs AssemblyInfo-Base.cs Base.cs Byter.cs Variables.cs Entity.cs Interaction.cs MyCallback.cs Packet.cs Port.cs Scene3D.cs Variables.cs
+
+RetroEngineServer.exe = Core.cs AssemblyInfo-Server.cs BlockWords.cs Language.cs Mass3D.cs
+	-puts the game world into motion
+		-keeps current direction and intention of characters, and iTickChanged on each so that clients can get only ones updated more recently than theirs
+	-gets interactions from client (locally)
+	-synchronizes world with other servers (remotely)
+		-checks if resources are avail locally on world load, otherwise downloads
+	-creates the a local port object AND a remote port object using Port.dll
+	-manages local (client) and remote (other servers) packet traffic
+		-marks whether packet comes from a local source
+
+RetroEngine.exe = RetroEngine.cs AssemblyInfo-RetroEngine.cs Client.cs Controllers.cs Core.cs GBuffer.cs GFont.cs GNode.cs Gradient.cs Keyboard.cs Manager.cs
+	-runs the server (locally), initializing it for the correct mode (master or slave, and allow/disallow remote connections)
+	-manages the server (locally)
+	-gets the relevant world data from the server (locally) every FRAME
+		-renders the graphics
+
+		
+Check code at comments:
+//for every Var type
+  -makes sure all var types are accounted for: 
+//debug only
+
+Copies of files:
+x-Move Byter from lockdotnet (unused by lockdotnet)
+-Use Packet from RetroEngine, and copy to StatusWindow
+-Use Table&Var from DBATest
+-Use DBATable from DBATest for entities etc.
+-Copy Byter.SafeDivide over old Core.SafeDivide and move to Base.SafeDivide
+
+HTML Editing:
+-Only show editing nodes on mouseover in editing mode!
+-Form creation--Click "New Form Item":Submit button added automatically; Choose e-mail or other; asks for e-mail address & title; in advanced settings you can change e-mail and it asks, "Use this e-mail for all other existing forms?"
+-Make borders visible upon mouseover!
+	-Also show editing widgets (delete etc) around cursor until cursor leaves both them and the border
+
+RetroEngineWindow:
+-Invalidate rect so that gui above and below letterbox doesn't have to be written from amre.gui.byScreen every time.
+  -invalidate rect simply grows the rectInvalid, so that two rectangles make one big square instead of two, making the programming simpler.
+
+Rotoscoping function:
+-29.97 fps is an approximation--actual NTSC is 30/1.001
+
+Game:
+-Make scaler variables like maximum strength of a human, average strength of a human etc.  That way some types of balancing can be done from a central set of variables
+-Make efficient glow filter by making a mask based on light areas then downsampling then upsampling the mask to blurring it; then overlaying it back onto the image directly or by brightness or some other overlay method.
+-Scale using 2d particles for speed (adjust particle size to size of scaling and just pump them out by drawing them one per source pixel)
+  -optionally use diffusion to soften to achieve moderate quality
+  -optionally use soft particles for better quality
+  -use same method for 3d stretching
+
+Effects:
+-Make all effects iterated by current time [i.e. fxNow.Iterate(lThisFrameStartTick)], and have a speed setting (i.e. fxNow.fPixPerSec)
+-have a point-based swirl effect (i.e. if a big claw attacked you, you would have 3 of these slash through and warp you, and optionally, the screen around you)
+-animated particle grass, water, mud,  rain, snow, hail, freezing rain, leaves
+-for explosion/dustring effect, do a spiral using the degrees as the radians (by making a modified spiral method) and using a sparse pixel method (use old degree-based precision increment)
+
+Frame rate test1 (with debug text and gray block 16px from edges, with amarok running):
+YhsToRgb_YhsAsPolarYC: ~7.5 fps at Single-precision
+HsvToRgb: 15.6~ fps at Single-precision
+HsvToRgb, calculated inline: 17.4~ fps
+Test1b (some code modifications, no progs running):
+(byte)(V*255),(byte)(V*255),(byte)(V*255) as Rgb: 18.5fps
+HsvToRgb: 17.4fps
+HsvToRgb (color block not bw): 11.7fps
+(byte)(V*255),copied (only one typecast): 24fps
+(byte)(V*255),(byte)(V),(byte)(V)--(3 typecasts, only 1 multiplication): 18fps
+(byte)(V>.5?0.0f:255.0f),(byte)(V),(byte)(V)--(1 float comparison, 3 typecasts, no multiplication): 17.3fps
+(V>.5f?by0:by255),(H>.5f?by0:by255),(V>.5f?by0:by255)--(3 float comparisons, no typecast or multiplication): 23.7fps
+(V>.5f?by0:by255),by0,by0--(1 float comparison, no typecast or multiplication): 26fps
+(V==1.0f?by255:by0),by0,by0-(1 exact float comparison, no typecast or multiplication): 26.3fps
+(V==1.0f?by255:by0),by0,by0-(1 exact float comparison, no typecast or multiplication, BYTE BOX not float): 37.6fps
+Strictly GBuffer32BGRA: 112fps

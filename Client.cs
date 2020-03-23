@@ -13,54 +13,46 @@ using System.IO;
 
 namespace ExpertMultimedia {
 	class Client {
-		public RetroEngine retroengineParent;
-		Port portServer;
-		Packet packetOut;
-		Packet packetAck;
+		public RetroEngine Parent=null;
+		Port portServer=null;
+		Packet packetOut=null;
+		Packet packetAck=null;
 		int iSent=0;
-		Thread tClientPacketer;
-		ThreadStart tsClientPacketer;//=new ThreadStart(ClientPacketer)
+		Thread tClientPacketer=null;
+		ThreadStart tsClientPacketer=null;//=new ThreadStart(ClientPacketer)
 		string sServerURL = "http://localhost:61100/RetroEngineServer";
 		bool bServer=false;
 		bool bLogin=false;
 		//int iTokenNumNow=0;
 		int iTickLastIdle=0;
 		//string sTemp;
-		bool bContinue;
-		Core coreInClient;
+		bool bContinue=true;
+		Core coreInClient=null;  
 		/// <summary>
 		/// Use this constructor instead of the default constructor,
 		/// otherwise the client will not be able to initialize
 		/// </summary>
-		Client(string sServerURL1, ref RetroEngine retroengineParentX) {
+		Client(string sServerURL1, ref RetroEngine ParentX) {
 			sFuncNow="Client("+sServerURL1+",...)";
-			retroengineParent=retroengineParentX;
+			Parent=ParentX;
 			bContinue=true;
 			try {
-				packetOut=new Packet();
-				//Script scriptIni = new Script();
+				packetOut=new Packet(); 
+				//Script scriptIni = new Script();//srNow=File.OpenText(sFile);
 				//scriptIni.ReadScript("Client.ini");
-				//if (scriptIni.bErr==false) {
+				//if (!scriptIni.bErr) {
 					
 				if (sServerURL1.StartsWith("http://")) //debug if non-http
 					sServerURL = sServerURL1;
-				else {
-					try {
-						statusq.Enq("-sServerURL defaulted to "+sServerURL);
-					}
-					catch (Exception exn) {};
-				}
+				else Base.Error_WriteLine("-sServerURL defaulted to "+sServerURL);
+				
 				
 				//Create and register remoting channel
 				HttpChannel chanRetroEngine = new HttpChannel();
 				ChannelServices.RegisterChannel(chanRetroEngine);
 				bServer = ClientConnectServer(); //Init the remoting system
-				if (bServer==false) {
-					try {
-						statusq.Enq("Couldn't connect to server or single-player game. Both require that you check your firewall settings.");
-					}
-					catch (Exception exn) {};
-				}
+				if (!bServer) Base.Error_WriteLine("Couldn't connect to server or single-player game. Both require that you check your firewall settings.");
+				
 				//string sOS = Environment.OSVersion.ToString;
 				//System.PlatformID platformidOS = Environment.OSVersion.Platform;
 				//System.Version versionOS = Environment.OSVersion.Version;
@@ -73,15 +65,9 @@ namespace ExpertMultimedia {
 				coreInClient.Start();
 			}
 			catch (Exception exn) {
-				sFuncNow="Client constructor";
-				sLastErr="Exception error--"+exn.ToString();
-				try {
-					if (bServer==true) {
-						statusq.Enq("Couldn't initialize client");
-					}
-				}
-				catch {
-					sLastErr="Exception error writing to output window--"+exn.ToString();
+				if (bServer) {
+					Base.WriteLine("Couldn't initialize client");
+					Base.ShowExn(exn,"Client constructor","initializing client");
 				}
 				//bContinue==false;
 			}
@@ -95,25 +81,24 @@ namespace ExpertMultimedia {
 				return true;
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error connecting.  Make sure you are online and the server is correct--"+exn.ToString();
+				Base.ShowExn(exn,"ClientConnectServer","connecting (Make sure you are online and the server is correct)");
 				return false;
 			}
 		}
 		
 		private void Signal(string sSignal) {
-			sFuncNow="Signal";
+			//a Signal is a text command like "/shout ProtoArmor hey" etc
 			bool bGood;
 			bGood=false;
 			packetOut.iType=PacketType.Invalid;
-			if (sSignal.StartsWith("/")==false) { //assume "/shout"
+			if (!sSignal.StartsWith("/")) { //assume "/shout"
 				bGood=true;
 				packetOut.iType = PacketType.Shout;
 				packetOut.AttribOff(PacketAttrib.Dead); 
-				packetOut.s = sSignal;
+				packetOut.Set(0,sSignal);
 				packetOut.sTo="";
 			}
 			else if (sSignal.StartsWith("/login ")) { 
-				sFuncNow="Signal("+sSignal+")";
 				try {
 					bGood=true;
 					bLogin=false; //debug check if already logged in, if so, skip function and set bLogin=true;
@@ -123,30 +108,29 @@ namespace ExpertMultimedia {
 					int iTemp=packetOut.sFrom.IndexOf(" ")+1;
 					if (iTemp<2) bGood=false;
 					else {
-						packetOut.iarr=new int[2];
 						packetOut.iarr[0]=iTemp-1; //says what characters of the string are the username
 						if (packetOut.sFrom.Length-iTemp < 1) bGood=false;
 						else {
 							string sPwd=packetOut.sFrom.Substring(iTemp, packetOut.sFrom.Length-iTemp);
 							packetOut.sFrom=packetOut.sFrom.Substring(0,iTemp-1);
 							packetOut.iType=PacketType.Login;
-							packetOut.s=packetOut.sFrom+sPwd;
+							packetOut.Set(0,sPwd); //1,sPwd); packetOut.Set(0,packetOut.sFrom);//eliminate this?
 						}
 					}
 				}
 				catch (Exception exn) {
-					sLastErr="Exception error--"+exn.ToString();
+					Base.ShowExn(exn,"Signal");;
 				}
 			}//else if login
 			
-			if (bGood==false) {
+			if (!bGood) {
 				packetOut.iType=PacketType.Invalid;
 			}
 			else { //run the packet
 				bGood=true;
 				//while (bServer && bContinue) { //main user entry loop (main event loop is really EMRE.Core.Scenarior())
 				if (bServer) {
-					//sLine=retroengineParent.ReadLine();
+					//sLine=Parent.ReadLine();
 					//Signal(sLine);
 					//send the packet
 					if (sSignal==("/exit")) {
@@ -154,13 +138,13 @@ namespace ExpertMultimedia {
 						bool bTest=false;
 						if (coreInClient!=null) bTest=coreInClient.Stop(); //debug NYI track the thread and kill if locked
 						try {
-							statusq.Enq("Packets iSent="+iSent.ToString());
+							Base.Error_WriteLine("Packets iSent="+iSent.ToString());
 						}
 						catch (Exception exn) {};
 					}
 					else if (packetOut.iType==PacketType.Invalid) {	
 						try {
-							statusq.Enq("The command you typed was not understood.");
+							Base.Error_WriteLine("The command you typed was not understood.");
 						}
 						catch (Exception exn) {};
 					}
@@ -170,17 +154,17 @@ namespace ExpertMultimedia {
 							if (packetOut!=null) {
 								if (packetOut.iType==PacketType.LoginConfirmation) {
 									bLogin=true;
-									statusq.Enq("Server responded to the login request: ");
-									statusq.Enq(packetOut.s);
+									Base.Error_WriteLine("Server responded to the login request: ");
+									Base.Error_WriteLine(packetOut.s);
 								}
 								else {
-									statusq.Enq("The server couldn't log you in, but instead said:");
-									statusq.Enq("  "+packetOut.s);
+									Base.Error_WriteLine("The server couldn't log you in, but instead said:");
+									Base.Error_WriteLine("  "+packetOut.s);
 								}
 								packetOut.sFrom=packetOut.sTo; //lets the packet be used as auth. packet from now on.
 							}
 							else {
-								statusq.Enq("The server sent a null reply to the login attempt");
+								Base.Error_WriteLine("The server sent a null reply to the login attempt");
 							}
 						}
 						catch (Exception exn) {
@@ -188,24 +172,24 @@ namespace ExpertMultimedia {
 							sLastErr="Exception error--"+exn.ToString();
 						}
 					}
-					else if (bLogin==false) {
-						retroengineParent.WriteLine("You don't appear to be logged in.  Type /login username password");
+					else if (!bLogin) {
+						Parent.WriteLine("You don't appear to be logged in.  Type /login username password");
 					}
 					else { //if command is OK		
 						try {
 							packetOut.iTickSent=Environment.TickCount;
 							bGood = portServer.ClientSends(packetOut);
-							if (bGood==false) {
-								retroengineParent.WriteLine("The server wouldn't accept the data you sent.");
-								if (packetOut.iTokenNum>0) retroengineParent.WriteLine("  Try typing the command \"/login username password\" if you didn't.");//if (packetAck!=null) retroengineParent.WriteLine("Server acknowledgement: {0}", packetAck.s);
+							if (!bGood) {
+								Parent.WriteLine("The server wouldn't accept the data you sent.");
+								if (packetOut.iTokenNum>0) Parent.WriteLine("  Try typing the command \"/login username password\" if you didn't.");//if (packetAck!=null) Parent.WriteLine("Server acknowledgement: {0}", packetAck.s);
 								else {
-									retroengineParent.WriteLine("  You do not have permission.  Type \"/login username password\" to login.");
-									//retroengineParent.WriteLine("-You may need to create an account first if that doesn't work.");//if (packetAck!=null) retroengineParent.WriteLine("Server acknowledgement: {0}", packetAck.s);
-									//debug NYI// retroengineParent.WriteLine("-You may also have your password sent to your registered exn-mail address.");
+									Parent.WriteLine("  You do not have permission.  Type \"/login username password\" to login.");
+									//Parent.WriteLine("-You may need to create an account first if that doesn't work.");//if (packetAck!=null) Parent.WriteLine("Server acknowledgement: {0}", packetAck.s);
+									//debug NYI// Parent.WriteLine("-You may also have your password sent to your registered exn-mail address.");
 								}
 							}
 							else iSent++;
-							//else retroengineParent.WriteLine("The server sent no acknowledgement.");
+							//else Parent.WriteLine("The server sent no acknowledgement.");
 						}
 						catch (Exception exn) {
 							bGood=false;
@@ -215,7 +199,7 @@ namespace ExpertMultimedia {
 					} //else command is OK
 				} //end if bServer
 				else {
-					retroengineParent.WriteLine("No connection to server.");
+					Parent.WriteLine("No connection to server.");
 					//break;
 				}
 				//}
@@ -233,7 +217,7 @@ namespace ExpertMultimedia {
 		private void ClientPacketer() {
 			//debug NYI need to start this thread and make it manage client packet queues
 			//Packet packetAck=null;
-			retroengineParent.WriteLine("ClientPacketer started");
+			Parent.WriteLine("ClientPacketer started");
 			
 			iTickLastIdle=Environment.TickCount;
 			while (bContinue) {
@@ -245,13 +229,13 @@ namespace ExpertMultimedia {
 							if (packetOut!=null) packetAck = portServer.ClientGets(packetOut); //get whatever packets are available,
 								// using packetOut for security credentials
 							else {
-								retroengineParent.WriteLine("Idle packet is null so it couldn't be sent.");
+								Parent.WriteLine("Idle packet is null so it couldn't be sent.");
 								packetAck=null;
 							}
 							if (packetAck!=null) RunPacket(packetAck);
 						}
 						else {
-							retroengineParent.WriteLine("not logged in. ");
+							Parent.WriteLine("not logged in. ");
 						}
 					}
 					catch (Exception exn) {
@@ -261,15 +245,10 @@ namespace ExpertMultimedia {
 					}		
 				}//if time since lastidle > 333
 				else {
-					//retroengineParent.WriteLine(Environment.TickCount.ToString()+" was "+iTickLastIdle.ToString());
+					//Parent.WriteLine(Environment.TickCount.ToString()+" was "+iTickLastIdle.ToString());
 				}
 			}
-			try {
-				statusq.Enq("The client packet manager stopped.");
-			}
-			catch (Exception exn) {
-				sLastErr="Exception error accessing statusq--"+exn.ToString();
-			}
+			Base.Error_WriteLine("The client packet manager stopped.");
 		}
 		
 		//static void Main(string[] args) {
@@ -277,8 +256,8 @@ namespace ExpertMultimedia {
 		//}
 		private bool RunPacket(Packet packetNow) {
 		//i.exn. If PacketType.MapCommand then add it to map command queue
-			if (bServer==false) {
-				retroengineParent.WriteLine("Disconnected from the server.");
+			if (!bServer) {
+				Parent.WriteLine("Disconnected from the server.");
 				Signal("/exit");
 				return false;
 			}
@@ -296,13 +275,13 @@ namespace ExpertMultimedia {
 			else {//if good:
 				switch (packetNow.iType) {
 					case PacketType.ServerMessage:
-						//retroengineParent.Write(Environment.NewLine);
-						retroengineParent.WriteLine(packetNow.sFrom+": "+packetNow.s); //debug NYI use small caps for lowercase in all names like a script
-						//retroengineParent.Write("command:");
+						//Parent.Write(Environment.NewLine);
+						Parent.WriteLine(packetNow.sFrom+": "+packetNow.s); //debug NYI use small caps for lowercase in all names like a script
+						//Parent.Write("command:");
 						break;
 					default:
-						retroengineParent.WriteLine("Invalid packet sent by server.  Make sure you have downloaded and installed the latest update.");
-						//retroengineParent.Write("command:");
+						Parent.WriteLine("Invalid packet sent by server.  Make sure you have downloaded and installed the latest update.");
+						//Parent.Write("command:");
 						break;
 				}
 			}

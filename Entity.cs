@@ -43,12 +43,12 @@ namespace ExpertMultimedia {
 
 		public void ToByterStartOrAppend(ref Byter byterX) {
 		//TODO: make sure this is updated with ALL vars
-			byterX.Write(ipBlock.x);
-			byterX.Write(ipBlock.y);		
-			byterX.Write(ipBlockNear.x);	
-			byterX.Write(ipBlockNear.y);	
-			byterX.Write(ipBlockFar.x);	
-			byterX.Write(ipBlockFar.y);
+			byterX.Write(ipBlock.X);
+			byterX.Write(ipBlock.Y);		
+			byterX.Write(ipBlockNear.X);	
+			byterX.Write(ipBlockNear.Y);	
+			byterX.Write(ipBlockFar.X);	
+			byterX.Write(ipBlockFar.Y);
 			byterX.Write(iNum);
 			byterX.Write(iType);
 			byterX.Write(iTokenNumOfOwner);
@@ -60,12 +60,12 @@ namespace ExpertMultimedia {
 			byterX.Write(nStatusImmune);
 		}
 		public void FromByter(ref Byter byterX) {
-			byterX.Read(ref ipBlock.x);
-			byterX.Read(ref ipBlock.y);		
-			byterX.Read(ref ipBlockNear.x);	
-			byterX.Read(ref ipBlockNear.y);	
-			byterX.Read(ref ipBlockFar.x);	
-			byterX.Read(ref ipBlockFar.y);
+			byterX.Read(ref ipBlock.X);
+			byterX.Read(ref ipBlock.Y);		
+			byterX.Read(ref ipBlockNear.X);	
+			byterX.Read(ref ipBlockNear.Y);	
+			byterX.Read(ref ipBlockFar.X);	
+			byterX.Read(ref ipBlockFar.Y);
 			byterX.Read(ref iNum);
 			byterX.Read(ref iType);
 			byterX.Read(ref iTokenNumOfOwner);

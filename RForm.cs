@@ -4,126 +4,6 @@
  * Date: 4/21/2005
  * Time: 1:00 PM
  * 
- * To change this template use Tools | Options | Coding | Edit Standard Headers.
- */
-
-/*
-
-TODO (x=done, in order of priority):
-x-W3C named colors: http://www.w3schools.com/html/html_colornames.asp
--HTML tag can have attributes! ( i.exn. <HTML LANG=EN-US> )
--when text cursor is inside a tag, draw jagged border around sourcecode to matching tag
--Old vs New html text formatting attributes:
-	old <em> is like <i> and old <strong> is like <b>
--Body tag attributes
-	<body alink="#00ff00" bgcolor="#ffffff" link="#008000" vlink="#800000">
--font-size 40pt=53px on test system @ 1024x768 w/ WinXP
--TD actually requires <td align="left" valign="top"> or will be valign center or something unpredictable
--PRE - Preformatted text:
-	 <PRE>
-	 First line
-	 Next line
-	 </PRE>
--SMALL and BIG tags decrease/increase the font size by about 2.5pt, rounded up, according to my test.
--Basefont, and standard default:
-	<BASEFONT SIZE="5"> //the default basefont size is 3, and there are 7 sizes (max is <FONT SIZE="7">M</FONT>)
--No wrapping, html way AND css way 
- //NOBR: IE wraps to screen (or window?) width, Firefox wraps to page width
- <nobr>prevents wrapping<wbr>allows a wrap here</wbr> in nobr tags.</nobr>
- //CSS:
- <span style="white-space:nowrap">prevents wrapping</span>
--Relative font sizes:
-	<FONT SIZE="+1">M</FONT>
-	<FONT SIZE="-1">M</FONT>
--Horizontal rule:
-	<hr width=50% size=10 align=right noshade> //noshade makes a nice solid horz line (rounded ends in firefox)!
--All white-space values:
-    - normal (whitespace treated as one space)
-    - nowrap (no wrapping except <br>)
-    - pre (whitespace treated as literal [preformatted text])
--Always save alt, which is actually required for images:
-  <img src="image_name.gif" width="32" height="32" hspace="16" border="0" alt=""> 
--<META HTTP-EQUIV="Pragma" CONTENT="no-cache">
--properties of "td": colspan AND rowspan
--Explicitly-self-closing tags (i.e. <br/>
--A comment DECLARATION starts with <!, followed by zero or more comments, followed by >.
-  (Inside a comment declaration) a COMMENT starts and ends with "--", and does not contain any occurrence of "--".
-  --TODO: Also account for "//" comments, BUT make sure that //--> still works for ending a full comment
--Title attributes, as opposed to the title tag
-  --The title attribute is usually rendered as a "tooltip", but
-    can be rendered different ways by different types of browsers:
-	<a href="diving.jpg" title="Scuba Diving Photo">Diving</a>
--Conditionals, & nested ones
-	<!--[if gte IE 5.5]>
-	<![if lt IE 7]>
-		non-ie7 code here
-	<![endif]>
-	<![endif]-->
--Image area map (multiple clickable areas on one image):
- <MAP NAME="goto"> 
-  <AREA COORDS="0,0,50,25" HREF="p24font.htm">
-  <AREA COORDS="53,0,125,22" HREF="p00index.htm">
-  <AREA COORDS="127,0,220,24" HREF="p000gloss.htm">
-  <AREA COORDS="35,25,120,48" HREF="fuzzrule.htm">
-  <AREA COORDS="121,23,190,48" HREF="js/home.htm" TARGET="_top">
-  <AREA COORDS="192,23,240,48" HREF="thankyou.htm"></MAP>
-  <IMG SRC="htmmap.jpg" ISMAP USEMAP="#goto" ALIGN="right" WIDTH=250 HEIGHT=50 BORDER=0 ALT="clickity click click....">
--All list types:
- <ol> ordered list (shows numbers not bullets)
-  <ul>
- <li>Types of Lists:
-	 <ol>
-	 <li>Unordered List
-	 <li>Ordered List
-	 <li>Definition List
-	 <li>Nested List
-	 </ol>
- <li>Type=Attribute
-	 <ul type="square">
-	<li>type can be "disc"
-	<li>type can be "circle"
-	 </ul>
-  </ul>
- //Definition list: content of dd should appear indented on next line:
-  <dl>
-   <dt>Unordered List<dd>defined with bullets
-   <dt>Ordered List<dd>alpha or numeric display
-   <dt>Definition List<dd>gives a definition
-   <dt>Nested List<dd>list inside a list
-  </dl>
-  //using def list so you can make your own image bullets without style tags:
-  <DL>
-   <DD><img src="image_name.gif"> Line 1 Text</DD>
-   <DD><img src="image_name.gif"> Line 2 Text</DD>
-   <DD><img src="image_name.gif"> Line 3 Text</DD>
-  </DL> 
---Frames and noframes working together:
-	<FRAMESET ROWS="100%" COLS="375,*">  
-	 <FRAMESET ROWS="62,*">  
-	  <FRAME NAME="Frame0" SRC="frame0.htm" SCROLLING="no" MARGINHEIGHT=2 MARGINWIDTH=0>  
-	  <FRAME NAME="Frame1" SRC="frame1.htm" SCROLLING="AUTO">  
-	 </FRAMESET>
-	 <FRAME NAME="Frame2" SRC="frame2.htm" SCROLLING="AUTO"> 
-	 <NOFRAMES>
-	<BODY> Whole page for noframes browsers
-	</BODY> 
-	 </NOFRAMES> 
-	</FRAMESET>
-
--Tags that DON'T seem to work in ANY browser:
-  <spacer type="block" width="50" HEIGHT="40" ALIGN="left">
-  <spacer type="horizontal" size="70">
-  <spacer type="verticle" size="25">
-  <MULTICOL COLS="2" GUTTER="25" WIDTH="300">
-	The Multicol tag divides text up into newspaper or newsletter type columns. Each column will be of the same width.
-	<MULTICOL COLS="2">
-	  <FONT SIZE="2">
-	  You can use other HTML tags within the Multicol tag, including other Multicol tags.
-	  </FONT>
-	</MULTICOL>
-	The default value for the Gutter attribute is 10.
-  </MULTICOL>
-
  */
 
 using System;
@@ -131,18 +11,20 @@ using System;
 namespace ExpertMultimedia {
 	
 	/// <summary>
-	/// Graphical node saved as HTML, used by HTMLTool
+	/// Graphical node (i.e. to convert from/to a markup tag)
 	/// </summary>
-	public class GNode {
+	public class RForm {
 		
 		#region constants
 		public const int TypeUndefined=0;
-		public const int TypeMarkup=1;
-		public const int TypeButton=2;
-		public const int TypeSliderH=3;
-		public const int TypeSliderW=4;
-		public const int TypeTextArea=5;
-		public const int TypeTextEdit=6;
+		public const int TypePlane=1; //background or pane or image, i.e. the root node or an image box
+		public const int TypeMarkup=2; //indicates that the type depends on html
+		public const int TypeButton=3;
+		public const int TypeSliderH=4;
+		public const int TypeSliderW=5;
+		public const int TypeTextArea=6;
+		public const int TypeTextEdit=7;
+		public const int TypeSphereNode=8;
 		public const uint bitHasWidth=1;
 		public const uint bitHasHeight=2;
 		public const uint bitWidthIsPercent=4;
@@ -157,52 +39,476 @@ namespace ExpertMultimedia {
 		#region optional vars
 		//public int iComponentIDOfOwner;
 		  //which application (i.exn. retroengineclient or website)
-		  //owns and maintains this GNode
+		  //owns and maintains this RForm
 		//public string sPreText;//may include newlines etc.
 		//public string sContent;//text AFTER child nodes.
-		//Var vProps=null; //TODO: allow valueless properties like "Checked"!
-		Var vStyle=null; //cascaded style--GNoder derives it from ALL style&class props (in consecutive order)
+		private Var vProps=null; //TODO: allow valueless properties like "Checked"!
+		private Var vStyle=null; //cascaded style--i.e. root RForm derives it from ALL style&class props (in consecutive order)
 		public string sToolTip="";
-		public bool bSplit=false; //Whether the node was processed by DivideNode
-		public uint bitsAttrib;
-		public Var vFriend;//the Var in sgmldoc.vsRoots (or descendant) that this GNode represents
+		public bool bSplit=false; //Whether the node was processed by DivideNode (sgml parser)
+		public uint bitsAttrib=0;
+		public Var vsFriend=null; //the Variable in sgmldoc.vsRoots (or descendant) that this RForm represents
+		public int iCursor;
+		public int iSelStart;
+		public int iSelLen;
+		public bool Visible {
+			get {
+				if (vStyle!=null) {
+					if (vStyle.Exists("visibility")) {
+						return vStyle.GetForcedString("visibility")=="visible";
+					}
+					else return true;
+				}
+				else return true;
+			}
+			set {
+				CreateStyleIfNull();
+				vStyle.SetOrCreate("visibility",value?"visible":"hidden");
+			}
+		}
 		#endregion optional vars
 		
+		
 		#region required vars
-		GNoder gnoderRoot=null;  //TODO: MUST set this
-		public ITarget tgAbs; //absolute screen position derived from vProps width and vStyle width--set by parent;
-		public IRect rectInner; //absolute screen position derived from margin styles (used by child; or by inner text if bLeaf)
-		public int indexParent;
+		//RForm rformParent=null;
+		public int iIndex=-1;
+		public int Index {//index in rformr
+			set {
+				if (iIndex<0) iIndex=value;
+				else Base.ShowErr("Index of Node "+iIndex.ToString()+" (\""+Name+"\") was already set and can't be set again to "+value.ToString()+".");
+			}
+			get {
+				return iIndex;
+			}
+		}
+		public int iParentNode=-1;
+		int iSubNodes=0;
+		public IRect rectAbs=null; //absolute screen position derived from vProps width and vStyle width--set by parent;
+		public int Width {
+			get {
+				//if (rectAbs!=null) {
+					return rectAbs.Width;
+				//}
+				//else return 0;
+			}
+			set {
+				//if (rectAbs!=null) {
+					rectAbs.Width=value;
+				//}
+			}
+		}
+		public int Height {
+			get {
+				//if (rectAbs!=null) {
+					return rectAbs.Height;
+				//}
+				//else return 0;
+			}
+			set {
+				//if (rectAbs!=null) {
+					rectAbs.Height=value;
+				//}
+			}
+		}
+		public IZone zoneInner=null; //absolute screen position derived from margin styles (used by child; or by inner text if IsLeaf)
+		//public int indexParent; //index in RFormr
 		public string sTagword; //tells how to render
 		public bool bLeaf; //whether this can be drawn as text
 		public int iType;
-		public string sFastText; //TODO: implement this (only used if gnoderRoot.bUpdateHTML==false, otherwise GNoder gets it from sgmlNow.Substring)
+		private string sText; //TODO: for sgml: (only used if root !bUpdateHTML, otherwise root node gets it from an sgmlNow.Substring(...))
+		public Liner linerText=null;//version of sText for TextArea
+		public string Text {
+			get {
+				if (iType==TypeTextArea) {
+					if (linerText!=null) return linerText.ToString("\n");//TODO: debug whether to use \n here
+					else {
+						Base.ShowErr("TextArea liner was null upon trying to get text!");
+						return "";
+					}
+				}
+				else return sText;
+			}
+			set {
+				try {
+					if (iType==TypeTextArea) {
+						if (linerText==null) linerText=new Liner(1);
+						linerText.SetText(value);
+					}
+					else sText=value;
+				}
+				catch (Exception exn) {
+					Base.ShowExn(exn,"RForm set Text","setting text to "+(value!=null?(value!=""?"\""+value+"\"":"\"\""):"null")+" for interface node");
+				}
+			}
+		}
+		//RForm[] rformarr;//COPY of REFERENCE to objects
+		//public int MAXBRANCHES {
+		//	get {
+		//		try {
+		//			if (rformarr==null) return 0;
+		//			else return rformarr.Length;
+		//		}
+		//		catch (Exception exn) {
+		//			Base.ShowExn(exn,"node","getting MAXBRANCHES");
+		//		}
+		//	return 0;
+		//	}
+		//	set {
+		//		try {
+		//			if (value<=0) {
+		//				if (value<MAXBRANCHES) Base.WriteLine("shrinking "+(IsLeaf?"a leaf":(IsRoot?"root":"a"))+" rform's MAXBRANCHES to "+value.ToString()+" (sub array set to null)");
+		//				rformarr=null;
+		//			}
+		//			else {
+		//					RForm[] rformarrNew=new RForm[value];
+		//					if (value<MAXBRANCHES) Base.WriteLine("shrinking "+(IsLeaf?"a leaf":(IsRoot?"root":"a"))+" rform's MAXBRANCHES");
+		//					int iMin=MAXBRANCHES<value?MAXBRANCHES:value;
+		//					for (int iNow=0; iNow<value; iNow++) {
+		//						if (iNow<iMin) rformarrNew[iNow]=rformarr[iNow];
+		//						else rformarrNew[iNow]=null;
+		//					}
+		//					rformarr=rformarrNew;
+		//			}
+		//		}
+		//		catch (Exception exn) {
+		//			MAXBRANCHES=0;
+		//			Base.ShowExn(exn,"node","setting MAXBRANCHES");
+		//		}
+		//	}
+		//}
 		#endregion
-		public Var vParent=null; //TODO: implement this (create Var [created from HTML] "re-parser") has links to sourcecode etc
-		public GNode() {
-			Init();
+		//public Variable vParent=null; //TODO: implement this (create Variable [created from HTML] "re-parser") has links to sourcecode etc
+		public RForm() {
+			Init(0,0,"","",16,16,32,32);
+			Base.WriteLine("Warning: Default constructor was used for a RForm");
 		}
-		public GNode(GNoder gnoderRootX, int GNodeType, int xLoc, int yLoc, int Width, int Height, int IndexParent, bool Leaf, string FastText, string HTMLTag) {
-			Init(gnoderRootX, GNodeType, xLoc, yLoc, Width, Height, IndexParent, Leaf, FastText, HTMLTag);
+		//public RForm(GBuffer gbSurface) {
+		//	Init(gbSurface);
+		//}
+		public RForm(int iSetParentNode, int RFormType, string sSetName, string sSetText, IRect rectSetAbsToCopy) {
+			Init(iSetParentNode, RFormType, sSetName, sSetText, rectSetAbsToCopy.X,rectSetAbsToCopy.Y,rectSetAbsToCopy.Width,rectSetAbsToCopy.Height, ""); //IndexParent, 
 		}
-		
-		public void Init() {
-			Init(null,0,16,16,16,16,0,true,"","");
+		public RForm(int iSetParentNode, int RFormType, string sSetName, string sSetText, int xLoc, int yLoc, int Width, int Height) {
+			Init(iSetParentNode, RFormType, sSetName, sSetText, xLoc, yLoc, Width, Height, ""); //IndexParent, 
 		}
-		public void Init(GNoder gnoderRootX, int GNodeType, int xLoc, int yLoc, int Width, int Height, int IndexParent, bool Leaf, string FastText, string HTMLTag) {
-			gnoderRoot=gnoderRootX;
-			iType=GNodeType;
-			tgAbs=new ITarget();
-			tgAbs.x=xLoc;
-			tgAbs.y=yLoc;
-			tgAbs.width=Width;
-			tgAbs.height=Height;
-			rectInner=new IRect(tgAbs.y+1, tgAbs.x+1, tgAbs.y+tgAbs.height-2, tgAbs.x+tgAbs.height-2);
-			sFastText=FastText; //not used unless using gnoderRoot.bUpdateHTML==false
-			indexParent=IndexParent;
-			sTagword=HTMLTag; //tells how to render if GNode.TypeMarkup
-			bLeaf=Leaf; //whether this can be drawn as text
+		public RForm(int iSetParentNode, int RFormType, string sSetName, string sSetText, int xLoc, int yLoc, int Width, int Height, string HTMLTag) {
+			Init(iSetParentNode, RFormType, sSetName, sSetText, xLoc, yLoc, Width, Height, HTMLTag); //IndexParent, 
 		}
+		//public void Init(GBuffer gbSurface) {
+		//	int iSetWidth=0;
+		//	int iSetHeight=0;
+		//	try {
+		//		iSetWidth=gbSurface.iWidth;
+		//		iSetHeight=gbSurface.iHeight;
+		//	}
+		//	catch (Exception exn) {
+		//		Base.ShowExn(exn,"RForm Init","setting node by surface");
+		//	}
+		//	Init(-1,RForm.TypePlane,"",0,0,iSetWidth,iSetHeight);
+		//}
+		public void Init(int iSetParentNode, int RFormType, string sSetName, string sSetText) {
+			Init(iSetParentNode,RFormType, sSetName, sSetText,0,0,0,0,"");
+		}
+		public void Init(int iSetParentNode, int RFormType, string sSetName, string sSetText, IRect rectSetAbsToCopy) { //int IndexParent,
+			Init(iSetParentNode, RFormType, sSetName, sSetText, rectSetAbsToCopy.X, rectSetAbsToCopy.Y, rectSetAbsToCopy.Width, rectSetAbsToCopy.Height, "");
+		}
+		public void Init(int iSetParentNode, int RFormType, string sSetName, string sSetText, int xLoc, int yLoc, int iSetWidth, int iSetHeight) { //int IndexParent,
+			Init(iSetParentNode, RFormType, sSetName, sSetText, xLoc, yLoc, iSetWidth, iSetHeight, "");
+		}
+		public void Init(int iSetParentNode, int RFormType, string sSetName, string sSetText, int xLoc, int yLoc, int iSetWidth, int iSetHeight, string HTMLTag) { //int IndexParent,
+			iParentNode=iSetParentNode;//rformParent=rformSetParent;
+			iType=RFormType;
+			rectAbs=new IRect();
+			rectAbs.X=xLoc;
+			rectAbs.Y=yLoc;
+			rectAbs.Width=iSetWidth;
+			rectAbs.Height=iSetHeight;
+			IRect rectTemp=rectAbs.Copy();
+			//rectTemp.X++;
+			//rectTemp.y++;
+			//rectTemp.Width-=2;
+			//rectTemp.Height-=2;
+			zoneInner=new IZone(rectTemp);
+			vProps=new Var("properties",Var.TypeArray);
+			vProps.Root=vProps;
+			vProps.SetOrCreate("name",sSetName);
+			vStyle=new Var("style",Var.TypeArray);
+			vStyle.Root=vProps;
+			vProps.SetByRef("style",vStyle);
+			linerText=new Liner(1);
+			sText=sSetText; //not used unless using !rformrRoot.bUpdateHTML
+			//indexParent=IndexParent;
+			sTagword=HTMLTag; //tells how to render if RForm.TypeMarkup
+			//rformarr=null;
+			iSubNodes=0;
+			iCursor=0;
+			iSelStart=0;
+			iSelLen=0;
+			//MAXBRANCHES=2;//debug performance since low maximum can cause frequent automatic resize
+		}
+		public bool Backspace() {
+			if (iType==TypeTextArea) return linerText.Backspace();
+			else {
+				Base.ShowErr("Backspace is only implemented for TextArea");
+				return false;
+			}
+		}
+		public bool Delete() {
+			if (iType==TypeTextArea) return linerText.Delete();
+			else {
+				Base.ShowErr("Delete is only implemented for TextArea");
+				return false;
+			}
+		}
+		public bool Return() {
+			if (iType==TypeTextArea) return linerText.Return();
+			else {
+				Base.ShowErr("Entering a line return is only implemented for TextArea");
+				return false;
+			}
+		}
+		//public bool InsertLine(int iLine, string sLine) {
+		//	if (iType==TypeTextArea) return linerText.InsertLine(iLine,sLine);
+		//	else {
+		//		Base.ShowErr("InsertLine is only implemented for TextArea");
+		//		return false;
+		//	}
+		//}
+		//public bool RemoveLine(int iLine) {
+		//	if (iType==TypeTextArea) return linerText.RemoveLine(iLine);
+		//	else {
+		//		Base.ShowErr("RemoveLine is only implemented for TextArea");
+		//		return false;
+		//	}
+		//}
+		//public bool AddLine(string sLine) {
+		//	if (iType==TypeTextArea) return linerText.AddLine(sLine);
+		//	else {
+		//		Base.ShowErr("AddLine is only implemented for TextArea");
+		//		return false;
+		//	}
+		//}
+		public bool Insert(char cToInsertAtCursor) { //formerly EnterText
+			//rformrRoot.sgmlNow.InsertText(Char.ToString(cToInsertAtCursor));
+			if (iType==TypeTextArea) return linerText.Insert(char.ToString(cToInsertAtCursor));
+			else {
+				Base.ShowErr("EnterText(char) is only implemented for TextArea");
+				return false;
+			}
+		}
+		public bool Insert(string sToInsertAtCursor) { //formerly EnterText
+			//rformrRoot.sgmlNow.InsertText(sToInsertAtCursor); //TODO: must shift all variables of all necessary nodes
+			if (iType==TypeTextArea) return linerText.Insert(sToInsertAtCursor);
+			else {
+				Base.ShowErr("EnterText(string) is only implemented for TextArea");
+				return false;
+			}
+		}
+		public bool SetTextAreaSelection(int iRowStart, int iColStart, int iRowEnd, int iColEnd) {
+			if (iType==TypeTextArea) return linerText.SetSelection(iRowStart,iColStart,iRowEnd,iColEnd);
+			else {
+				Base.ShowErr("SetTextAreaSelection(...) is only implemented for TextArea");
+				return false;
+			}
+		}
+		public bool ShiftSelection(int iRows, int iCols, bool bWithShiftKey) {
+			if (iType==TypeTextArea) return linerText.ShiftSelection(iRows,iCols,bWithShiftKey);
+			else {
+				Base.ShowErr("ShiftSelection(...,bool) is only implemented for TextArea");
+				return false;
+			}
+		}
+		public bool ShiftSelection(int iRows, int iCols) {
+			if (iType==TypeTextArea) return linerText.ShiftSelection(iRows,iCols);
+			else {
+				Base.ShowErr("ShiftSelection(...) is only implemented for TextArea");
+				return false;
+			}
+		}
+		public bool GrowSelection(int iRows, int iCols) {
+			if (iType==TypeTextArea) return linerText.GrowSelection(iRows,iCols);
+			else {
+				Base.ShowErr("GrowSelection(...) is only implemented for TextArea");
+				return false;
+			}
+		}
+		public bool Home(bool bWithShiftKey) {
+			if (iType==TypeTextArea) return linerText.Home(bWithShiftKey);
+			else {
+				Base.ShowErr("Home(...) is only implemented for TextArea");
+				return false;
+			}
+		}
+		public bool End(bool bWithShiftKey) {
+			if (iType==TypeTextArea) return linerText.End(bWithShiftKey);
+			else {
+				Base.ShowErr("End(...) is only implemented for TextArea");
+				return false;
+			}
+		}
+		public bool SetTextAreaCursor(int iRow, int iCol) {
+			if (iType==TypeTextArea) return linerText.SetCursor(iRow,iCol);
+			else {
+				Base.ShowErr("SetTextAreaCursor(...) is only implemented for TextArea");
+				return false;
+			}
+			//try {
+			//	linerText.SetZeroSelection(iRow,iCol);
+			//}
+			//catch (Exception exn) {
+			//	Base.ShowExn(exn,"SetTextAreaCursor("+iRow.ToString+","+iCol.ToString()+")");
+			//}
+		}
+		public bool Clear() {
+			if (iType==TypeTextArea) return linerText.Clear();
+			else {
+				Base.ShowErr("Clear is only implemented for TextArea");
+				return false;
+			}
+		}
+		public bool SetLines(string[] SetLines) {
+			if (iType==TypeTextArea) return linerText.SetLines(SetLines);
+			else {
+				Base.ShowErr("SetLines is only implemented for TextArea");
+				return false;
+			}
+		}
+		public int TextLength {
+			get {
+				int iReturn=0;
+				try {
+					if (iType==TypeTextArea) iReturn=linerText.Chars;
+					else return sText.Length;
+				}
+				catch (Exception exn) {
+					Base.ShowExn(exn,"RForm TextLength");
+					iReturn=-1;
+				}
+				return iReturn;
+			}
+		}
+		public bool IsLeaf {
+			get {
+				return iSubNodes<=0;//rformarr==null;
+			}
+		}
+		public bool IsRoot {
+			get {
+				return iParentNode<0;//rformParent==null;
+			}
+		}
+		/* TODO:?
+		public void EnterTextCommand(char cAsciiCommand) {
+			rformrRoot.sgmlNow.InsertTextCommand(cAsciiCommand);
+		}
+		*/
+		/// <summary>
+		/// Return
+		/// </summary>
+		/// <returns>Returns text but only if IsLeaf.</returns>
+		public string MyText() {
+			if (IsLeaf) {
+				//if (!rformrRoot.sgmlNow.bUpdateCousin) {
+					return sText;
+				//}
+			}
+			return "";
+		}
+		public bool Contains(int xAt,int yAt) {
+			if (zoneInner!=null) {
+				return zoneInner.Contains(xAt,yAt);
+			}
+			else {//if (rectAbs!=null) {
+				return rectAbs.Contains(xAt,yAt);
+			}
+			//else return false;
+		}
+		public int XInner {
+			get {
+				if (zoneInner!=null) return zoneInner.Left;
+				else return 0;
+			}
+		}
+		public int YInner {
+			get {
+				if (zoneInner!=null) return zoneInner.Top;
+				else return 0;
+			}
+		}
+		public string Name {
+			get {
+				return GetProperty("name"); //IS case-insensitive
+			}
+			set {
+				SetProperty("name",value);
+			}
+		}
+		public void CreatePropsIfNull() {
+			if (vProps==null) {
+				vProps=new Var();
+				vProps.Root=vProps;
+			}
+		}
+		public void CreateStyleIfNull() {
+			CreatePropsIfNull();
+			if (vStyle==null) {
+				vStyle=vProps.IndexItem("style");
+				if (vStyle==null) {
+					vStyle=new Var("style",Var.TypeArray);
+				}
+				vProps.SetByRef("style",vStyle);//DOES set root
+			}
+		}
+		public bool SetProperty(string sName, string sValue) {
+			bool bGood=false;
+				bGood=vProps.SetOrCreate(sName,sValue);
+			return bGood;
+		}
+		public bool SetStyle(string sName, string sValue) {
+			bool bGood=false;
+			CreateStyleIfNull();
+			bGood=vStyle.SetOrCreate(sName,sValue);
+			return bGood;
+		}
+		public string GetProperty(string sName) {
+			string sReturn="";
+			if (vProps!=null) {
+				Var vProperty=vProps.IndexItem("onmousedown");
+				if (vProperty!=null) {
+					sReturn=vProperty.ToString();
+				}
+				vProps.Get(out sReturn, sName);
+			}
+			return sReturn;
+		}
+		public string GetStyle(string sName) {
+			string sReturn="";
+			if (vStyle!=null) vStyle.Get(out sReturn, sName);
+			return sReturn;
+		}
+		//debug NYI UpdateStyle should be in HTMLPage so page size can be determined/accessed first
+	/*
+		public bool UpdateSize(int iRForm) {
+			string sStyle="";
+			iWidth=0;
+			iHeight=0;
+			//TODO: fix this to check whether values are DECIMAL to denote a percentage.
+			vsAttrib.Get(ref sStyle, "style");
+			vsAttrib.Get(ref iWidth, "width");
+			vsAttrib.Get(ref iHeight, "height");
+			
+				 vStyle.FromStyle(sStyle);
+			vStyle.Get(ref iWidth, "width");
+			vStyle.Get(ref iHeight, "height");
+			
+			iType=RFormType.Undefined;
+			string sType="";
+			if (sTag=="input") vsAttrib.Get(ref sType, "type");
+			iType=RFormType.Markup;
+			return iType>0;
+		}
+		*/
+		/*
 		public bool ShiftLoc(int iShiftBy, int iStartAt) {
 			//(accounts for inner shift which causes expansion)
 			//iOpeningLen
@@ -234,14 +540,15 @@ namespace ExpertMultimedia {
 								if (iStartAt<=iPostClosing+iPostClosingLen) {
 									iPostClosingLen+=iShiftBy;
 								}
-								//else change does not affect this gnode
+								//else change does not affect this rform
 							}
 						}
 					//}
 				}
 			}
 			return ValidateLocVars();
-		}
+		}*/
+		/*
 		public bool ValidateLocVars() {
 			bool bGood=true;
 			if (iOpening<0) {
@@ -270,48 +577,6 @@ namespace ExpertMultimedia {
 			}
 			return bGood;
 		}
-		public void EnterText(char cToInsertAtCursor) {
-			gnoderRoot.sgmlNow.InsertText(Char.ToString(cToInsertAtCursor));
-		}
-		public void EnterText(string sToInsertAtCursor) {
-			gnoderRoot.sgmlNow.InsertText(sToInsertAtCursor); //TODO: must shift all variables of all necessary nodes
-		}
-		public void EnterTextCommand(char cAsciiCommand) {
-			gnoderRoot.sgmlNow.InsertTextCommand(cAsciiCommand);
-		}
-		/// <summary>
-		/// Return
-		/// </summary>
-		/// <returns>Returns text but only if a leaf node.</returns>
-		public string MyText() {
-			if (bLeaf) {
-				if (gnoderRoot.sgmlNow.bUpdateHTML==false) {
-					return sFastText;
-				}
-			}
-			return "";
-		}
-		//debug NYI UpdateStyle should be in HTMLPage so page size can be determined/accessed first
-	/*
-		public bool UpdateSize(int iGNode) {
-			string sStyle="";
-			iWidth=0;
-			iHeight=0;
-			//TODO: fix this to check whether values are DECIMAL to denote a percentage.
-			vsAttrib.Get(ref sStyle, "style");
-			vsAttrib.Get(ref iWidth, "width");
-			vsAttrib.Get(ref iHeight, "height");
-			
-				 vStyle.FromStyle(sStyle);
-			vStyle.Get(ref iWidth, "width");
-			vStyle.Get(ref iHeight, "height");
-			
-			iType=GNodeType.Undefined;
-			string sType="";
-			if (sTag=="input") vsAttrib.Get(ref sType, "type");
-			iType=GNodeType.Markup;
-			return iType>0;
-		}
 		*/
-	}
-}
+	}//end class RForm
+}//end namespace

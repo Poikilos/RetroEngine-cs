@@ -8,13 +8,14 @@
 
 using System;
 
-namespace ExpertMultimedia
-{
+namespace ExpertMultimedia {
 	/// <summary>
 	/// This manages controllers for RetroEngine.
 	/// </summary>
 	public class Controllers {
+		Controller[] ctrlrarr; //one controller per player
 		public Controllers() {
+			
 		}
 	}
 	/// <summary>
@@ -24,7 +25,9 @@ namespace ExpertMultimedia
 		const int TypeNone=0;
 		const int TypeGamepad=1;
 		const int TypeMouse=2;
+		const int TypeKeyboard=2;
 		ControllerStick stick;
+		//Allow getting the combined direction of all sticks (analog+digital pads)
 		ulong qwPressing;//buttons that are down
 		const int MaxButtons=64;
 		int iType;
@@ -69,8 +72,8 @@ namespace ExpertMultimedia
 	}
 	
 	public class ControllerStick {
-		FCorrectedAxis axisX;
-		FCorrectedAxis axisY;
+		FTrimmedAxis axisX;
+		FTrimmedAxis axisY;
 		float xRaw;//raw controller input before clipping
 		float yRaw;
 		float x {
@@ -89,7 +92,7 @@ namespace ExpertMultimedia
 		}
 		void SetRange(float xNearLeft, float xNearRight, float yNearUp, float xNearUp,
 		         float xFarLeft, float xFarRight, float yFarUp, float yFarDown) {
-			
+			//TODO: finish this
 		}
 	}
 }

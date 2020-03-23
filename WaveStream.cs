@@ -164,32 +164,32 @@ namespace ExpertMultimedia {
 		public const ushort CompressPCMUncompressed = 1;
 		public const ushort CompressMicrosoftADPCM = 2;
 		public const ushort CompressITU_G711alaw = 6;
-		public const ushort CompressITU_G711ulaw = 7; //actually mew
+		public const ushort CompressITU_G711ulaw = 7; //actually 'mew' not 'u'
 		public const ushort CompressIMA_ADPCM = 17;
 		public const ushort CompressITU_G723ADPCM_Yamaha = 20;
 		public const ushort CompressGSM_610 = 49;
 		public const ushort CompressITU_G721_ADPCM = 64;
 		public const ushort CompressMPEG = 80;
 		public const ushort CompressExperimental = 0xFFFF;
-		public string CompressionTypeToString(uint wType) {
-			string sType;
+		public static string CompressionTypeToString(uint wType) {
+			string sReturn;
 			if (wType==0) sReturn="Unknown";
 			else if (wType==1) sReturn="PCM/uncompressed";
 			else if (wType==2) sReturn="Microsoft ADPCM";
 			else if (wType==6) sReturn="ITU G.711 a-law";
-			else if (wType==7) sReturn="ITU G.711 µ-law"; //TODO: see if this mew is displayed by retroengine
+			else if (wType==7) sReturn="ITU G.711 "+char.ToString((char)230)+"-law";//"ITU G.711 ï¿½-law"; //TODO: see if this mew is displayed by retroengine
 			else if (wType==17) sReturn="IMA ADPCM";
 			else if (wType==20) sReturn="ITU G.723 ADPCM (Yamaha)";
 			else if (wType==49) sReturn="GSM 6.10";
 			else if (wType==64) sReturn="ITU G.721 ADPCM";
 			else if (wType==80) sReturn="MPEG";
 			else if (wType==65535) sReturn="Experimental";
-			else sType="Unspecified Compression Type#"+wType.ToString();
-			return sType;	
+			else sReturn="Unspecified Compression Type#"+wType.ToString();
+			return sReturn;	
 		}
 	}
-	public class Sound() {
-		WaveStream wave;
+	public class Sound {
+		Wave wave;
 		//Flac flac; //here
 	}
 	//public class ChunkWave {
@@ -251,14 +251,15 @@ namespace ExpertMultimedia {
 			WaveChunk chunkNew=new WaveChunk();
 			chunkNew.sID="RIFF";
 			chunkNew.dwSize=dwFileSizeMinus8;
-			sRiffType="WAVE";
+			//chunkNew.sRiffType="WAVE";
 			return chunkNew;
 		}
+		//TODO: change all of this to byter calls
 		/// <summary>
 		/// </summary>
-		public static WaveChunk MakeFMT(ushort dwSize) {
+		public static WaveChunk MakeFMT(uint dwSize) {
 			if (dwSize<16) dwSize=16;// dwSize Is 16 Or Else More If Has Extra
-			if (dwSize>0xFFFF+18) dwSize=0xFFFF+18;
+			if (dwSize>0xFFFF+18) dwSize=0xFFFF+18;//TODO: fix this??
 			if (dwSize%2==1) dwSize++;//add padding for required word-alignment
 			WaveChunk chunkNew=new WaveChunk();
 			chunkNew.sID="fmt ";
@@ -329,7 +330,7 @@ namespace ExpertMultimedia {
 			chunkNew.dwSilentSamples=dwSilentSamples;
 			return chunkNew;
 		}
-
+/*
 		/// <summary>
 		/// </summary>
 		public static WaveChunk MakeCue(uint dwCuePoints) {
@@ -401,5 +402,6 @@ namespace ExpertMultimedia {
 			chunkNew.dwSize=dwSamples*iSigBytesPerSample;
 			return chunkNew;
 		}
-	}
-}
+		*/
+	}//end class WaveChunk 
+}//end namespace

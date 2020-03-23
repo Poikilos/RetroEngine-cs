@@ -1,0 +1,7 @@
+#!/bin/sh
+mv ../bin/RetroEngine.exe ../bin/RetroEngine-WIP.exe
+rm ../bin/Data/1.testfont*.png
+rm ../bin/Data/1.testfont.txt
+rm ../bin/Data/0.*.png
+rm ../bin/1.Error.txt
+rm ../bin/1.Output.txt

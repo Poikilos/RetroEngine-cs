@@ -2,8 +2,7 @@
 using System;
 using System.Windows.Forms;
 
-namespace ExpertMultimedia
-{
+namespace ExpertMultimedia {
 	
 	public class Word {
 		public uint bitBlockable;//MUST be enabled
@@ -13,11 +12,11 @@ namespace ExpertMultimedia
 		public string sText;
 		public uint bitsAttrib;
 	}
-	public class BlockWords
-	{
-		public static readonly string[] sarrIfWhole=new string[] {"fuc","clit"};
-		public static readonly string[] sarrIfPartial=new string[] {"fuk","clitoris",}
-		private static BlockWord[] wordarr;
+	public class FilterText {
+		public static readonly string[] sarrIfWhole=new string[] {"fuc","@ss","rapist","raper"};
+		public static readonly string[] sarrIfPartial=new string[] {"srapist","$rapist","trapist","traper","$raper","sraper","penis","@$$","a$$","asshole","@sshole","butlick","butlik","buttlick","buttlik","a$$lick","@sslick","@$$lick","55lick","55lik","55l1k","55l1c","asslick","asslik","fuck","fuk","clit"}
+		//TODO: first remove spaces to check sarrIfPartial
+		private static Word[] wordarr;
 		private static uint bitsBlock;
 		public int MAX {
 			get {
@@ -34,10 +33,10 @@ namespace ExpertMultimedia
 				}
 			}
 		}
-		public BlockWords() {
-			Console.Error.WriteLine("Programmer Error: creating a BlockWords object does nothing.  Use it statically.");
+		public FilterText() {
+			Console.Error.WriteLine("Programmer Error: creating a FilterText object does nothing.  Use it statically.");
 		}
-		public static BlockWords() {
+		public static FilterText() {
 			bitsBlock=Word.bitBlockable; //enables word blocking
 			iMax=1000;
 			wordarr=new Word[iMax];
@@ -53,6 +52,31 @@ namespace ExpertMultimedia
 			bitsBlock&=(Base.UintMask^bitBlockable);
 		}
 		private static AddWord(string sNew, uint Word_bits) {
+		}
+		private static IsBlockable(string sWord) {
+			//TODO: account for per-word bits and FilterText option bits
+			bool bBlock=false;
+			int iNow;
+			try {
+				for (iNow=0; iNow<sarrIfWhole.Length; iNow++) {
+					if (sWord==sarrIfWhole[iNow]) {
+						bBlock=true;
+						break;
+					}
+				}
+				if (!bBlock) {
+					for (iNow=0; iNow<sarrIfPartial.Length; iNow++) {
+						if (Base.Contains(sWord,sarrIfPartial[iNow])) {
+							bBlock=true;
+							break;
+						}
+					}
+				}
+			}
+			catch (Exception exn) {
+				Base.ShowExn(exn,"FilterText IsBlockable")
+			}
+			return bBlock;
 		}
 	}
 }

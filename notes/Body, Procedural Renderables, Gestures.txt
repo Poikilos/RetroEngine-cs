@@ -1,0 +1,42 @@
+ 
+Notes:
+-make each bone have a shader, so i.e. a man can have a robot arm easily
+	-Allow for simple props such as chairs or benches, otherwise just make these Voxel objects
+
+Families of objects (that need some way of being rendered) (in order of importance):
+Humanoid
+Ground (a bitmap of the ground)
+Chair
+Car
+Gun
+Bullet
+Swingset
+Sword
+
+-have morphs with different ranges such as only raised eyebrow gesture (which actually moves both eyebrows and eyelids and lowers jaw)
+-have different walk cycles for different emotions and ages.
+-weight shifts for different emotions while talking (have a list of emotion changes in text, i.e. ":inquisitive: What did you say?"
+-Program hysteresis into appropriate variables to create smarter virtual machanics in creatures (a sort of short-term sensory memory) http://en.wikipedia.org/wiki/Hysteresis
+
+
+-Gestures list:
+(you can append "very" to the beginning of any one, i.e. :veryhappy"
+Emotions (may have to combine some of these to different places on same scale):
+:sad:
+:inquisitive:
+:happy:
+:scared:
+:angry:
+:thoughtful:
+:worried:
+:startled:
+Gestures:
+:purseslips:
+:raiseslefteyebrow:
+:raisesrighteyebrow:
+:raiseseyebrows:
+:rolls eyes:
+:rollseyes:
+Actions (can be appended with 's'):
+:jump:
+:barf: (gag sign)

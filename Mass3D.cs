@@ -10,7 +10,7 @@ using System;
 
 namespace ExpertMultimedia {
 	/// <summary>
-	/// Description of Mass3d.
+	/// Description of Mass3D.
 	/// </summary>
 	public class Mass3D {
 		//TODO: make sure all vars below get implemented
@@ -19,7 +19,7 @@ namespace ExpertMultimedia {
 		public const int TypeLight = 2;
 		public const int TypeSprite = 3;
 		public const int TypeBoneArray = 4;
-		public const int TypeParticleArray = 5; //individual particles are in the pdarrFields
+		public const int TypeParticleArray = 5; //individual particles are in the p3darrFields
 		public const int TypeBone = 6;
 		public int iType;
 		public const int FlagUndefined = 0;
@@ -33,19 +33,19 @@ namespace ExpertMultimedia {
 		public int iSelf;//if (iParent==0) then irrelevant else index in parent mdarrGlobal
 		public Sprite sprite=null;
 		//measurements are in metric
-		public FPoint3D pdLoc;
-		public FPoint3D pdMin;
-		public FPoint3D pdMax;
-		public FPoint3D pdRot;
-		public FPoint3D pdRotVel;
-		public FPoint3D pdRotMin;
-		public FPoint3D pdRotMax;
-		public FPoint3D pdRotVel;//degrees per second on multiple axes
-		public FPoint3D pdSize;
+		public FPoint3D p3dLoc;
+		public FPoint3D p3dMin;
+		public FPoint3D p3dMax;
+		public FPoint3D p3dRot;
+		//public FPoint3D p3dRotVel;
+		public FPoint3D p3dRotMin;
+		public FPoint3D p3dRotMax;
+		public FPoint3D p3dRotVel;//degrees per second on multiple axes
+		public FPoint3D p3dSize;
 		public FPoint3D panglesVel;//SINGLE-AXIS direction of velocity
 		float fVel; // m/s/s
 		float fVelMax; //terminal velocity precalculated from size and weight
-		float fShapeRetainFactor;//inverse springyness; how much pdarrFields stays like pdarrFieldsOriginal
+		float fShapeRetainFactor;//inverse springyness; how much p3darrFields stays like p3darrFieldsOriginal
 		float fKelvinsVel; //heat creation/absorbtion at present (changes state at slighty different temp depending on whether positive or negative, like real life)
 		float fKelvinsVelLossPerSec;
 		float fKelvins; //heat (i.e. can float if hot and low density etc(?research this))
@@ -58,15 +58,14 @@ namespace ExpertMultimedia {
 		public const int StateGas=3;
 		public int iState;
 		Mass3D[] mdarr=null;
-		//contants below are used as the first index of pd2dParticle
+		//contants below are used as the first index of p3d2dParticle
 		public const int ParticlesRaw=0;
 		public const int ParticlesBoned=1;
 		public const int ParticlesWarped=2; //ok for softbody to be warped and not saved to raw, since getting each using 4d geometry
 		//absolute locations, for physics reasons:
-		public FPoint3D[][] pd2dParticle; //"force fields" proper, such as matter (or magnetism etc) that act under this mass' properties.
-		Mass3d[] m3arrBone=null; //i.e. bones if BoneArray, else allows multiple deformation axes
+		public FPoint3D[][] p3d2dParticle; //"force fields" proper, such as matter (or magnetism etc) that act under this mass' properties.
+		Mass3D[] m3arrBone=null; //i.e. bones if BoneArray, else allows multiple deformation axes
 		//TODO: calculate softness
-		int iParent; //parent's index in m3darr (o3darrMain[x].m3darr)
 		float fDensity;
 		float fViscosity; //use 1.0 as water
 		float fWeight;
@@ -87,10 +86,10 @@ namespace ExpertMultimedia {
 			//TODO: any dust should be collected into a dust object--free particles should float, and surface tension should be set to zero.
 			//TODO: whenever surface tension is zero, particle should float according to atmosphere
 		//}
-		//public Mass3D[] Slice(FPoint3D fp3Plane, FPoint3D fp3PlaneRot) {
+		//public Mass3D[] Slice(FPoint3D fp3dPlane, FPoint3D fp3dPlaneRot) {
 			//TODO: finish this
 		//}
-		//public Mass3d[] BooleanParts(Mass3D m3Operand) {
+		//public Mass3D[] BooleanParts(Mass3D m3Operand) {
 			//TODO: finish this
 			//int[] iarrPointsInOperand
 			//int[] iarrPointsOfOperandInThis

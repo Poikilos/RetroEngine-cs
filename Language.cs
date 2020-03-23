@@ -413,7 +413,7 @@ namespace ExpertMultimedia {
 		public int[] iarrPhoneme; //indeces to speech.pharrMain--phonemes that this can produce (i.e. one vocalized one not, or if spanish, a third may be emphatic)
 		public static bool bErrSevereShown=false;
 		public MouthPosition() {
-			if (bErrSevereShown==false) {
+			if (!bErrSevereShown) {
 				MessageBox.Show("Default constructor should not be used.");
 				bErrSevereShown=true;
 			}

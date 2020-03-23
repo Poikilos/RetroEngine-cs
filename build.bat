@@ -1,0 +1,5 @@
+del 1.compiler-output*
+csc /target:library Base.cs Accountant.cs Anim32BGRA.cs AssemblyInfo-Base.cs Byter.cs Core.cs DataSet.cs Entity.cs Fractals.cs Gradient32BGRA.cs GBuffer32BGRA.cs GFont32BGRA.cs IAbstractor.cs Interaction.cs Keyboard.cs Liner.cs Mass3D.cs Memory.cs MyCallback.cs Packet.cs Packeter.cs Port.cs RForm.cs RForms.cs SafeConvert.cs Scene3D.cs Sprite.cs StringQ.cs StringStack.cs Var.cs Variables.cs WaveStream.cs -unsafe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Runtime.Remoting.dll > 1.compiler-output-Base.txt
+csc RetroEngine.cs AssemblyInfo-RetroEngine.cs -unsafe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:Base.dll /reference:../bin/Tao.Sdl.dll /reference:System.Web.dll > 1.compiler-output-RetroEngine.txt
+mv Base.dll ../bin
+mv RetroEngine.exe ../bin

@@ -9,171 +9,357 @@
 
 using System;
 
+//using REAL = System.Double; //System.Single
+using REAL = System.Single; //System.Double
+
 namespace ExpertMultimedia {
 	/// <summary>
 	/// Description of Gradient.
 	/// </summary>
 	public class Gradient {
-		string sErr;
-		string sFuncNow; //deprecated but still set probably
-		public byte[][] by2dGrad;
-		public int iGrad;
+		public PixelYhsa[] pxarrStep=null;
+		public REAL[] rarrStep=null;//height of step of gradient--correlates directly with pxarrGrad
+		int iTop=0;
+		public int STEPS {
+			get {
+				try {
+					if (pxarrStep==null) return 0;
+					else return pxarrStep.Length;
+				}
+				catch (Exception exn) {
+					Base.ShowException(exn,"Gradient","getting STEPS");
+					return 0;
+				}
+			}
+			set {
+				try {
+					if (value<=0) Base.ShowErr("Can't set step count to "+value.ToString(),"Gradient","setting STEPS");
+					else if (STEPS!=value) {
+						if (value>0) {
+							if (STEPS>0) {
+								PixelYhsa[] pxarrStepNew=new PixelYhsa[value];
+								REAL[] rarrStepNew=new REAL[value];
+								int iMin=(STEPS<value)?STEPS:value;
+								int iMax=(STEPS>value)?STEPS:value;
+								for (int iNow=0; iNow<iMax; iNow++) {
+									if (iNow<STEPS) {
+										if (iNow<value) {
+											pxarrStepNew[iNow]=pxarrStep[iNow];
+											rarrStepNew[iNow]=rarrStep[iNow];
+										}
+									}
+									else if (iNow<value) {
+										pxarrStepNew[iNow]=new PixelYhsa();
+										rarrStepNew[iNow]=0;
+									}
+								}
+								pxarrStep=pxarrStepNew;
+								rarrStep=rarrStepNew;
+							}
+							else {
+								pxarrStep=new PixelYhsa[value];
+								for (int iNow=0; iNow<value; iNow++) pxarrStep[iNow]=new PixelYhsa();
+								rarrStep=new REAL[value];
+							}
+						}
+						else {
+							Base.ShowErr("Can't set steps to "+value.ToString());
+						}
+					}//end if not same as current size
+					iTop=STEPS-1;
+					if (iTop<0) iTop=0;
+				}//end
+				catch (Exception exn) {
+					Base.ShowException(exn,"set STEPS","setting steps to "+value.ToString());
+				}
+			}//end set STEPS
+		}//end STEPS
 		public const int iBytesPP=4;
 		public Gradient() {
+			PixelYhsa pxUpper=null;
+			PixelYhsa pxLower=null;
+			bool bGood=true;
 			try {
-				Init(256);
-				Px32 pxUpper=new Px32();
-				Px32 pxLower=new Px32();
-				pxUpper.a=255;
-				pxLower.b=255;
-				pxLower.g=255;
-				pxLower.r=255;
-				bool bTest=From(ref pxUpper, ref pxLower);
-			}
-			catch (Exception exn) {
-				sFuncNow="initialization";
-				sErr="Exception error--"+exn.ToString();
-			}
-		}
-		public Gradient(int iShades) {
-			try {
-				Init(iShades);
-				Px32 pxUpper=new Px32();
-				Px32 pxLower=new Px32();
-				pxUpper.a=255;
-				pxLower.b=255;
-				pxLower.g=255;
-				pxLower.r=255;
-				if(false==From(ref pxUpper, ref pxLower)) {
-					sFuncNow="initialization";
-					sErr="Error setting gradient values";
+				pxUpper=new PixelYhsa(1,0,0,1);
+				pxLower=new PixelYhsa(0,0,0,0);
+				if (pxUpper==null) {
+					bGood=false;
+					Base.ShowErr("Couldn't allocate pixel (upper)","Gradient");//TODO: remove this line, for performance
 				}
-				
+				if (pxLower==null) {
+					bGood=false;
+					Base.ShowErr("Couldn't allocate pixel (lower)","Gradient");//TODO: remove this line, for performance
+				}
+				if (bGood) {
+					Base.Write("Create gradient...");
+					bGood=From(ref pxUpper, ref pxLower);
+					Base.WriteLine(bGood?"Success.":"Failed!");
+				}
+				else {
+					Base.ShowErr("Create gradient failed!","Gradient constructor");
+				}
 			}
 			catch (Exception exn) {
-				sFuncNow="initialization";
-				sErr="Exception error--"+exn.ToString();
+				bGood=false;
+				Base.ShowExn(exn,"Gradient()","initializing");
 			}
 		}
-		public Gradient(ref Px32 pxUpper, ref Px32 pxLower) {
+		public Gradient(int iSteps) {
+			STEPS=iSteps;//DOES initialize step buffers
+		}
+		public Gradient(ref PixelYhs pxUpper, ref PixelYhs pxLower) {
+			bool bGood=true;
 			try {
-				Init(256);
-				bool bTest=From(ref pxUpper, ref pxLower);
+				if (pxUpper==null||pxLower==null) {
+					if (pxUpper==null) Base.ShowErr("pxUpper is null","Gradient(YHS,YHS)","creating gradient");
+					else if (pxLower==null) Base.ShowErr("pxUpper is null","Gradient(YHS,YHS)","creating gradient");
+				}
+				else From(ref pxUpper, ref pxLower);
 			}
 			catch (Exception exn) {
-				sFuncNow="initialization";
-				sErr="Exception error--"+exn.ToString();
+				Base.ShowExn(exn,"Gradient(YHS,YHS)","initializing");
 			}
 		}
-		private void Init(int iShades) {
-				iGrad=iShades;
-				by2dGrad=new byte[iGrad][];
-				for (int i=0; i<iGrad; i++)
-					by2dGrad[i]=new byte[iBytesPP];
+		public Gradient(ref PixelYhsa pxUpper, ref PixelYhsa pxLower) {
+			bool bGood=true;
+			try {
+				if (pxUpper==null) {
+					Base.ShowErr("pxUpper is null","Gradient(YHSA,YHSA)","creating gradient");
+					bGood=false;
+				}
+				else if (pxLower==null) {
+					Base.ShowErr("pxUpper is null","Gradient(YHSA,YHSA)","creating gradient");
+					bGood=false;
+				}
+				if (bGood) {
+					if (!From(ref pxUpper, ref pxLower)) {
+						bGood=false;
+						Base.ShowErr("From(PixelYhsa,PixelYhsa) failed!","Gradient constructor");
+					}
+				}
+			}
+			catch (Exception exn) {
+				Base.ShowExn(exn,"Gradient(YHSA,YHSA)","initializing");
+			}
 		}
 		public Gradient Copy() {
 			Gradient gradReturn;
 			try {
-				gradReturn=new Gradient(iGrad);
-				for (int i=0; i<iGrad; i++) {
-					gradReturn.by2dGrad[i][0]=by2dGrad[i][0];
-					gradReturn.by2dGrad[i][1]=by2dGrad[i][1];
-					gradReturn.by2dGrad[i][2]=by2dGrad[i][2];
-					gradReturn.by2dGrad[i][3]=by2dGrad[i][3];
+				gradReturn=new Gradient(STEPS);
+				for (int iNow=0; iNow<STEPS; iNow++) {
+					gradReturn.pxarrStep[iNow]=pxarrStep[iNow].Copy();
+					gradReturn.rarrStep[iNow]=rarrStep[iNow];
 				}
 			}
 			catch (Exception exn) {
-				sErr="Exception error--"+exn.ToString();
+				Base.ShowExn(exn,"Gradient Copy");
 				gradReturn=null;
 			}
 			return gradReturn;
 		}
-		public bool From(ref Px32 pxUpper, ref Px32 pxLower) {
+		public bool From(ref PixelYhsa pxUpper, ref PixelYhsa pxLower) {
 			bool bGood=false;
 			try {
-				FPx fpxUpper=new FPx();
-				FPx fpxLower=new FPx();
-				fpxUpper.b=(float)pxUpper.b;
-				fpxUpper.g=(float)pxUpper.g;
-				fpxUpper.r=(float)pxUpper.r;
-				fpxUpper.a=(float)pxUpper.a;
-				fpxLower.b=(float)pxLower.b;
-				fpxLower.g=(float)pxLower.g;
-				fpxLower.r=(float)pxLower.r;
-				fpxLower.a=(float)pxLower.a;
-				float fGrad=(int)iGrad;
-				int iVal=0;
-				float fVal;
-				float fOpacity;
-				//needs to be float in case gradient is longer than 256!!!
-				for (fVal=0; fVal<fGrad; fVal+=1.0f, iVal++) {
-					fOpacity=fVal/255.0f;
-					by2dGrad[iVal][0]=(byte)(((fpxUpper.b-fpxLower.b)*fOpacity+fpxLower.b)+.5f);
-					by2dGrad[iVal][1]=(byte)(((fpxUpper.g-fpxLower.g)*fOpacity+fpxLower.g)+.5f);
-					by2dGrad[iVal][2]=(byte)(((fpxUpper.r-fpxLower.r)*fOpacity+fpxLower.r)+.5f);
-					by2dGrad[iVal][3]=(byte)(((fpxUpper.a-fpxLower.a)*fOpacity+fpxLower.a)+.5f);
+				//PixelYhsa pxUpperNow=new PixelYhsa(pxUpper);
+				//PixelYhsa pxLowerNow=new PixelYhsa(pxLower);
+				try {
+					STEPS=2;
 				}
-				//bGood=ByteArrayFromPixArray();
+				catch (Exception exn) {
+					bGood=false;
+					Base.ShowExn(exn,"Gradient.From(YHSA,YHSA)","setting steps to "+STEPS.ToString());
+				}
+				if (pxarrStep==null) {
+					bGood=false;
+					Base.ShowErr("Gradient step array is still null!","Gradient From(YHSA,YHSA)");
+				}
+				else if (pxarrStep[0]==null) {
+					bGood=false;
+					Base.ShowErr("Gradient step first index is still null!","Gradient From(YHSA,YHSA)");
+				}
+				try {
+					pxarrStep[0].Y=pxarrStep[0].Y;
+				}
+				catch (Exception exn) {
+					bGood=false;
+					Base.ShowExn(exn,"Gradient.From(YHSA,YHSA)","accessing pixel step array");
+				}
+				try {
+					pxarrStep[0].Y=pxLower.Y;
+					pxarrStep[0].H=pxLower.H;
+					pxarrStep[0].S=pxLower.S;
+					pxarrStep[0].A=pxLower.A;
+				}
+				catch (Exception exn) {
+					bGood=false;
+					Base.ShowExn(exn,"Gradient.From(YHSA,YHSA)","copying lower pixel values");
+				}
+				try {
+					pxarrStep[1].Y=pxUpper.Y;
+					pxarrStep[1].H=pxUpper.H;
+					pxarrStep[1].S=pxUpper.S;
+					pxarrStep[1].A=pxUpper.A;
+				}
+				catch (Exception exn) {
+					bGood=false;
+					Base.ShowExn(exn,"Gradient.From(YHSA,YHSA)","copying upper pixel values");
+				}
+				try {
+					rarrStep[0]=(REAL)0.0;
+					rarrStep[1]=(REAL)1.0;
+				}
+				catch (Exception exn) {
+					bGood=false;
+					Base.ShowExn(exn,"Gradient.From(YHSA,YHSA)","setting step values");
+				}
+				bGood=true;
 			}
 			catch (Exception exn) {
-				sErr="Exception error--"+exn.ToString();
 				bGood=false;
+				Base.ShowExn(exn,"Gradient.From(YHSA,YHSA)","copying values");
 			}
 			return bGood;
-		}
-		public unsafe bool Shade(ref byte[] byarrDest, int iDestByte, int iValue) {
-			bool bGood=true;
-			try {
-				fixed (byte* lp32Src=by2dGrad[iValue], lp32Dest=&byarrDest[iDestByte]) {
-					*((UInt32*)lp32Dest) = *((UInt32*)lp32Src);
-				}
-			}
-			catch (Exception exn) {
-				sErr="Exception error running ShadeTo array--"+exn.ToString();
-				bGood=false;
-			}
-			return bGood;
-		}
-		public unsafe bool Shade(ref byte[] byarrDest, int iValue) {
+		}//end From(YHSA,YHSA)
+		public bool From(ref PixelYhs pxUpper, ref PixelYhs pxLower) {
 			bool bGood=false;
 			try {
-				fixed (byte* lp32Src=by2dGrad[iValue], lp32Dest=byarrDest) {
-					*((UInt32*)lp32Dest) = *((UInt32*)lp32Src);
-				}
+				STEPS=2;
+				pxarrStep[0].Y=pxLower.Y;
+				pxarrStep[0].H=pxLower.H;
+				pxarrStep[0].S=pxLower.S;
+				pxarrStep[0].A=(REAL)1.0;
+				pxarrStep[1].Y=pxUpper.Y;
+				pxarrStep[1].H=pxUpper.H;
+				pxarrStep[1].S=pxUpper.S;
+				pxarrStep[1].A=(REAL)1.0;
+				rarrStep[0]=(REAL)0.0;
+				rarrStep[1]=(REAL)1.0;
+				bGood=true;
 			}
 			catch (Exception exn) {
-				sErr="Exception error during Shade array using value--"+exn.ToString();
+				Base.ShowExn(exn,"Gradient.From(YHS,YHS)");
 				bGood=false;
 			}
 			return bGood;
+		}//end From(YHS,YHS)
+		//public int NextLevelBelow(REAL rSrcZeroTo1) {
+		//}
+		//public bool IsInRange(REAL rSrcZeroTo1) {
+		//}
+		public bool Shade(ref PixelYhsa pxDest, PixelYhs pxAssumeGrayAndUseY) {
+			return Shade(ref pxDest, pxAssumeGrayAndUseY.Y);
 		}
-		public Px32 PixelFromBottom() {
-			Px32 pxReturn=new Px32();
+		public bool Shade(ref PixelYhsa pxDest, REAL rSrcZeroTo1) {
+			//TODO:? return top or bottom if out of range
+			bool bFound=false;
+			bool bWasNull=false;
 			try {
-				pxReturn.b=by2dGrad[0][0];
-				pxReturn.g=by2dGrad[0][1];
-				pxReturn.r=by2dGrad[0][2];
-				pxReturn.a=by2dGrad[0][3];
+				if (pxDest==null) {
+					bWasNull=true;
+					pxDest=new PixelYhsa();
+				}
+				if (STEPS>0) {
+					if (rSrcZeroTo1<=(REAL)0.0) pxDest.From(pxarrStep[0]);
+					//else if (rSrcZeroTo1==(REAL)1.0) pxDest.From(pxarrStep[STEPS-1]);//unnecessary since !bFound is checked below
+					//else pxDest.From(pxarrStep[iTop]);//debug only
+					//else if (rSrcZeroTo1>=(REAL)1.0) pxDest.From(pxarrStep[iTop]);
+					else {
+						int iLower=0;
+						REAL ratio;
+						for (int iUpper=1; iUpper<STEPS; iUpper++, iLower++) {
+							//start at 1 since the first "Top" is 1
+							if (rSrcZeroTo1<rarrStep[iUpper]) {
+								//the ratio formula: (abs-min)/(max-min)
+								ratio=(rSrcZeroTo1-rarrStep[iLower])/(rarrStep[iUpper]-rarrStep[iLower]);
+								if (ratio==Base.r0) {
+									pxDest.From(pxarrStep[iLower]);
+								}
+								else if (ratio==Base.r1) {
+									pxDest.From(pxarrStep[iLower]);
+								}
+								else {
+									//use the alpha formula: (src-dest)*fAlphaRatio+dest
+									pxDest.Y=(pxDest.Y-pxarrStep[iLower].Y)*ratio+pxDest.Y;
+									pxDest.H=(pxDest.H-pxarrStep[iLower].H)*ratio+pxDest.H;
+									pxDest.S=(pxDest.S-pxarrStep[iLower].S)*ratio+pxDest.S;
+									pxDest.A=(pxDest.A-pxarrStep[iLower].A)*ratio+pxDest.A;
+								}
+								bFound=true;
+							}
+						}
+						if (!bFound) {
+							pxDest.From(pxarrStep[STEPS-1]);
+						}
+					}//else shade rationally
+				}//end if steps are initialized
+				else pxDest.Set(0,0,0,0);
 			}
 			catch (Exception exn) {
-				sFuncNow="PixelFromBottom";
-				sErr="Exception error getting bottom gradient pixel--"+exn.ToString();
+				Base.ShowExn(exn,"Gradient Shade(YHSA)");
 			}
-			return pxReturn;
+			if (bWasNull) Base.ShowErr("Null dest pixel","Gradient Shade(YHSA)");
+			return bFound;//TODO: is this right?
+		}//end Shade(YHSA,REAL)
+	
+		public bool Shade(ref PixelYhs pxDest, PixelYhs pxAssumeGrayAndUseY) {
+			return Shade(ref pxDest, pxAssumeGrayAndUseY.Y);
 		}
-		public Px32 PixelFromTop() {
-			Px32 pxReturn=new Px32();
+		public bool Shade(ref PixelYhs pxDest, REAL rSrcZeroTo1) {
+			//TODO:? return top or bottom if out of range
+			bool bFound=false;
+			bool bWasNull=false;
 			try {
-				pxReturn.b=by2dGrad[iGrad-1][0];
-				pxReturn.g=by2dGrad[iGrad-1][1];
-				pxReturn.r=by2dGrad[iGrad-1][2];
-				pxReturn.a=by2dGrad[iGrad-1][3];
+				if (pxDest==null) {
+					bWasNull=true;
+					pxDest=new PixelYhs();
+				}
+				if (STEPS>0) {
+					if (rSrcZeroTo1<=(REAL)0.0) pxDest.From(pxarrStep[0]);
+					//else if (rSrcZeroTo1==(REAL)1.0) pxDest.From(pxarrStep[STEPS-1]);//unnecessary since !bFound is checked below
+					else {
+						int iLower=0;//this is actually found in the iUpper "for" statement below!
+						//for (int iNow=iTop; iTop>=0; iTop--) {
+						//	if (rSrcZeroTo1>=rarrStep[iNow]) {
+						//		iLower=iNow;
+						//		break;
+						//	}
+						//}
+						REAL ratio;
+						for (int iUpper=1; iUpper<STEPS; iUpper++, iLower++) {
+							//start at 1 since the first "Top" is 1
+							if (rSrcZeroTo1<=rarrStep[iUpper]) {
+								//the ratio formula: (abs-min)/(max-min)
+								ratio=(rSrcZeroTo1-rarrStep[iLower])/(rarrStep[iUpper]-rarrStep[iLower]);
+								if (ratio<=Base.r0) {
+									pxDest.From(pxarrStep[iLower]);
+								}
+								else if (ratio>=Base.r1) {
+									pxDest.From(pxarrStep[iUpper]);
+								}
+								else {
+									//use the alpha formula even though non-alpha: (src-dest)*fAlphaRatio+dest
+									//-(overlays the "top" over the "bottom" based on the "topness" ("ratio")
+									pxDest.Y=(pxarrStep[iUpper].Y-pxarrStep[iLower].Y)*ratio+pxarrStep[iLower].Y;
+									pxDest.H=(pxarrStep[iUpper].H-pxarrStep[iLower].H)*ratio+pxarrStep[iLower].H;
+									pxDest.S=(pxarrStep[iUpper].S-pxarrStep[iLower].S)*ratio+pxarrStep[iLower].S;
+								}
+								bFound=true;
+								break;
+							}
+						}
+						if (!bFound) {
+							pxDest.From(pxarrStep[STEPS-1]);
+						}
+					}
+				}//end if steps are initialized
+				else pxDest.Set(0,0,0);
 			}
 			catch (Exception exn) {
-				sFuncNow="PixelFromTop";
-				sErr="Exception error getting top gradient pixel--"+exn.ToString();
+				Base.ShowExn(exn,"Gradient Shade(YHS)");
 			}
-			return pxReturn;
-		}
+			if (bWasNull) Base.ShowErr("Null dest pixel","Gradient Shade(YHS)");
+			return bFound;//TODO: is this right?
+		}//end Shade(YHS,REAL)
+	
 	}//end class Gradient
-}
+}//end namespace

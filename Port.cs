@@ -3,83 +3,87 @@
 // -Jake Gustafson www.expertmultimedia.com
 // -part of EMRE (Expert Multimedia Retro Engine).
 //Purpose:
-// -this is the actual server, which is called remotely.
+// -this is technically the "server", a service that is called remotely.
 using System;
 //using System.Threading;
 namespace ExpertMultimedia {
 	public class Port : MarshalByRefObject {
 		//private Core core;
-		private Server server;
+		private Packeter packeter; //private Server server;
 		private Packet packetServerCrash;
 		//private Packet packetMoving;
 		/////////// Initialization /////////////
 		public Port() { //default constructor called by Server (unless existing manually configured instance is published)
 			//packetMoving=new Packet();
 			Init();
-			try{
-				sLastErr=("Port constructor: defaulting to server mode");
-				server = new Server( );
+			try {
+				Base.WriteLine("Port constructor: defaulting to server mode");
+				packeter = new Packeter(); //server = new Server( );
 			}
-			catch (Exception exn) {}
+			catch (Exception exn) {
+				Base.ShowExn(exn,"Port constructor");
+			}
 		}
 		/*
 		public Port(string sPurpose) { //client calls this contructor locally??
-			server=null;
+			packeter=null; //server=null;
 			if (sPurpose=="client") { //server mode
-				sLastErr=("Port constructor: running as {0}", sPurpose);
+				Base.ShowErr("Port constructor: running as {0}", sPurpose);
 			}
 			else if (sPurpose=="server") {
-				sLastErr=("Port constructor: running as {0}", sPurpose);
-				server = new Server();
+				Base.ShowErr("Port constructor: running as {0}", sPurpose);
+				packeter=new Packeter(); //server = new Server();
 			}
 			else {
 				server = new Server();
-				sLastErr=("Port constructor: defaulting to server since invalid argument={0}", sPurpose);
+				Base.ShowErr("Port constructor: defaulting to server since invalid argument={0}", sPurpose);
 			}
 			Init();
 		}
 		*/
 		~Port() {
 			//server=null;
-			if (server!=null) {
-				server.Halt();
+			if (packeter!=null) {//if (server!=null) {
+				packeter.Halt(); //server.Halt();
 				//Thread.Sleep(1000); //debug NYI wait for server thread to terminate if not null.
 			}
 		}
 		private void Init() {
 			//apHost = new Packet();
-			//try{statusq.Enq("Starting EMRE Core...");}
+			//try{Base.WriteLine("Starting EMRE Core...");}
 			//catch(Exception exn){exn=exn};
 			//core = new Core(); //now core is a member of both Client and Server
 			try{
 				packetServerCrash = new Packet();
 				packetServerCrash.iType=PacketType.ServerMessage;
-				packetServerCrash.s="Port says: Server object crashed or is not completely initialized.";
+				packetServerCrash.Set(0,"Port says: Server object crashed or is not completely initialized.");
 			}
 			catch (Exception exn) {
-				sLastErr="Exception error Initializing Core--"+exn.ToString();
+				Base.ShowException(exn,"Port.Init");
 			}
-		}
+		}//end Init()
 		/////////// Done Initialization /////////////
 
-		public bool ClientSends(Packet packetNew) {
+		public bool Enq(Packet packetNew) {
 			bool bReturn = false;
 			try { //if didn't crash
-				if (server!=null) bReturn = server.ClientSends(packetNew); //passes on the packet to the engine server
-				else sLastErr=("Port says: Server was not created so the data couldn't be processed");
+				if (packeter!=null) bReturn = packeter.Enq(packetNew); //passes on the packet to the engine server
+				else Base.ShowErr("Port says: Server was not created so the data couldn't be processed.");
 			}
 			catch (Exception exn) {
-				sLastErr="Port says: Server thread not working!!! Restart the server or the game! --"+exn.ToString();
+				Base.ShowExn(exn,"port Enq");
+				Base.ShowErr("Port says: Server thread not working!!! Please restart!");
 				return false;
 			}
 			return bReturn;
 		}
-		public Packet ClientGets(Packet packetAuth) {
+		public Packet Deq(Packet packetAuth) {
 			try {
-				if (packetAuth!=null) return server.ClientGets(packetAuth);
+				if (packetAuth!=null) return packeter.Deq(packetAuth);
 			}
 			catch (Exception exn) {
-				sLastErr="Port says: Couldn't get packet from server object--"+exn.ToString();
+				Base.ShowExn(exn,"port Deq");
+				packetServerCrash.Set(0,("Port says: Couldn't get packet from server object."));
 				return packetServerCrash;
 			}
 			return packetServerCrash;
