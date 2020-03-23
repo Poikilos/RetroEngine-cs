@@ -1,7 +1,64 @@
-RetroEngine To-do
-x=done
+Alternate Names:
+(RetroEngine is already used as component name within Restrospect backup, AND internal name for xnet.se graphics demo)
+-splendorxd (splendorxd.com avail as of 2011-03)
+-gyroxopter (gyroxopter.com avail as of 2011-03)
+-infinisample (infinisample.com avail as of 2011-03)
+Taken:
+-blastopak (brand of hose; blastopak.com avail as of 2011-03)
 
-Urgent:
+RetroEngine To-do (x=done, date marks bugfixes per release)
+-make script boolean (true by default) to disallow multiple instances of form with same exact string used to generate
+-VERY optimized glow effect: copy lightness channel, blur it (about 20pt) then overlay with low opacity
+-VERY optimized DOF: copy lightness channel, blur, then overlay based on z-buffer
+-Use OpenCL for colorspace conversion (can use GPGPU, and is working on ATI, and officially allowed by Nvidia as alternative to CUDA) -- OpenCL is included with OpenTK, which is an alternative to Tao
+-variables defined in vars.ini that do not have a sign or value should not stay that way in vars.ini upon load--vars.ini should instead be repaired (to have assignment statement instead of ONLY the variable name)
+2011-02-17
+x-fixed bug where RString.CSTypeToInternalIndex was adding the array length (instead of the length of the found string in the array) to iCursorToMove
+2009-11-10
+x-fixed bug where Participle was ignored by the ShowExn overload that took only an Exception object and a participle
+
+License & Copy Protection type:
+Allow the game to be open-source but not downloadable for free, so:
+-GPL (LGPL would allow proprietary usages) -- there are no restrictions on selling (see http://www.gnu.org/philosophy/selling.html)
+-Program comes with source, but assets are encrypted. Source is an option in the installer (web or CD).
+-Compiling & running source loads demo (non-encrypted) if no key is present
+-User-compiled binary checks game installation folder for key & assets.
+-Only demo data (a copy of it) is in the bin folder of sourcecode.
+-You download a key file or get it without you knowing if you install from CD.
+-Key also allows you to use asset exporter.  Assets should have author tags.
+
+Physics
+	-see "1.Features - Physics.txt"
+
+Usability Standards:
+-Each player should have a dialog box queue on the server so they aren't missed
+-More-automated features of editor and game should be presented up front
+	-an example of automation whose purposefulness is hindered by poor user experience design is the watermark feature in GIMP, since anyone who could get that far would be able to do it themselves using a layer with grain merge overlay mode.
+-Stereoscopic
+	-Menu should be at same depth as character!
+	-Allow Changing between Red/Green, Red/Blue, Red/Cyan, Cross Eyed, Parallel, Dual Monitor, 3D Monitor, 3D Interlaced (Zalmon Trimon) with either Field Order A (2nd 1st) or B (1st 1st).
+	-Cross Eyed viewing can fill whole screen (tested using videos with yt3d:enable=true tag, with widescreen laptop--15" wide not diagonal)
+	-make depth adjustment (inter-ocular distance)
+-If a long process is happening, show the percentage at the beginning of the title bar text so that the progress visible in the taskbar.
+-Use shadows not lines for gui
+
+Compiling:
+-Use Platform.Sdl.cs or Platform.Framework.cs (only 1 of them) as desired.
+
+Components/Renamed:
+-The actual engine is RetroEngine.  Formerly, the actual engine was Manager and the frontend was RetroEngine.  Before that, RetroEngineWindow was used as the frontend.
+-RTextBox replaces Liner
+-PlatFormNow_* files replace BasePlatform_* files
+-classes ending with "*32BGRA" no longer contain "32BGRA" in their names.  Now, the program is compiled with either *32BGRA.cs or corresponding file.  As of 2007, only the 32BGRA cs files of this group are maintained.
+-RForms object is rendered by the MainForm, by calling rforms.Render(panelX) when needs to be redrawn (rforms object is created in MainForm)
+
+Primary:
+-Use CORBA or ICE<http://en.wikipedia.org/wiki/Internet_Communications_Engine> to replace network transfer of objects since faster then XML via SOAP
+-Default set of bone, fat, and skin characteristics for Age (child,adult, then older adult crows feet etc)
+-Simple texture light: e.g. forest shadow texture can move up body in screen space if character is walking toward camera.
+	--The source (texture light) coordinates for the overlay can be determined by the relative x,y position of the object to the texture light
+-change variables when setting sParticiple (as variable, not just as argument)
+-finish iabstractor.PrepareForUse (and also finish .Add* methods? What more needs to be done??)
 -Make Var parse html non-closers by checking if a parent is closed before it (redundant but necessary unless XHTML--check for xhtml tag and ignore that slow check in that case)
 	-ONLY use non-required-closed-tag-name array when SAVING, and only when saving NON-XHTML (use setting, and turn on setting if loaded file is marked as such).
 		-BUT save bAlwaysSaveXHTML separately from bAsXHTML (which would be set to bAlwaysSaveXHTML upon load but before parsing)
@@ -22,8 +79,17 @@ Alpha:
 -Use framework's hash function to checksum data AFTER changing size var to include CRC (and send hash instead of whole token!) and place at END of binary data.
 -Check for code usages of '&' that should be "&&"
 -Make sure Base and Byter file functions are used for everything, and that FileStream, StreamReader, StreamWriter nor any other stream do not appear elsewhere, in order to control file access and to prepare code for implementation of resource management.
+-ToTable(string[] sarrFields, iCols, float[] farrColWidthRatio_ElseZeroForAuto) (for implementing gnoder html-style without external html files)
+	-also have: <!--modebar--> and <!--mode=play--> and <!--modeimage-->
+-Browser:
+	-load ALL from cache (no direct loading of files from web)
+		-make browser cache *.php* as *.php (then load the "downloaded" [actually the server-generated output of the] php file)
+			-OR OPTION 2: cache replacing unusable characters with spaces, then truncating trailing spaces.
+				-remember to resume if did not complete
 
 Beta:
+-approximate Dynamic Ambient Occlusion, baked animated ambient occlusion, and static ambient occlusion maps--use each type where applicable.
+	--cast ray in all directions from each point on the surface of the object to determine the point's brightness for its ambient occlusion map.
 -use integers for ALL 3D work, and create a variable like:  Base.iSpacialQuantizer=1000; //treat locations divided by this as whole units
 -textarea tags do not have sub-tags (they can contain html as literal text)!  Only end if "</textarea>" is found!
 -spell check somehow
@@ -33,15 +99,33 @@ Beta:
 -Modify ALL declarations of sErr to a get-set variable so as to all come from a central IPC object.
 	-somehow, server errors need to be detected using the same mechanism--the IPC object may have to remotely connect to the server.
 -Only show higher folder if ".." exists in listed files
-	
+-Virtual solid textures (procedural 2D textures using 3D math)
+	--could just be a 3D option for procedural texture generation
+-BONED SPRITES: Allow placing bones within a sprite, so that the sprite whose bone arrangement is nearest to the actual pose can be used instead of 3D model being displayed.
+-fluctuating energy cloud: only edges are fully opaque, then becomes transparent logorithmically
+
 Final:
-get free RAM: http://zamov.online.fr/EXHTML/CSharp/CSharp_927308.html
+-make sure there is plenty of contrast and saturated colors
+-include NGEN (a native binary generator) option during install
+-ability to make a user change their display name before being able to login (e.g. when the display name is offensive)
+-make program self-aware of not being shut down properly, and track last known status and allow resume or start from main menu
+-if using C++, check for: see c++ workflow
+-fix instances of (always check): see cs workflow
+-for raids, allow xp'ing #of players in guild, with total value equals #of players who finished raid
+	-alternate version of the following WoW suggestion: raid dropping an item that attunes characters with charges equaling #of players in guild by presumably absolute per-charge amount which was suggested by a member of one of the top ten guilds, on "The Four horseman" 7/8/2007 show on wcradio.com
+-Check available RAM: http://zamov.online.fr/EXHTML/CSharp/CSharp_927308.html
+	-remove variables from ShowErr first argument and move to style braces after function name
 -Remove settings from all static constructors of retroengine objects and move to base
 -record replays, or instant replay ("rewind", moving [animated slide] live game to smaller window in top-right)
 -does /etc/hosts need to be edited for linux machines??? (i.e. add line?: 10.0.0.2 computer1 )
 -Check spelling on error messages somehow
 -Use Sdl YUV overlay (convert from YHS then Sdl can DIRECTLY render YUV)
+-instances of function return not placed into a variable (i.e. RString.SafeSubstring(*) OR s.Substring(*)!)
+
 OPTIONAL:
+-Have randomly-generated fractal armor so that theoretically everyone can be unique without much need for 3d modeling
+-Tao.FFmpeg and Tao.Ode (rigid body physics)
+-Change string array saving to framework File.WriteAllLines("myfile.txt", sarr) method
 -Change System.IO.Path.DirectorySeparatorChar to Base.DirectorySeparatorCharAsString (to allow reading from archive later easier)
 -Text-to-speech
 	-exclamation points  and question marks change emphasis and speed.
@@ -81,7 +165,9 @@ Interface
 	-close polygon/curve by clicking start point, but:
 		-double-click would insert another point there after it is closed
 		-re-open polygon/curve button would then appear
-
+-Inventory
+	-color "unused" items in inventory differently (or add shiney outline or something, or put them at the top), and color code inventory into categories
+	-save the last used timestamp and count number of uses per item type
 		
 Paletted Interface idea:
 -Use palette to render all interface objects.
@@ -171,6 +257,13 @@ Game:
   -use same method for 3d stretching
 
 Effects:
+-Volumetrics in 2D space
+	-White triangle starting at peak of window opposite to light source on other side
+	-Only top side of triangle is solid, then fades logorithmically as goes toward bottom window-side point
+-enough shine toward camera should cause an even full-screen flash
+	-laser blasts
+	-sword, glass, earrings or other jewelry--reflecting light source toward camera
+-Rain halos (roughly simulate rain bouncing off character, in 2D space)
 -Make all effects iterated by current time [i.e. fxNow.Iterate(lThisFrameStartTick)], and have a speed setting (i.e. fxNow.fPixPerSec)
 -have a point-based swirl effect (i.e. if a big claw attacked you, you would have 3 of these slash through and warp you, and optionally, the screen around you)
 -animated particle grass, water, mud,  rain, snow, hail, freezing rain, leaves
