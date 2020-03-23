@@ -13,9 +13,11 @@ namespace ExpertMultimedia {
 		public uint bitsAttrib;
 	}
 	public class FilterText {
-		public static readonly string[] sarrIfWhole=new string[] {"fuc","@ss","rapist","raper"};
-		public static readonly string[] sarrIfPartial=new string[] {"srapist","$rapist","trapist","traper","$raper","sraper","penis","@$$","a$$","asshole","@sshole","butlick","butlik","buttlick","buttlik","a$$lick","@sslick","@$$lick","55lick","55lik","55l1k","55l1c","asslick","asslik","fuck","fuk","clit"}
-		//TODO: first remove spaces to check sarrIfPartial
+		public static readonly string[] sarrIfWhole=new string[] {"fuc","ass","rapist","raper"};
+		public static readonly string[] sarrIfPartial=new string[] {"srapist","trapist","traper","sraper","penis","asshole","butlick","butlik","buttlick","buttlik","asslick","asslik","sslick","sslik","fuck","fuk","clit","kunt","cunt"}
+		public static readonly string[] sarrUnSparseSrc =new char[] {"|\\/|","|3","|\\|","/-\\"};
+		public static readonly string[] sarrUnSparseDest=new char[] {"M",    "B", "N",   "A",  };
+		public static readonly string[] Alternates=new string[]{"e3","nh","a4@","i1","l1","s$","t+","o0","g6",""}//first is primary; formerly part of carrFixSymSrc
 		private static Word[] wordarr;
 		private static uint bitsBlock;
 		public int MAX {
@@ -53,11 +55,23 @@ namespace ExpertMultimedia {
 		}
 		private static AddWord(string sNew, uint Word_bits) {
 		}
-		private static IsBlockable(string sWord) {
+		private static IsBlockable(string sWord) { //TODO: remove periods first before separating words
 			//TODO: account for per-word bits and FilterText option bits
 			bool bBlock=false;
 			int iNow;
+			int iChar;
 			try {
+				//Change numbers and symbols to letters first:
+				//TODO: do fuzzy compare using Alternates[][] char instead ([][0] is primary)
+				//for (iNow=0; iNow<carrFixSymSrc.Length; iNow++) { 
+				//	for (iChar=0; iNow<sWord.Length; iNow++) {
+				//		if (sWord[iChar]==carrFixSymSrc[iChar]) sWord[iChar]=carrFixSymSrc[iChar];
+				//	}
+				//}
+				for (iNow=0; iNow<sarrUnSparseSrc.Length; iNow++) {
+					sWord=sWord.Replace(sarrUnSparseSrc[iNow],sarrUnSparseDest[iNow]);
+				}
+		
 				for (iNow=0; iNow<sarrIfWhole.Length; iNow++) {
 					if (sWord==sarrIfWhole[iNow]) {
 						bBlock=true;
@@ -65,6 +79,7 @@ namespace ExpertMultimedia {
 					}
 				}
 				if (!bBlock) {
+					//TODO: first remove spaces to check sarrIfPartial
 					for (iNow=0; iNow<sarrIfPartial.Length; iNow++) {
 						if (Base.Contains(sWord,sarrIfPartial[iNow])) {
 							bBlock=true;

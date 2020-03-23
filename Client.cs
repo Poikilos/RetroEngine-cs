@@ -177,7 +177,7 @@ namespace ExpertMultimedia {
 					}
 					else { //if command is OK		
 						try {
-							packetOut.iTickSent=Environment.TickCount;
+							packetOut.iTickSent=RetroEngine.TickCount;
 							bGood = portServer.ClientSends(packetOut);
 							if (!bGood) {
 								Parent.WriteLine("The server wouldn't accept the data you sent.");
@@ -219,10 +219,10 @@ namespace ExpertMultimedia {
 			//Packet packetAck=null;
 			Parent.WriteLine("ClientPacketer started");
 			
-			iTickLastIdle=Environment.TickCount;
+			iTickLastIdle=RetroEngine.TickCount;
 			while (bContinue) {
-				if ((Environment.TickCount-iTickLastIdle)>333) {
-					iTickLastIdle=Environment.TickCount;
+				if ((RetroEngine.TickCount-iTickLastIdle)>333) {
+					iTickLastIdle=RetroEngine.TickCount;
 						//Send Keepalive if last was 333ms ago:
 					try {
 						if (bLogin) {
@@ -245,7 +245,7 @@ namespace ExpertMultimedia {
 					}		
 				}//if time since lastidle > 333
 				else {
-					//Parent.WriteLine(Environment.TickCount.ToString()+" was "+iTickLastIdle.ToString());
+					//Parent.WriteLine(RetroEngine.TickCount.ToString()+" was "+iTickLastIdle.ToString());
 				}
 			}
 			Base.Error_WriteLine("The client packet manager stopped.");

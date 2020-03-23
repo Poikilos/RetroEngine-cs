@@ -10,7 +10,7 @@ using System;
 //using Tao.Sdl;
 
 namespace ExpertMultimedia {
-	public class Key {
+	public class RKey {
 		public const int Ignore=0;
 		public const int Text=1;
 		public const int TextCommand=2;
@@ -20,7 +20,7 @@ namespace ExpertMultimedia {
 		public int sym;
 		public char unicode;
 		public bool bAlive;
-		public Key() {
+		public RKey() {
 			unicode='\0';
 			sym=0;
 			bAlive=false;
@@ -30,9 +30,9 @@ namespace ExpertMultimedia {
 		}
 	}
 	/// <summary>
-	/// Description of Keyboard.
+	/// Description of RKeyboard.
 	/// </summary>
-	public class Keyboard { //TODO:? combine this into an all-encompassing controller class, to allow for multifunction devices?
+	public class RKeyboard { //TODO:? combine this into an all-encompassing controller class, to allow for multifunction devices?
 		//public const int Backspace=100;
 		//public const int PgUp=101;
 		//public const int PgDn=102;
@@ -44,8 +44,8 @@ namespace ExpertMultimedia {
 		//public const int ArrowDown=108;
 		//public const int ArrowLeft=109;
 		//public const int ArrowRight=110;
-		private Key[] keyarrDown=null;
-		//private Key[] keyarrTrans=null;
+		private RKey[] keyarrDown=null;
+		//private RKey[] keyarrTrans=null;
 		private string sCharBuffer;
 		private int iMaxKeysDown;
 		//private int MaxScanCodes;
@@ -81,7 +81,7 @@ namespace ExpertMultimedia {
 				return cLastKeyUp;//(char)byarrDown[iLastKeyUp].unicode;
 			}
 		}
-		public Keyboard() {
+		public RKeyboard() {
 			Init(8,256);
 		}
 		//TODO: Exception handling
@@ -93,7 +93,7 @@ namespace ExpertMultimedia {
 		public bool PushCommand(int sym, char unicode) {
 			bool bHandled=false;
 			//TODO: replace this function, and send each key and command to active item on screen
-			if ( (!KeyIsDown(sym)) || (Sdl.SDL_GetTicks()-iKeyDownDelayTickLast>=iKeyDownDelay) ) {
+			if ( (!KeyIsDown(sym)) || (RPlatform.TickCount-iKeyDownDelayTickLast>=iKeyDownDelay) ) {
 				//switch (sym) {
 				//	case Sdl.SDLK_BACKSPACE:
 				//		DoBackspace();
@@ -103,11 +103,11 @@ namespace ExpertMultimedia {
 				//}
 				//if (bHandled)
 					Push(sym,unicode,true);
-				iKeyDownDelayTickLast=Sdl.SDL_GetTicks();
+				iKeyDownDelayTickLast=RPlatform.TickCount;
 			}
 			return bHandled;
 		}
-		public Keyboard(int Set_iMaxKeysDown) {
+		public RKeyboard(int Set_iMaxKeysDown) {
 			Init(Set_iMaxKeysDown,256);
 		}
 		private void DoBackspace() {
@@ -117,13 +117,13 @@ namespace ExpertMultimedia {
 			iMaxKeysDown=Set_iMaxKeysDown;
 			//MaxScanCodes=Set_MaxScanCodes;
 			InitKeyArr(Set_iMaxKeysDown);
-			//keyarrTrans=new Key[MaxScanCodes];
+			//keyarrTrans=new RKey[MaxScanCodes];
 			sCharBuffer="";
 			iMaxCharBuffer=Set_iMaxCharBuffer;
 			//iKeysKnown=0;
 			cLastKeyDown='\0';
 			cLastKeyUp='\0';
-			iKeyDownDelayTickLast=Sdl.SDL_GetTicks();
+			iKeyDownDelayTickLast=RPlatform.TickCount;//Sdl.SDL_GetTicks()
 			iKeyDownDelay=400;
 			iMaxKeyDown=0;
 		}
@@ -131,9 +131,9 @@ namespace ExpertMultimedia {
 			iMaxKeysDown=Set_iMaxKeysDown;
 			//iKeysDown=0;
 			iMaxKeyDown=0;
-			keyarrDown=new Key[iMaxKeysDown];
+			keyarrDown=new RKey[iMaxKeysDown];
 			for (int iKey=0; iKey<iMaxKeysDown; iKey++) {
-				keyarrDown[iKey]=new Key();
+				keyarrDown[iKey]=new RKey();
 			}
 		}
 		public string KeysDownUnicodeToString() {
@@ -145,7 +145,7 @@ namespace ExpertMultimedia {
 			}
 			return sReturn;
 		}
-		public void KeysDownSDLSymbols(ref int[] iarrReturn_MustHave__this_MaxKeysDown__Elements) {
+		public void KeysDownKeySyms(ref int[] iarrReturn_MustHave__this_MaxKeysDown__Elements) {///formerly KeysDownSDLSymbols
 			int iKeys=0;
 			//debug performance
 			for (int iKey=0; iKey<iMaxKeyDown; iKey++) {
@@ -166,7 +166,7 @@ namespace ExpertMultimedia {
 		public bool KeyIsDown(int sym) {
 			bool bDown=false;
 			//TODO: check key delay
-			iKeyDownDelayTickLast=Sdl.SDL_GetTicks();
+			iKeyDownDelayTickLast=RPlatform.TickCount;
 			for (int iKey=0; iKey<iMaxKeyDown; iKey++) {
 				if (keyarrDown[iKey].bAlive==true) {
 					if (keyarrDown[iKey].sym==sym) {
@@ -221,7 +221,7 @@ namespace ExpertMultimedia {
 		//public void SetKeyKnown(int sym, char unicode) {
 		//	if (!KeyKnown(sym)) {
 		//		if (iKeysKnown<MaxScanCodes) {
-		//			keyarrTrans[iKeysKnown]=new Key();
+		//			keyarrTrans[iKeysKnown]=new RKey();
 		//			keyarrTrans[iKeysKnown].sym=sym;
 		//			keyarrTrans[iKeysKnown].unicode=unicode;
 		//			iKeysKnown++;
@@ -252,5 +252,5 @@ namespace ExpertMultimedia {
 		public void TypingBufferAdd(string sAdd) {
 			if (sCharBuffer.Length+sAdd.Length<=iMaxCharBuffer) sCharBuffer+=sAdd;
 		}
-	}//end class Keyboard
+	}//end class RKeyboard
 }//end namespace

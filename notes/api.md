@@ -1,0 +1,61 @@
+# RetroEngine
+(Between almost none and none of this is implemented.)
+
+## API
+- Type objects (i.e. EntityType) always have the persistent data for prototypical objects, i.e. many Entity objects (game characters) can use the same model and the same base stats but can be holding different items etc.  Also, many Bone objects can have the same attributes of the BoneType but have different rotations and connections.
+- Other API notes in this document are in brackets.
+
+## RetroEngine editor
+- Debug (shows debug info, test sentence, etc)
+  - should also show image cache when that is created eventually
+- Fonts \[edits GFont objects\]
+  - Glyphs \[edits glyph animations in the font object--should be able to load same image with different filters and without duplication of file loading\]
+    - Kerning (per-letter, saves gfontDefault to example.png.ini as you go)
+      - make GFont automatically look for example.png.ini when loading example.png
+- Joints \[edits JointType objects\] - Joints and their muscles \[JointType object has slow-reaction and fast-reaction muscles etc., but Joint object has relative current strength etc.\]
+- Bones (edits BoneType objects) - edits Bone attributes (to make bone types like "finger", "mandible", "twig",claw etc.)
+  - BoneShaders
+- Bodies \[edits Body objects\] - Combines Joint-Bone (and optionally: Joint-Voxel, Joint-Sprite, Bone-Voxel and Bone-Sprite) relationships
+  - Modes
+    - Design
+    - Edit
+    - Delete
+- Bodymations \[edits Bodymation objects frame# is not saved\] - For both characters, and animation of inanimate objects (every visible and invisible component of the scene is bone-based except for the terrain).Can have both relative (balance corrections optional) and absolute body movements (posture corrections optional)
+- BodyMorphs - morph targets, i.e. for different facial expressions
+- Scenes \[Scene object, containing Bodymation objects\] - groups of character animations
+- Emotionality \[EmotionalityType parent object has persistent vars for Entity objects, i.e. centers and ranges\] - Emotional base values (i.e. activity=0.5 could make someone's relative behavior differ from someone else's in the same situation) that can be used for any number of entities.
+- Voxels - \[Vox objects having connection to Bone parents\] voxel-based 3d models
+- Entities \[EntityType parent object has persistent vars for Entity objects, i.e. skeleton, status values&ranges\]
+  - Has customizable groupname \[sGroup\]--i.e. can be any string such as person, camera, light (anything can emit light), item, plant, or object (i.e. a rock, 1 bone with a voxel attached)
+    - automatically uses the default bone upon creation, to allow for inanimate objects
+  - Combines:
+    - Body \[a Body object, see above\]
+    - EmotionalityType as Emotionality
+    - Entity attributes
+      - fHandCoord, fFootCoord, fHealth, fEmpowerment, bitSpirit, bitFlesh, bitEmpowered, bitEmpowererAlignment
+  - AutoResponses when falls, says a random exclamation from any built-in or custom TextGroup
+  - Allow clicking on a destination to watch the character walk around
+  - can be camera
+- Actions \[Action object, which is a RetroEngine command\]: has sName, sFriendlyName, sToolTip, sParentType \[sParentType values: "Entity" (including camera)\]
+- Sprites \[Sprite objects\]
+- Videos \[Anim objects\]
+- Images \[GBuffer objects\]
+- Sound \[sound object\] - from file OR synthesized sound \[data is accessible same for either type (ushort GetSample16(int iSample) //and others)\]
+- Instrument \[instrument object\] - contains a Sound object but has full Instrument attributes like attack (MusicState would automatically shift this backward in the output buffer), looping, loop-start, loop-end, loop-fade-percentage, default time, etc.
+- Instrument -  contains an instrument object but has a cursor, pitch, etc.
+- Music \[edits Music object: Can be just contain one big Sound on middle c (to play an mp3), and allows synth notation--can also have extra sound effects, so should be practically programmed as a tracker, at least as a drum machine for now--in the future, could have elements such as MIDI (or a proprietary synth) as well (hybridized)\] - has output buffer, music looping, automation of master volume & track volume, master gain, etc.
+- Text (documents, used for speeches, narration, gnodes, character reactions, errors, etc)
+  - can have hypertext for Sounds (i.e. some narrations may also be audible) Music, and pause (i.e. sound after pauses so that next part of audio plays after "continue" is pressed for speech)
+- TextGroup - A text group for falling down may be named "Fall" include "Ow", Ouch", "Yeeeow", and "Uuuuoooo" \[script arrays in Variables object named vsTextGroups for the purpose of using a random Text--i.e. would have a script array named "sarrFall" and optionally an often-ness script array "iarrFall" corresponding to user-entered name "Fall"\]
+- Scenes \[Scene objects\]
+  - Combines Bodymations and Characters \[loaded characters are managed separately\]
+  - Can have paths/speech/camera movements
+  - Has actions such as entityx.MoveTo, entityx.Move, entityx.PlayMuscleMation, camera1.MoveTo, SwitchToCamera(camera2)
+- Quests \[Quest objects\] - Combines Tasks, can play scripts
+  - Tasks \[edits TaskType AND Task class\] Quest tasks \[get entityShinyRockScriptItemExample from localeBeach (or, "from locale" or omit "from x" for any locale)\]
+- Locales
+  - Uses a voxel model for terrain (allows contiguous self-intersecting areas like caves!)
+  - Able to use day-night cycle even if indoors
+- Worlds \[not a menu - except as Load/Save buttons\] - Combines Locales, Quests, Entities.  One world is loaded at a time
+- WebBrowser \[uses REWebsite object which uses GNoder objects\]
+- FilePad (ascii text/art editor) \[must have onscreen keyboard to avoid alt-key typing!\] \[add code highlighter?\]

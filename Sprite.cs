@@ -21,7 +21,7 @@ namespace ExpertMultimedia
 		public const int SeqWalk1=3;
 		public const int SeqWalk2=4;
 		public const int SeqWalk3=5;
-		public Anim32BGRA anim=null;
+		public Anim anim=null;
 		//public IRECT rectRender;
 		public float fPixPerMeter;//Pixels per meter in graphic FOR 3D RENDERING
 		public float xCenter;

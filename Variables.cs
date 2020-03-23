@@ -28,6 +28,10 @@ namespace ExpertMultimedia {
 		public int iType;
 		public static REAL r0=(REAL)0;
 		public static bool bShownConstructorError=false;
+		public static bool ConvertToBool(string sVal) {
+			return (sVal==null||sVal==""||sVal=="0"||sVal=="false"||sVal=="no")?false:true;
+		}
+		
 		public Variable() {
 			Init("","");
 			iType=TypeNULL;
@@ -79,11 +83,8 @@ namespace ExpertMultimedia {
 			val=Convert.ToDecimal(sVal);
 			return IsActive();
 		}
-		public static bool ConvertToBool(string sVal) {
-			return (sVal==null||sVal==""||sVal=="0"||sVal=="false"||sVal=="no")?false:true;
-		}
 		public bool Get(out bool val) {
-			val=ConvertToBool(sVal);
+			val=Variable.ConvertToBool(sVal);
 			return IsActive();
 		}
 		public bool Get(out byte[] byarrReturn) {
@@ -186,7 +187,7 @@ namespace ExpertMultimedia {
 			return Convert.ToDecimal(sVal);
 		}
 		public bool GetForcedBool() {
-			return Convert.ToBoolean(sVal);
+			return Variable.ConvertToBool(sVal);
 		}
 		
 		public string GetForcedString(int index) {
@@ -242,7 +243,7 @@ namespace ExpertMultimedia {
 			int iStart, iLen;
 			bool bGood;
 			bGood=Element(out iStart, out iLen, index);
-			if (bGood) return Convert.ToBoolean(Base.SafeSubstring(sVal,iStart,iLen));
+			if (bGood) return Variable.ConvertToBool(Base.SafeSubstring(sVal,iStart,iLen));
 			else return false;
 		}
 		
@@ -299,7 +300,7 @@ namespace ExpertMultimedia {
 			int iStart, iLen;
 			bool bGood;
 			bGood=Element(out iStart, out iLen, index1stDim, index2ndDim);
-			if (bGood) return Convert.ToBoolean(Base.SafeSubstring(sVal,iStart,iLen));
+			if (bGood) return Variable.ConvertToBool(Base.SafeSubstring(sVal,iStart,iLen));
 			else return false;
 		}
 		public static int SubSections(string sData,int iStart,int iLen, string sSubOpener,string sSubCloser,string sTextDelimiter, string sFieldDelimiterNow) {
@@ -361,7 +362,7 @@ namespace ExpertMultimedia {
 			return iFound;
 		}//end Elements
 		///<summary>
-		///Elements in a sub-element (elements in 2nd index at given first index parameter)
+		///Elements in a sub-element (elements in 2nd dimension at given first dimension index)
 		///</summary>
 		public int Elements(int index) {
 			int iFound=0;
@@ -455,8 +456,8 @@ namespace ExpertMultimedia {
 		public static REAL r0=(REAL)0;
 		public string sComment="";//optional identifier/etc
 		public string sFile="";//set during Init
-		private Variable[] varr;
-		private int iVariables;
+		private Variable[] varr=null;
+		private int iCount;//used variables in varr
 		//public bool bSaveEveryChange;
 		public int MAXIMUM {
 			get {
@@ -472,7 +473,7 @@ namespace ExpertMultimedia {
 			}
 			set {
 				int iNew=value;
-				if (iNew<iVariables) iNew=iVariables;
+				if (iNew<iCount) iNew=iCount;
 				if (iNew>MAXIMUM) {
 					if (varr==null) {
 						varr=new Variable[iNew];
@@ -480,7 +481,7 @@ namespace ExpertMultimedia {
 					if (MAXIMUM!=iNew) {
 						Variable[] varrNew=new Variable[iNew];
 						for (int iNow=0; iNow<iNew; iNow++) {
-							if (iNow<iVariables) {
+							if (iNow<iCount) {
 								varrNew[iNow]=varr[iNow];
 							}
 							else {
@@ -506,7 +507,7 @@ namespace ExpertMultimedia {
 		private void Init(string sSetFile, int iMinimumVars) {
 			//bSaveEveryChange=false;
 			MAXIMUM=iMinimumVars;
-			iVariables=0;
+			iCount=0;
 			if (sSetFile=="") sSetFile="1.unsaved-variables.txt";
 			sFile=sSetFile;
 		}
@@ -537,10 +538,10 @@ namespace ExpertMultimedia {
 			bool bGood=false;
 			if (varr!=null) {
 				try {
-					for (int iNow=0; iNow<iVariables; iNow++) {
+					for (int iNow=0; iNow<iCount; iNow++) {
 						if (varr[iNow]!=null) {
 							sAllData+=varr[iNow].sName+"="+varr[iNow].sVal;
-							//if (iNow+1!=iVariables)
+							//if (iNow+1!=iCount)
 								sAllData+=Environment.NewLine;
 						}
 					}
@@ -567,7 +568,7 @@ namespace ExpertMultimedia {
 		}
 		public bool IsActive(int iInternalIndex) {
 			bool bReturn=false;
-			if (iInternalIndex<iVariables&&iInternalIndex>=0) {
+			if (iInternalIndex<iCount&&iInternalIndex>=0) {
 				if (varr[iInternalIndex]!=null && varr[iInternalIndex].IsActive()) bReturn=true;
 			}
 			return bReturn;
@@ -575,7 +576,7 @@ namespace ExpertMultimedia {
 		public int IndexOf(string sName) {
 			int iReturn=-1;
 			if (sName!=null && sName!="") {
-				for (int iNow=0; iNow<iVariables; iNow++) {
+				for (int iNow=0; iNow<iCount; iNow++) {
 					if (varr[iNow]!=null && varr[iNow].sName==sName) {
 						iReturn=iNow;
 						break;
@@ -593,6 +594,9 @@ namespace ExpertMultimedia {
 		public void InitVarElseDontTouch(int iInternalIndex, string sName, string sVal) {
 			if (MAXIMUM<iInternalIndex+1) IncreaseMaxToFuzzy(iInternalIndex);
 			if (varr[iInternalIndex]==null) varr[iInternalIndex]=new Variable(sName,sVal);
+		}
+		public int Count {
+			get { return iCount; }
 		}
 		public int Elements(string sNameNow) {
 			int iFound=0;
@@ -647,10 +651,22 @@ namespace ExpertMultimedia {
 			}
 			return 0.0f;
 		}
+		public static bool ConvertToBool(string val) {
+			bool bReturn=false;
+			try {
+				if (val=="true") bReturn=true;
+				else if (val=="yes") bReturn=true;
+				else if (Base.IsNumeric(val,true,false)&&Convert.ToInt32(val)!=0) bReturn=true;
+			}
+			catch (Exception exn) {
+				Base.ShowExn(exn,"ConvertToBool(string)");
+			}
+			return bReturn;
+		}
 		public bool GetForcedBool(int iInternalIndex) {
 			bool bReturn=false;
 			try {
-				bReturn=Convert.ToBoolean(varr[iInternalIndex].sVal);
+				bReturn=ConvertToBool(varr[iInternalIndex].sVal);
 			}
 			catch (Exception exn) {
 				Base.ShowExn(exn,"GetForcedBool");
@@ -788,7 +804,7 @@ namespace ExpertMultimedia {
 				bGood=varr[iInternalIndex].Get(out byarrReturn);//ByReference
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GetForced(byte array,iInternalIndex)");
+				Base.ShowExn(exn,"Get(byte array,iInternalIndex)");
 				bGood=false;
 			}
 			return bGood;
@@ -810,7 +826,7 @@ namespace ExpertMultimedia {
 			try {
 				if (bFound) varr[iAt].Get(out val);
 				else {
-					ForceSet(iVariables,sName,val.ToString());
+					ForceSet(iCount,sName,val.ToString());
 					//if (bSaveEveryChange) Save();
 				}
 			}
@@ -827,7 +843,7 @@ namespace ExpertMultimedia {
 			try {
 				if (bFound) varr[iAt].Get(out val);
 				else {
-					ForceSet(iVariables,sName,val.ToString());
+					ForceSet(iCount,sName,val.ToString());
 					//if (bSaveEveryChange) Save();
 				}
 			}
@@ -850,7 +866,7 @@ namespace ExpertMultimedia {
 					//val=valTemp;
 				}
 				else {
-					ForceSet(iVariables,sName,val.ToString());
+					ForceSet(iCount,sName,val.ToString());
 					//if (bSaveEveryChange) Save();
 				}
 			}
@@ -867,7 +883,7 @@ namespace ExpertMultimedia {
 			try {
 				if (bFound) varr[iAt].Get(out val);
 				else {
-					ForceSet(iVariables,sName,val);
+					ForceSet(iCount,sName,val);
 					//if (bSaveEveryChange) Save();
 				}
 			}
@@ -901,7 +917,7 @@ namespace ExpertMultimedia {
 				bGood=ForceSet(iInternalIndex,sName,val);
 			}
 			else {
-				bGood=ForceSet(iVariables,sName,val);
+				bGood=ForceSet(iCount,sName,val);
 			}
 			return bGood;
 		}
@@ -912,7 +928,7 @@ namespace ExpertMultimedia {
 				bGood=ForceSet(iInternalIndex,sName,val.ToString());
 			}
 			else {
-				bGood=ForceSet(iVariables,sName,val.ToString());
+				bGood=ForceSet(iCount,sName,val.ToString());
 			}
 			return bGood;
 		}
@@ -923,7 +939,18 @@ namespace ExpertMultimedia {
 				bGood=ForceSet(iInternalIndex,sName,val.ToString());
 			}
 			else {
-				bGood=ForceSet(iVariables,sName,val.ToString());
+				bGood=ForceSet(iCount,sName,val.ToString());
+			}
+			return bGood;
+		}
+		public bool SetOrCreate(string sName, bool val) {
+			bool bGood;
+			int iInternalIndex=IndexOf(sName);
+			if (iInternalIndex>=0) {
+				bGood=ForceSet(iInternalIndex,sName,SafeConvert.ToString(val));
+			}
+			else {
+				bGood=ForceSet(iCount,sName,SafeConvert.ToString(val));
 			}
 			return bGood;
 		}
@@ -934,7 +961,7 @@ namespace ExpertMultimedia {
 				bGood=ForceSetByRef(iInternalIndex,sName,byarrToReference);
 			}
 			else {
-				bGood=ForceSetByRef(iVariables,sName,byarrToReference);
+				bGood=ForceSetByRef(iCount,sName,byarrToReference);
 			}
 			return bGood;
 		}
@@ -945,7 +972,7 @@ namespace ExpertMultimedia {
 				bGood=ForceSet(iInternalIndex,sName,val,index1stDimensionOfVariable);
 			}
 			else {
-				bGood=ForceSet(iVariables,sName,val,index1stDimensionOfVariable);
+				bGood=ForceSet(iCount,sName,val,index1stDimensionOfVariable);
 			}
 			return bGood;
 		}
@@ -955,16 +982,16 @@ namespace ExpertMultimedia {
 				if (iInternalIndex>=MAXIMUM) {
 					IncreaseMaxToFuzzy(iInternalIndex+1);
 				}
-				if (iInternalIndex>iVariables) {//but CAN be created at iVariables!!!!
+				if (iInternalIndex>iCount) {//but CAN be created at iCount!!!!
 					bGood=false;
-					Base.ShowErr("variables.ForceSet(...,"+sName+",...)","Index "+iInternalIndex.ToString()+" is beyond "+iVariables.ToString()+" currently used slots and cannot be set or created.");
+					Base.ShowErr("variables.ForceSet(...,"+sName+",...)","Index "+iInternalIndex.ToString()+" is beyond "+iCount.ToString()+" currently used slots and cannot be set or created.");
 				}
 				else if (iInternalIndex>=0) { //else if everything is okay, set it
 					//if (sName.Length>0) {
 						//DONT check//if (val.Length>0) {
 						if (varr[iInternalIndex]==null) varr[iInternalIndex]=new Variable(sName,val);
 						else varr[iInternalIndex].sVal=val;
-						if (iInternalIndex==iVariables) iVariables++;
+						if (iInternalIndex==iCount) iCount++;
 						//}
 						//else {
 						//	bGood=false;
@@ -992,9 +1019,9 @@ namespace ExpertMultimedia {
 				if (iInternalIndex>=MAXIMUM) {
 					IncreaseMaxToFuzzy(iInternalIndex+1);
 				}
-				if (iInternalIndex>iVariables) {//but CAN be created at iVariables!!!!
+				if (iInternalIndex>iCount) {//but CAN be created at iCount!!!!
 					bGood=false;
-					Base.ShowErr("variables.ForceSetByRef(...,"+sName+",...)","Index "+iInternalIndex.ToString()+" is beyond "+iVariables.ToString()+" currently used slots and cannot be set or created.");
+					Base.ShowErr("variables.ForceSetByRef(...,"+sName+",...)","Index "+iInternalIndex.ToString()+" is beyond "+iCount.ToString()+" currently used slots and cannot be set or created.");
 				}
 				else if (iInternalIndex>=0) { //else if everything is okay, set it
 					//if (sName.Length>0) {
@@ -1002,7 +1029,7 @@ namespace ExpertMultimedia {
 						if (varr[iInternalIndex]==null) varr[iInternalIndex]=new Variable(sName,byarrToReference);
 						else varr[iInternalIndex].byarrVal=byarrToReference;
 						varr[iInternalIndex].iType=Variable.TypeBinary;
-						if (iInternalIndex==iVariables) iVariables++;
+						if (iInternalIndex==iCount) iCount++;
 						//}
 						//else {
 						//	bGood=false;
@@ -1030,16 +1057,16 @@ namespace ExpertMultimedia {
 				if (iInternalIndex>=MAXIMUM) {
 					IncreaseMaxToFuzzy(iInternalIndex+1);
 				}
-				if (iInternalIndex>iVariables) {//but CAN be created at iVariables!!!!
+				if (iInternalIndex>iCount) {//but CAN be created at iCount!!!!
 					bGood=false;
-					Base.ShowErr("variables.ForceSet(...,"+sName+",...)","Index "+iInternalIndex.ToString()+" is beyond "+iVariables.ToString()+" currently used slots and cannot be set or created.");
+					Base.ShowErr("variables.ForceSet(...,"+sName+",...)","Index "+iInternalIndex.ToString()+" is beyond "+iCount.ToString()+" currently used slots and cannot be set or created.");
 				}
 				else if (iInternalIndex>=0) { //else if everything is okay, set it
 					//if (sName.Length>0) {
 						//DONT check//if (val.Length>0) {
 						if (varr[iInternalIndex]==null) varr[iInternalIndex]=new Variable(sName,val);
 						else bGood=varr[iInternalIndex].Set(val,index1stDimensionOfVariable);
-						if (iInternalIndex==iVariables) iVariables++;
+						if (iInternalIndex==iCount) iCount++;
 						//}
 						//else {
 						//	bGood=false;
@@ -1079,54 +1106,54 @@ namespace ExpertMultimedia {
 	
 	
 	public class VariableStack : Variables {
-		private int iVariables;//DOES cover old one so Variables methods use it
+		private int iCount=0;//DOES override inherited one so that Variables methods use it
 		bool Push(string val) {
-			return ForceSet(iVariables,"x",val); //name doesn't matter so make it "x"
+			return ForceSet(iCount,"x",val); //name doesn't matter so make it "x"
 		}
 		bool IsEmpty() {
-			return iVariables<=0;
+			return iCount<=0;
 		}
 		string Pop() {
 			if (IsEmpty()) return "";
 			else {
-				return GetForcedString(iVariables-1);
-				iVariables--;
+				return GetForcedString(iCount-1);
+				iCount--;
 			}
 		}
 		int PopForcedInt() {
 			if (IsEmpty()) return 0;
 			else {
-				return GetForcedInt(iVariables-1);
-				iVariables--;
+				return GetForcedInt(iCount-1);
+				iCount--;
 			}
 		}
 		float PopForcedFloat() {
 			if (IsEmpty()) return 0.0f;
 			else {
-				return GetForcedFloat(iVariables-1);
-				iVariables--;
+				return GetForcedFloat(iCount-1);
+				iCount--;
 			}
 		}
 		double PopForcedDouble() {
 			if (IsEmpty()) return 0.0;
 			else {
-				return GetForcedDouble(iVariables-1);
-				iVariables--;
+				return GetForcedDouble(iCount-1);
+				iCount--;
 			}
 		}
 		REAL PopForcedReal() {
 			if (IsEmpty()) return (REAL)0.0;
 			else {
-				return GetForcedReal(iVariables-1);
-				iVariables--;
+				return GetForcedReal(iCount-1);
+				iCount--;
 			}
 		}
 	}//end class VariableStack	
-	public class VariablesQ { //pack Queue -- array, order left(First) to right(Last)
-		private Variables[] vsarr;
-		private int iMax; //array size
+	public class VariablesQ { //packet Queue -- array, order left(First) to right(Last)
 		private int iFirst; //location of first pack in the array
+		private int iMax; //array size
 		private int iCount; //count starting from first (result must be wrapped as circular index)
+		private Variables[] vsarr=null;
 		private int iLast {	get { return Wrap(iFirst+iCount-1);	} }
 		private int iNew { get { return Wrap(iFirst+iCount); } }
 		public bool IsFull { get { return (iCount>=iMax) ? true : false; } }

@@ -1,7 +1,10 @@
 #!/bin/sh
-mv ../bin/RetroEngine.exe ../bin/RetroEngine-WIP.exe
+mv -f ../bin/Base.dll ../bin/Base.dll.wip
+mv -f ../bin/RetroEngine.exe ../bin/RetroEngine.exe.wip
 rm ../bin/Data/1.testfont*.png
 rm ../bin/Data/1.testfont.txt
 rm ../bin/Data/0.*.png
 rm ../bin/1.Error.txt
 rm ../bin/1.Output.txt
+rm ../bin/base.ini
+rm ../bin/settings.ini

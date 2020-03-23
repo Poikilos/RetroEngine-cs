@@ -13,8 +13,8 @@ namespace ExpertMultimedia {
 		public static int Idle1Left = 3;
 	}
 	public class EntityType {
-		public int iFrame;
-		public int[][] iarrarrSeq; //1st index is EntitySeq.*
+		public int iFrame;//this
+		//public int[][] iarrarrSeq; //World object renders the Entity based on type// 1st index is EntitySeq.*
 		public bool FromBinary(byte[] byarr) { //direct binary from ET file etc.
 			//debug NYI
 			return false;

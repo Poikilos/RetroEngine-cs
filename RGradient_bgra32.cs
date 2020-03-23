@@ -11,13 +11,13 @@ using System;
 
 namespace ExpertMultimedia {
 	/// <summary>
-	/// Description of Gradient32BGRA.
+	/// Description of RGradient.
 	/// </summary>
-	public class Gradient32BGRA {
+	public class RGradient {
 		public byte[][] by2dGrad;
 		public int iGrad;
 		public const int iBytesPP=4;
-		public Gradient32BGRA() {
+		public RGradient() {
 			try {
 				Init(256);
 				Pixel32Struct pxUpper=new Pixel32Struct();
@@ -29,10 +29,10 @@ namespace ExpertMultimedia {
 				bool bTest=From(ref pxUpper, ref pxLower);
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GBuffer32BGRA(void) constructor", "creating gradient values");
+				RReporting.ShowExn(exn,"creating gradient values","RImage(void) constructor");
 			}
 		}
-		public Gradient32BGRA(int iShades) {
+		public RGradient(int iShades) {
 			try {
 				Init(iShades);
 				Pixel32Struct pxUpper=new Pixel32Struct();
@@ -42,20 +42,20 @@ namespace ExpertMultimedia {
 				pxLower.G=255;
 				pxLower.R=255;
 				if(!From(ref pxUpper, ref pxLower)) {
-					Base.ShowErr("Error calculating gradient values","GBuffer32BGRA(int) constructor");
+					RReporting.ShowErr("Error calculating gradient values","","RImage(int) constructor");
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GBuffer32BGRA(int) constructor", "creating gradient values");
+				RReporting.ShowExn(exn,"creating gradient values","RImage(int) constructor");
 			}
 		}
-		public Gradient32BGRA(ref Pixel32Struct pxUpper, ref Pixel32Struct pxLower) {
+		public RGradient(ref Pixel32Struct pxUpper, ref Pixel32Struct pxLower) {
 			try {
 				Init(256);
 				bool bTest=From(ref pxUpper, ref pxLower);
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GBuffer32BGRA(Pixel32Struct) constructor", "creating gradient values");
+				RReporting.ShowExn(exn, "creating gradient values","RImage(Pixel32Struct) constructor");
 			}
 		}
 		private void Init(int iShades) {
@@ -64,10 +64,10 @@ namespace ExpertMultimedia {
 				for (int i=0; i<iGrad; i++)
 					by2dGrad[i]=new byte[iBytesPP];
 		}
-		public Gradient32BGRA Copy() {
-			Gradient32BGRA gradReturn;
+		public RGradient Copy() {
+			RGradient gradReturn;
 			try {
-				gradReturn=new Gradient32BGRA(iGrad);
+				gradReturn=new RGradient(iGrad);
 				for (int i=0; i<iGrad; i++) {
 					gradReturn.by2dGrad[i][0]=by2dGrad[i][0];
 					gradReturn.by2dGrad[i][1]=by2dGrad[i][1];
@@ -76,7 +76,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GBuffer32BGRA Copy","copying gradient values");
+				RReporting.ShowExn(exn,"copying gradient values","RImage Copy");
 				gradReturn=null;
 			}
 			return gradReturn;
@@ -109,7 +109,7 @@ namespace ExpertMultimedia {
 				//bGood=ByteArrayFromPixArray();
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GBuffer32BGRA From(Pixel32Struct)","changing gradient values");
+				RReporting.ShowExn(exn,"changing gradient values","RImage From(Pixel32Struct)");
 				bGood=false;
 			}
 			return bGood;
@@ -154,29 +154,29 @@ namespace ExpertMultimedia {
 									sVerb="setting shade "+iGradNow.ToString()+" at position "+iPositionIndex.ToString();
 									fNextness=(float)((double)(iGradNow-iarrPosition[iPositionIndex])/(double)(iarrPosition[iPositionIndex+1]-iarrPosition[iPositionIndex]));
 									//debug performance--the next lines can use an alpha lookup table (fNextness*255)!
-									by2dGrad[iGradNow][0]=Base.Approach(pxarrColor[iPositionIndex].B,pxarrColor[iPositionIndex+1].B,fNextness);
-									by2dGrad[iGradNow][1]=Base.Approach(pxarrColor[iPositionIndex].G,pxarrColor[iPositionIndex+1].G,fNextness);
-									by2dGrad[iGradNow][2]=Base.Approach(pxarrColor[iPositionIndex].R,pxarrColor[iPositionIndex+1].R,fNextness);
-									by2dGrad[iGradNow][3]=Base.Approach(pxarrColor[iPositionIndex].A,pxarrColor[iPositionIndex+1].A,fNextness);
+									by2dGrad[iGradNow][0]=RMath.Approach(pxarrColor[iPositionIndex].B,pxarrColor[iPositionIndex+1].B,fNextness);
+									by2dGrad[iGradNow][1]=RMath.Approach(pxarrColor[iPositionIndex].G,pxarrColor[iPositionIndex+1].G,fNextness);
+									by2dGrad[iGradNow][2]=RMath.Approach(pxarrColor[iPositionIndex].R,pxarrColor[iPositionIndex+1].R,fNextness);
+									by2dGrad[iGradNow][3]=RMath.Approach(pxarrColor[iPositionIndex].A,pxarrColor[iPositionIndex+1].A,fNextness);
 								}
 							}
 							else {
-								Base.ShowErr("Couldn't arrange Gradient position list","Gradient32BGRA From(int array, Pixel32Struct array)");
+								RReporting.ShowErr("Couldn't arrange RGradient position list","","RGradient From(int array, Pixel32Struct array)");
 							}
 						}
 					}
 					else {
-						Base.ShowErr("Gradient position and color lists' sizes do not match","Gradient32BGRA From(int array, Pixel32Struct array)");
+						RReporting.ShowErr("RGradient position and color lists' sizes do not match","","RGradient From(int array, Pixel32Struct array)");
 					}
 				}
 				else {
-					Base.ShowErr("Gradient positions are inaccessible","Gradient32BGRA From(int array, Pixel32Struct array)");
+					RReporting.ShowErr("RGradient positions are inaccessible","","RGradient From(int array, Pixel32Struct array)");
 				}
 				bGood=true;
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"Gradient32BGRA From(int array, Pixel32Struct array)", "calculating gradient from colors at given positions ("+sVerb+")");
+				RReporting.ShowExn(exn, "calculating gradient from colors at given positions ("+sVerb+")","RGradient From(int array, Pixel32Struct array)");
 			}
 			return bGood;
 		}//end From(int[],Pixel32Struct[])
@@ -188,7 +188,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GBuffer32BGRA Shade(byte array location)","shading");
+				RReporting.ShowExn(exn,"shading","RImage Shade(byte array location)");
 				bGood=false;
 			}
 			return bGood;
@@ -207,18 +207,18 @@ namespace ExpertMultimedia {
 						byarrDest[iDestByte]=by2dGrad[iValue][2];
 					}
 					else {//else blend alpha
-						byarrDest[iDestByte]=Base.Approach(byarrDest[iDestByte],by2dGrad[iValue][0],(float)by2dGrad[iValue][3]/255.0f);
+						byarrDest[iDestByte]=RMath.Approach(byarrDest[iDestByte],by2dGrad[iValue][0],(float)by2dGrad[iValue][3]/255.0f);
 						iDestByte++;
-						byarrDest[iDestByte]=Base.Approach(byarrDest[iDestByte],by2dGrad[iValue][1],(float)by2dGrad[iValue][3]/255.0f);
+						byarrDest[iDestByte]=RMath.Approach(byarrDest[iDestByte],by2dGrad[iValue][1],(float)by2dGrad[iValue][3]/255.0f);
 						iDestByte++;
-						byarrDest[iDestByte]=Base.Approach(byarrDest[iDestByte],by2dGrad[iValue][2],(float)by2dGrad[iValue][3]/255.0f);
+						byarrDest[iDestByte]=RMath.Approach(byarrDest[iDestByte],by2dGrad[iValue][2],(float)by2dGrad[iValue][3]/255.0f);
 					}
 				}
-				else Base.ShowErr("Gradient only has "+iBytesPP.ToString()+" channels (need 4 for ShadeAlpha)","Gradient32BGRA ShadeAlpha");
+				else RReporting.ShowErr("Incorrect gradient bit depth (need 4 for ShadeAlpha)","", String.Format("RGradient ShadeAlpha(...){{GradientBitDepth:{0}}}",(iBytesPP*8)));
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"GBuffer32BGRA ShadeAlpha(byte array location) {iDestByte:"+iDestByte.ToString()+"; iValue:"+iValue.ToString()+"; by2dGrad.Length:"+by2dGrad.Length.ToString()+"}","shading");
+				RReporting.ShowExn(exn,"shading","RImage ShadeAlpha(byte array location) {iDestByte:"+iDestByte.ToString()+"; iValue:"+iValue.ToString()+"; by2dGrad.Length:"+by2dGrad.Length.ToString()+"}");
 			}
 			return bGood;
 		}//end ShadeAlpha
@@ -230,7 +230,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GBuffer32BGRA Shade(byte array position zero)","shading");
+				RReporting.ShowExn(exn,"shading","RImage Shade(byte array position zero)");
 				bGood=false;
 			}
 			return bGood;
@@ -244,7 +244,7 @@ namespace ExpertMultimedia {
 				pxReturn.A=by2dGrad[0][3];
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GBuffer32BGRA PixelFromBottom","getting bottom gradient pixel");
+				RReporting.ShowExn(exn,"getting bottom gradient pixel","RImage PixelFromBottom");
 			}
 			return pxReturn;
 		}
@@ -257,9 +257,9 @@ namespace ExpertMultimedia {
 				pxReturn.A=by2dGrad[iGrad-1][3];
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GBuffer32BGRA PixelFromTop","getting top gradient pixel");
+				RReporting.ShowExn(exn,"getting top gradient pixel","RImage PixelFromTop");
 			}
 			return pxReturn;
 		}
-	}//end class Gradient32BGRA
+	}//end class RGradient
 }

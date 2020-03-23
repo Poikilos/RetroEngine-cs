@@ -16,21 +16,20 @@ using System.Runtime.Remoting.Channels.Http;//needs reference to System.Runtime.
 namespace ExpertMultimedia {
 	public class Packeter {//aka Server aka ServerPacketer
 		public bool bContinue=true;
-		public bool bGood; //a temp var
 		public bool bShuttingDown=false;
 		public int iTickShutdown;
 		public int iTicksToShutdown; //time to warn users while shutting down
-		public Accountant accountant;
-		private PacketQ packetqIn;
-		private PacketQ[] packetqarr; //out to users (indexed by iTokenNum)
-		public Core coreInServer; 
-		private ThreadStart deltsPacketer;
-		private Thread tPacketer;
+		public Accountant accountant=null;
+		private PacketQ packetqIn=null;
+		private PacketQ[] packetqarr=null; //out to users (indexed by iTokenNum)
+		public Core coreInServer=null; 
+		private ThreadStart deltsPacketer=null;
+		private Thread tPacketer=null;
 		//special Packets:
-		private Packet packetCorrupt;
-		private Packet packetServerShutdown;
-		//public Packet packetLogin;
-		public Packet packetTemp;
+		private Packet packetCorrupt=null;
+		private Packet packetServerShutdown=null;
+		//public Packet packetLogin=null;
+		public Packet packetTemp=null;
 		public Packeter() {
 			Init();
 		}
@@ -47,7 +46,7 @@ namespace ExpertMultimedia {
 			packetCorrupt.Set(0,"An packet corruption has been detected by the server.  Try logging in again.");
 			packetServerShutdown.iType = PacketType.ServerMessage;
 			packetServerShutdown.iTokenNum=PacketToken.Hidden;
-			packetServerShutdown.iTickSent = Environment.TickCount;
+			packetServerShutdown.iTickSent = PlatformNow.TickCount;
 			packetServerShutdown.Set(0,"Server is Shutting down!");
 			packetServerShutdown.sFrom="Server";
 			//init other objects now that special Packets are ready to use:
@@ -69,8 +68,8 @@ namespace ExpertMultimedia {
 		}
 		~Packeter() {
 			Halt();
-			int iTickShutdown=Environment.TickCount;
-			while (((tPacketer.ThreadState&ThreadState.Stopped)==0)||(Environment.TickCount-iTickShutdown<(iTicksToShutdown))) { //debug shutdown too soon for MMORPG
+			int iTickShutdown=PlatformNow.TickCount;
+			while (((tPacketer.ThreadState&ThreadState.Stopped)==0)||(PlatformNow.TickCount-iTickShutdown<(iTicksToShutdown))) { //debug shutdown too soon for MMORPG
 				//wait to make sure Packeting is really done processing.
 			}
 		}
@@ -124,7 +123,7 @@ namespace ExpertMultimedia {
 			//return packetCorrupt;
 		}//end Deq
 		public bool Enq(Packet packetX) { //debug performance make this a reference???
-			bGood=false;
+			bool bGood=false;
 			try {
 				//if (userarr[packetX.iTokenNum].sTo == packetX.sFrom) {
 				if (accountant.NameOfNum(packetX.iTokenNum) == packetX.sFrom) {
@@ -151,7 +150,7 @@ namespace ExpertMultimedia {
 		//}
 		private void RunLoginPacket(ref Packet packetLogin, ref Packet packetNow) {
 			int iTokenNow=0;
-			//bool bGood=true;
+			bool bGood=true;
 			if (packetNow==null) {
 				Base.ShowErr("got a null packet","RunLoginPacket");
 				return;
@@ -242,7 +241,7 @@ namespace ExpertMultimedia {
 		//and called by Enq() if login is requested (using packetLogin globally to return data in that case) 
 			//bErr=false;
 			int iTokenNow=0;
-			bool bGood;
+			bool bGood=false;
 			if (packetNow==null) {
 				Base.ShowErr("got a null packet","RunLoginPacket");
 				return false;
@@ -300,7 +299,7 @@ namespace ExpertMultimedia {
 		}
 		public void Halt() {
 			bShuttingDown=true;
-			iTickShutdown=Environment.TickCount;
+			iTickShutdown=PlatformNow.TickCount;
 			int iSecondCount=0;
 			//debug
 			for (int iNow=0; iNow<Accountant.MaxUsers; iNow++) {
@@ -308,7 +307,7 @@ namespace ExpertMultimedia {
 					try {
 						if (packetqarr[iNow].IsFull==true) packetqarr[iNow].EmptyNOW();
 						//if (userarr[iNow].packetq.IsFull==true) userarr[iNow].EmptyNOW();
-						iSecondCount=(iTicksToShutdown-(Environment.TickCount-iTickShutdown))/1000;
+						iSecondCount=(iTicksToShutdown-(PlatformNow.TickCount-iTickShutdown))/1000;
 						packetServerShutdown.Set(0,"Server is Shutting down! In " + iSecondCount.ToString()+ " seconds or less!");
 						packetqarr[iNow].Enq(packetServerShutdown);
 						//userarr[iNow].packetq.Enq(packetServerShutdown);
@@ -321,16 +320,16 @@ namespace ExpertMultimedia {
 		}//end Halt
 		public void HaltNOW() { //shut down IMMEDIATELY without warning users
 			bShuttingDown=true;
-			iTickShutdown=Environment.TickCount;
+			iTickShutdown=PlatformNow.TickCount;
 			if (tPacketer!=null && tPacketer.IsAlive) tPacketer.Abort();
 			//debug NYI (is other thread stopped here or in Port????)
 		}
   		private void Packeting() {
 			int iPort = 61100; //read from ini later
 			string sName = "RetroEngineServer"; //read from ini later
-			bool bGood;
+			bool bGood=false;
 			//Script scriptIni;
-			HttpChannel chanRetroEngine;
+			HttpChannel chanRetroEngine=null;
 			//sIni="Server.ini";
 			bGood=true;
 			if (iPort<1024) {
@@ -361,7 +360,7 @@ namespace ExpertMultimedia {
 			while (bContinue) {
 				if (bShuttingDown) {
 					//if (iPacketsSending==0) bContinue=false; //debug this statement should be fixed and used
-					if (Environment.TickCount-iTickShutdown>iTicksToShutdown) bContinue=false;
+					if (PlatformNow.TickCount-iTickShutdown>iTicksToShutdown) bContinue=false;
 				}
 				if (packetqIn!=null) {
 					try {

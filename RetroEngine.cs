@@ -1,14 +1,16 @@
-//RetroEngine.cs is the frontend for RetroEngine.  The actual engine is Manager.cs
 //-----------------------------------------------------------------------------
 //All rights reserved Jake Gustafson
 //-----------------------------------------------------------------------------
-//TODO: color "unused" items in inventory differently, and color code inventory into categories
-//TODO: debug: When accessing either windows forms controls or opengl, the calls need to be done on the main thread.
-//--from James Talton Tao-list
+
+//debug: 
+//When accessing either windows forms controls or opengl, the calls need to be done on the main thread.
+//		-James Talton Tao-list
+
 using System;
-using Tao.Sdl;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using System.Drawing;//Rectangle etc
+using Tao.Sdl;
 
 namespace ExpertMultimedia {
 	#region Class Documentation
@@ -16,7 +18,7 @@ namespace ExpertMultimedia {
 	/// RetroEngine graphical client. Needs reference to
 	/// ExpertMultimedia.dll
 	/// Requires Tao assemblies and references.
-	/// Putting them in the same folder is easiest.
+	/// You may distribute them in the same folder as the executable.
 	/// </summary>
 	/// <remarks>
 	/// To Escape (exit) push Esc then 'y' or click yes.
@@ -25,7 +27,7 @@ namespace ExpertMultimedia {
 	/// in the Tao svn repository.  See http://www.go-mono.com/tao
 	/// </remarks>
 	#endregion Class Documentation
-	public unsafe class RetroEngine {
+	public unsafe class RetroEngine { //formerly Manager
 		//private bool bErr=false;
 		//public bool bErrLog=true;
 		#region variables
@@ -37,6 +39,7 @@ namespace ExpertMultimedia {
 		int iTargetPixels;
 		int iTargetChunks64Total;
 		public static RetroEngine retroengineNow;//formerly selfStatic
+		//TODO: show all modes in horizontal autoscroller at top:
 		public static readonly string[] sarrMode=new string[]{
 			"init","edit","debug","entities","joints",
 			"bones","voxels","bodies","bodyanimations","positions",
@@ -81,13 +84,13 @@ namespace ExpertMultimedia {
 	
 		#region Vars
 		public Fractal fracNow=null;
-		public GBuffer32BGRA gbScreen=null;		//private static GBuffer gbScreenStatic=null;
+		public GBuffer gbScreen=null;		//private static GBuffer gbScreenStatic=null;
 		public Rectangle rectScreen=new Rectangle();
 		public IRect irectScreen=new IRect();
-		public GBuffer32BGRA gbSelected=null; //could be screen, or selected frame of selected Anim
-		public GBuffer32BGRA gbSelectedMask=null;
+		public GBuffer gbSelected=null; //could be screen, or selected frame of selected Anim
+		public GBuffer gbSelectedMask=null;
 		public Clip[] cliparr=null;
-		public Anim32BGRA[] animarr=null;
+		public Anim[] animarr=null;
 		public int iAnims;
 		public int iClips;
 		public int iSelectClip;//-1 if Anim is selected
@@ -103,7 +106,7 @@ namespace ExpertMultimedia {
 							//weigh performance vs. possible unwanted skipping of inputs.
 		private static int iComponentIDPrev=-1;
 		//public static byte[][][] by3dSrcDestAlpha=null; //alpha lookup table //TODO: make by3dGrayFromRGB ??
-		GFont32BGRA gfontDefault=null;
+		GFont gfontDefault=null;
 		bool bSavedFrameError=false;
 		public static string sContactWhom="http://www.expertmultimedia.com";
 		public double rZoomFractalPixelsPerUnit=600.0;//fixed when gbScreen is created
@@ -130,7 +133,7 @@ namespace ExpertMultimedia {
 					else return cliparr[iSelectClip].iParent;
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"Manager","getting iRootAnim");
+					Base.ShowExn(exn,"RetroEngine","getting iRootAnim");
 				}
 				return -1;
 			}
@@ -144,7 +147,7 @@ namespace ExpertMultimedia {
 					else return lSelectFrame+cliparr[iSelectClip].lFrameStart;
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"Manager","getting lRootAnimFrame");
+					Base.ShowExn(exn,"RetroEngine","getting lRootAnimFrame");
 				}
 				return -1;
 			}
@@ -158,7 +161,7 @@ namespace ExpertMultimedia {
 					else return animarr[cliparr[iSelectClip].iParent].lFrames;
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"Manager","getting lRootAnimFrames");
+					Base.ShowExn(exn,"RetroEngine","getting lRootAnimFrames");
 				}
 				return -1;
 			}
@@ -177,15 +180,15 @@ namespace ExpertMultimedia {
 		}
 		public int iMode {
 			set { try { iabstractor.SetMode(value); }
-				catch (Exception exn) { Base.ShowExn(exn,"Manager set iMode"); } }
+				catch (Exception exn) { Base.ShowExn(exn,"RetroEngine set iMode"); } }
 			get { try { return iabstractor.Mode; }
-				catch (Exception exn) { Base.ShowExn(exn,"Manager get iMode"); }
+				catch (Exception exn) { Base.ShowExn(exn,"RetroEngine get iMode"); }
 				return -1; }
 		}
 		public int iWorkspace {
 			get {
 				try { return iabstractor.Workspace; }
-				catch (Exception exn) { Base.ShowExn(exn,"Manager get iWorkspace"); }
+				catch (Exception exn) { Base.ShowExn(exn,"RetroEngine get iWorkspace"); }
 				return -1;
 			}
 		}
@@ -201,6 +204,7 @@ namespace ExpertMultimedia {
 				iTargetBytesTotal=iTargetBPP/8*iTargetWidth*iTargetHeight;
 				iTargetPixels=iTargetWidth*iTargetHeight;
 				iTargetChunks64Total=iTargetBytesTotal/8;
+				Base.Debug("Updated primary surface vars for "+iTargetWidth.ToString()+"x"+iTargetHeight.ToString()+"x"+iBPP.ToString()+"bit");
 			}
 			catch (Exception exn) {
 				Base.ShowExn(exn,"RetroEngine UpdateScreenVars","reading screen format");
@@ -217,14 +221,14 @@ namespace ExpertMultimedia {
 		public void Run() {
 			//sLogToFile=Environment.NewLine+"//  Comment:  Starting Window.  "+HTMLPage.DateTimePathString(true);
 			bool bGood=true;
-			rforms=new RForms(800,600);
-			Init(RForms.sSettingsFolderSlash+"website.html",rforms.Width,rforms.Height);//mgr=new Manager(Manager.sSettingsFolderSlash+"website.html",800,600);
+			rforms=new RForms(800,600); //TODO: get resolution from settings else default to 800x600
+			Init(RForms.sSettingsFolderSlash+"website.html",rforms.Width,rforms.Height);//mgr=new Manager(RForms.sSettingsFolderSlash+"website.html",800,600);
 			int flags = (Sdl.SDL_HWSURFACE|Sdl.SDL_DOUBLEBUF|Sdl.SDL_ANYFORMAT);
-			bGood=UpdateScreenVars(24); //called again after surface bitdepth is found
+			bGood=UpdateScreenVars(32); //called again after surface bitdepth is found
 			bContinue=true;
 			Random rand = new Random();
-			string sFileTestMusic = Manager.sMusicFolderSlash+"music-test.ogg";
-			string sFileTestSound = Manager.sSoundFolderSlash+"sound-test.wav";
+			string sFileTestMusic = RForms.sMusicFolderSlash+"music-test.ogg";
+			string sFileTestSound = RForms.sSoundFolderSlash+"sound-test.wav";
 			Sdl.SDL_Event sdleventX;
 			int iResultInit, iResultSdl;
 			float var_h, var_i, var_1, var_2, var_3, var_r, var_g, var_b;
@@ -235,14 +239,26 @@ namespace ExpertMultimedia {
 					iTargetHeight, 
 					iTargetBPP, 
 					flags);
+				if (iptrSurfaceBackbuffer==IntPtr.Zero) {//iResultInit==0) {
+					Base.ShowErr("Bit depth setting of "+iTargetBPP.ToString()+"failed.");
+					//iTargetBPP=(iTargetBPP==32)?24:32;
+					//this is done later: UpdateScreenVars();
+					//Base.ShowErr("Bit depth reverting to "+iTargetBPP.ToString()+".");
+					//iResultInit = Sdl.SDL_Init(Sdl.SDL_INIT_EVERYTHING);
+					//iptrSurfaceBackbuffer = Sdl.SDL_SetVideoMode(
+					//	iTargetWidth,
+					//	iTargetHeight,
+					//	iTargetBPP,
+					//	flags);
+				}
 				//TODO: Finish this!!!!!!!!!!! must try 24-bit if 32-bit didn't work!!!!
 				//NOTE: iTargetBPP IS adjusted below when UpdateScreenVars is called again.
 				//debug NYI: replace with Tao.OpenAl
 				
 				iResultSdl = SdlMixer.Mix_OpenAudio(
-					SdlMixer.MIX_DEFAULT_FREQUENCY, 
-					(short) SdlMixer.MIX_DEFAULT_FORMAT, 
-					2, 
+					SdlMixer.MIX_DEFAULT_FREQUENCY,
+					(short) SdlMixer.MIX_DEFAULT_FORMAT,
+					2,
 					1024);
 				/*
 				IntPtr iptrChunkMusic = SdlMixer.Mix_LoadMUS(sFileTestMusic);
@@ -279,6 +295,14 @@ namespace ExpertMultimedia {
 					typeof(Sdl.SDL_PixelFormat));
 				try {
 					UpdateScreenVars(pixelFormat.BitsPerPixel);
+					Base.WriteLine("pixelFormat.*");//.BitsPerPixel:"+pixelFormat.BitsPerPixel);
+					Base.WriteLine("BitsPerPixel:"+pixelFormat.BitsPerPixel);
+					Base.WriteLine("BytesPerPixel:"+pixelFormat.BytesPerPixel);
+					Base.WriteLine("Rmask:"+pixelFormat.Rmask);
+					Base.WriteLine("Gmask:"+pixelFormat.Gmask);
+					Base.WriteLine("Bmask:"+pixelFormat.Bmask);
+					Base.WriteLine("Amask:"+pixelFormat.Amask);
+					Base.WriteLine("videoInfo.*");//.BitsPerPixel:"+pixelFormat.BitsPerPixel);
 					Base.WriteLine("hw_available:"+videoInfo.hw_available);
 					Base.WriteLine("wm_available:"+videoInfo.wm_available);
 					Base.WriteLine("blit_hw:"+videoInfo.blit_hw);
@@ -289,12 +313,6 @@ namespace ExpertMultimedia {
 					Base.WriteLine("blit_hw_A:"+videoInfo.blit_hw_A);
 					Base.WriteLine("blit_fill:"+videoInfo.blit_fill);
 					Base.WriteLine("video_mem:"+videoInfo.video_mem);
-					Base.WriteLine("BitsPerPixel:"+pixelFormat.BitsPerPixel);
-					Base.WriteLine("BytesPerPixel:"+pixelFormat.BytesPerPixel);
-					Base.WriteLine("Rmask:"+pixelFormat.Rmask);
-					Base.WriteLine("Gmask:"+pixelFormat.Gmask);
-					Base.WriteLine("Bmask:"+pixelFormat.Bmask);
-					Base.WriteLine("Amask:"+pixelFormat.Amask);
 				}
 				catch (Exception exn) {
 					Base.ShowExn(exn,"RetroEngine Run","displaying screen info");
@@ -372,7 +390,7 @@ namespace ExpertMultimedia {
 											//if (mgr!=null) {
 												sVerb="processing KEYDOWN (checking manager)";
 												//mgr.rforms.KeyEvent(sdleventX.key.keysym.sym, 0, true); 
-												KeyEvent(sdleventX.key.keysym.sym, sdleventX.key.keysym.unicode, true);
+												KeyEvent(sdleventX.key.keysym.sym, (char)sdleventX.key.keysym.unicode, true);
 												sVerb="processing KEYDOWN (after notifying manager)";
 											//}
 											//else {
@@ -393,7 +411,7 @@ namespace ExpertMultimedia {
 									//byarrKeysNow=Sdl.SDL_GetKeyState(256); //debug internationalization
 									//ushort wKey=Base.GetUnsignedLossless(sdleventX.key.keysym.scancode);
 									//sdleventX.key.type
-									KeyEvent(sdleventX.key.keysym.sym, 0, false);
+									KeyEvent(sdleventX.key.keysym.sym, (char)0, false);
 									//Base.WriteLine("keyup="+sdleventX.key.keysym.sym.ToString()+"    ");
 									
 								}
@@ -442,7 +460,7 @@ namespace ExpertMultimedia {
 			//Base.SaveMessages("1.Output.txt");
 			//Base.SaveErrors("1.Error.txt");
 		}//end Run
-		private void DrawBuffer(GBuffer32BGRA gbSrc) {
+		private void DrawBuffer(GBuffer gbSrc) {
 			int iResultSdl = Sdl.SDL_LockSurface(iptrSurfaceBackbuffer);
 			if (iTargetBPP==32) {
 				fixed (byte* lpSrc=gbSrc.byarrData) {
@@ -483,7 +501,7 @@ namespace ExpertMultimedia {
 			}
 			iResultSdl = Sdl.SDL_UnlockSurface(iptrSurfaceBackbuffer);
 			iResultSdl = Sdl.SDL_Flip(iptrSurfaceBackbuffer);
-		}//end DrawBuffer(GBuffer32BGRA)
+		}//end DrawBuffer(GBuffer)
 		/*
 		public void DrawBuffer(GBuffer gbSrc) {
 			iResultSdl = Sdl.SDL_LockSurface(iptrSurfaceBackbuffer);
@@ -626,7 +644,7 @@ namespace ExpertMultimedia {
 			iComponentID=GenerateComponentID();
 			//InitAlphaLookupTable();
 			try {
-				gbScreen=new GBuffer32BGRA(iSetWidth, iSetHeight, 4); //assumes 32-bit
+				gbScreen=new GBuffer(iSetWidth, iSetHeight, 4); //assumes 32-bit
 				fracNow=new Fractal(iSetWidth,iSetHeight);
 				rectScreen.X=0;
 				rectScreen.Y=0;
@@ -634,22 +652,23 @@ namespace ExpertMultimedia {
 				rectScreen.Height=iSetHeight;
 				irectScreen.From(rectScreen);
 				rZoomFractalPixelsPerUnit=(double)iSetHeight;
-				//gbScreen32=new GBuffer32BGRA(iSetWidth, iSetHeight, 4); //assumes 32-bit
+				//gbScreen32=new GBuffer(iSetWidth, iSetHeight, 4); //assumes 32-bit
 				//gbScreenStatic=gbScreen;
 				bool bTest=SetSelectedFromScreen();
-				gfontDefault=new GFont32BGRA();
+				gfontDefault=new GFont();
 				
-				gfontDefault.FromFixedHeightStaggered(Manager.sFontFolderSlash+"font-thepixone-12x16",16);
-				//gfontDefault.FromImage(Manager.sFontFolderSlash+"font-aotr-monospaced-outlined-16x24.png",16,24,16,16);
-				//gfontDefault.FromImageValue(Manager.sFontFolderSlash+"font-aotr-monospaced-outlined-16x24.png",16,24,16,16);
+				gfontDefault.FromFixedHeightStaggered("./Library/Fonts/thepixone-12x16",16);
+				//TODO: replace line above with gfontDefault.FromFixedHeightStaggered(RForms.ResourceGetAnim("font-default")) //(anim since need all faces of the font)
+				//gfontDefault.FromImage(RForms.sFontFolderSlash+"font-aotr-monospaced-outlined-16x24.png",16,24,16,16);
+				//gfontDefault.FromImageValue(RForms.sFontFolderSlash+"font-aotr-monospaced-outlined-16x24.png",16,24,16,16);
 				
-				//GBuffer32BGRA gbTest=new GBuffer32BGRA();
-				//gbTest.Load(Manager.sFontFolderSlash+"font-16x24x16x16.png",4);
-				//gbTest.Save(Manager.sFontFolderSlash+"0.gb.font-16x24x16x16-as-loaded.png");
-				//`GBuffer32BGRA gb32Test=new GBuffer32BGRA(Manager.sFontFolderSlash+"font-16x24x16x16.png");//gb32Test.Load(Manager.sFontFolderSlash+"font-16x24x16x16.png",4);
-				//gb32Test.Save(Manager.sFontFolderSlash+"0.gb32.font-16x24x16x16-loaded-as-"+gb32Test.Description()+".png");
+				//GBuffer gbTest=new GBuffer();
+				//gbTest.Load(RForms.sFontFolderSlash+"thepixone-12x16.png",4);
+				//gbTest.Save(RForms.sFontFolderSlash+"0.gb.font-16x24x16x16-as-loaded.png");
+				//`GBuffer gb32Test=new GBuffer(RForms.sFontFolderSlash+"font-16x24x16x16.png");//gb32Test.Load(RForms.sFontFolderSlash+"font-16x24x16x16.png",4);
+				//gb32Test.Save(RForms.sFontFolderSlash+"0.gb32.font-16x24x16x16-loaded-as-"+gb32Test.Description()+".png");
 				cliparr=new Clip[100];//MAXIMUMCLIPS=100; //TODO: call MAXIMUMCLIPS instead
-				animarr=new Anim32BGRA[100];//MAXIMUMANIMS=100; //TODO: call MAXIMUMANIMS instead
+				animarr=new Anim[100];//MAXIMUMANIMS=100; //TODO: call MAXIMUMANIMS instead
 				Console.Write("initializing iabstractor...");//debug only
 				Console.Out.Flush();
 		
@@ -742,8 +761,8 @@ namespace ExpertMultimedia {
 				
 				
 				//try {
-				//	if (!File.Exists(Manager.sFontFolderSlash+"1.testfont0000.png")) {
-				//		gfontDefault.SaveSeq(Manager.sFontFolderSlash+"1.testfont", "png", GFont32BGRA.GlyphTypeNormal);
+				//	if (!File.Exists(RForms.sFontFolderSlash+"1.testfont0000.png")) {
+				//		gfontDefault.SaveSeq(RForms.sFontFolderSlash+"1.testfont", "png", GFont.GlyphTypeNormal);
 				//	}
 				//	else Base.ShowErr("GFont glyph debug images are already saved.","Init("+iSetWidth.ToString()+","+iSetHeight.ToString()+")");
 				//}
@@ -752,7 +771,7 @@ namespace ExpertMultimedia {
 				//}
 				
 				//gfontDefault.SetGradient(0,0,0,212,208,200);
-				//GBuffer32BGRA.SetBrushRgba(212,208,200,255);
+				//GBuffer.SetBrushRgba(212,208,200,255);
 				//for (int yNow=0; yNow<gbScreen.iHeight; yNow++) {
 				//	gbScreen.DrawHorzLine(0,yNow,gbScreen.iWidth,"Manager");
 				//}
@@ -772,8 +791,9 @@ namespace ExpertMultimedia {
 		#region Main()
 		[STAThread]
 		static void Main() {
-			selfStatic = new RetroEngine();
-			selfStatic.Run();
+			BaseTests.TestMathInConsole();
+			retroengineNow = new RetroEngine();
+			retroengineNow.Run();
 		}
 		#endregion Main()
 		#region input/output
@@ -1034,11 +1054,11 @@ namespace ExpertMultimedia {
 		IRect rectMessage=new IRect(16,16,800-16,600-16);//fixed later
 		public bool TextMessage(string sMessage) {
 			bool bGood=true;
-			int iLineBreakingType=GFont32BGRA.LineBreakingSlowAccurate;//LineBreakingSlowAccurate;//LineBreakingFast;//LineBreakingOnlyWhenEndOfTextLine;
+			int iLineBreakingType=GFont.LineBreakingSlowAccurate;//LineBreakingSlowAccurate;//LineBreakingFast;//LineBreakingOnlyWhenEndOfTextLine;
 			if (gbScreen!=null) {
 				rectMessage.Width=gbScreen.Width-rectMessage.X;//must do every time since moves
 				rectMessage.Height=gbScreen.Height-rectMessage.Y;//must do every time since moves
-				gfontDefault.Render(ref gbScreen, rectMessage, sMessage, GFont32BGRA.GlyphTypeNormal, iLineBreakingType);
+				gfontDefault.Render(ref gbScreen, rectMessage, sMessage, GFont.GlyphTypeNormal, iLineBreakingType);
 				pMessage.Y+=gfontDefault.Height+gfontDefault.Height/2;
 				rectMessage.Y+=gfontDefault.Height+gfontDefault.Height/2;
 				if (pMessage.Y>gbScreen.iHeight) pMessage.Y=0;
@@ -1260,7 +1280,7 @@ namespace ExpertMultimedia {
 			bool bGood=false;
 			return bGood;
 		}
-		public bool GetMask(ref GBuffer32BGRA gbReturn, int iStart) {
+		public bool GetMask(ref GBuffer gbReturn, int iStart) {
 			bool bGood=true;
 			try {
 				if (gbReturn==null) gbReturn=gbSelectedMask.Copy();
@@ -1285,7 +1305,7 @@ namespace ExpertMultimedia {
 			return bGood;
 		}
 		*/
-		public bool GetSelected(ref GBuffer32BGRA gbReturn, int iStart) {
+		public bool GetSelected(ref GBuffer gbReturn, int iStart) {
 			bool bGood=true;
 			try {
 				if (gbReturn==null) gbReturn=gbSelected.Copy();
@@ -1423,9 +1443,9 @@ namespace ExpertMultimedia {
 		
 		#region main event loop
 		decimal dFramesSinceAI=0;
-		decimal dFrameTick=(decimal)Environment.TickCount;
-		decimal dFrameTickLastAI=(decimal)Environment.TickCount;
-		decimal dFrameTickLast=(decimal)Environment.TickCount;
+		decimal dFrameTick=(decimal)PlatformNow.TickCount;
+		decimal dFrameTickLastAI=(decimal)PlatformNow.TickCount;
+		decimal dFrameTickLast=(decimal)PlatformNow.TickCount;
 		decimal dFrameTicksPassedSinceAI=0;
 		decimal dFrameTicksPassed=0;
 		decimal dFrameRate=0;
@@ -1445,15 +1465,15 @@ namespace ExpertMultimedia {
 		string sPointBeforeRendering="";
 		
 		public bool DrawFrame() {
-			if (((decimal)Environment.TickCount-dFrameTickLast)<dEngineGranularityTicks)
+			if (((decimal)PlatformNow.TickCount-dFrameTickLast)<dEngineGranularityTicks)
 				return true;
 			bool bGood=false;
 			try {
 				//first calculate time passed and frame rate
-				dFrameTick=(decimal)Environment.TickCount;
+				dFrameTick=(decimal)PlatformNow.TickCount;
 				dFrameTicksPassedSinceAI=dFrameTick-dFrameTickLastAI;
 				dFrameTicksPassed=dFrameTick-dFrameTickLast;
-				dFrameTickLast=Environment.TickCount;//TODO: debug--always use dFrameTicksPast after this line!!!
+				dFrameTickLast=PlatformNow.TickCount;//TODO: debug--always use dFrameTicksPast after this line!!!
 				//now do AI if necessary:
 				if ((dFrameTicksPassedSinceAI)>dAIGranularityTicks) {
 					dFrameRate=dFramesSinceAI/(dFrameTicksPassedSinceAI)*dAIGranularityTicks;
@@ -1464,7 +1484,7 @@ namespace ExpertMultimedia {
 				ResetMessages();//pMessage.Y=32;
 				rectMessage.Y=32;
 				
-				GBuffer32BGRA.SetBrushRgba(64,64,64,255);//(0,64,64,255);//(212,208,200,255);
+				GBuffer.SetBrushRgba(64,64,64,255);//(0,64,64,255);//(212,208,200,255);
 				gbScreen.DrawRectFilled(0,0,gbScreen.iWidth,gbScreen.iHeight,"Manager");//clear screen (draw background color)
 				//pInfiniteScroll.X+=Base.IRound(pInfiniteScrollMomentum.X);
 				//pInfiniteScroll.Y+=Base.IRound(pInfiniteScrollMomentum.Y);
@@ -1513,11 +1533,11 @@ namespace ExpertMultimedia {
 					int xInter,yInter;
 					int iIntersect=Base.Intersection(out xInter, out yInter, line1, line2);
 					if (iIntersect==Base.IntersectionYes) {
-						GBuffer32BGRA.SetBrushRgb(255,255,192);
+						GBuffer.SetBrushRgb(255,255,192);
 						gbScreen.DrawRectCropped(xInter,yInter,3,3);
 					}
 					else if (iIntersect==Base.IntersectionBeyondSegment) {
-						GBuffer32BGRA.SetBrushRgb(255,0,0);
+						GBuffer.SetBrushRgb(255,0,0);
 						gbScreen.DrawRectCropped(xInter,yInter,3,3);
 					}
 					else WriteLine(Base.IntersectionToString(iIntersect));
@@ -1534,7 +1554,7 @@ namespace ExpertMultimedia {
 					//	//Thread.Sleep(600);
 					//}
 					if (!bDebuggedDownload) {
-						sDebugDownload=Base.FileToString(Manager.sHomeFolderSlash+"index.html");//sDebugDownload=Base.DownloadToString("http://www.expertmultimedia.com");
+						sDebugDownload=Base.FileToString(RForms.sHomeFolderSlash+"index.html");//sDebugDownload=Base.DownloadToString("http://www.expertmultimedia.com");
 						bDebuggedDownload=true;
 					}
 					WriteLine(sDebugDownload);
@@ -1609,7 +1629,7 @@ namespace ExpertMultimedia {
 					fracNow.Render(gbScreen);
 					//fracNow.RenderAll(gbScreen);//fracNow.RenderIncrement(gbScreen);
 					
-					GBuffer32BGRA.SetBrushRgb(0,0,0);
+					GBuffer.SetBrushRgb(0,0,0);
 					  gbScreen.DrawRectFilled(0,0,gbScreen.Width,32,"Manager");//temporary background for modebar
 					iFractalsDrawn=Base.SafeAddWrappedTowardZero(iFractalsDrawn, 1);
 					string sZoom=rZoomFractalPixelsPerUnit.ToString();
@@ -1638,14 +1658,14 @@ namespace ExpertMultimedia {
 					int iTry=(iDebugdeleteme%511)-255;
 					if (iTry<1) iTry*=-1;
 					byte byTry=(byte)iTry;
-					GBuffer32BGRA.SetBrushRgba(0,0,0,255);//(212,208,200,255);
+					GBuffer.SetBrushRgba(0,0,0,255);//(212,208,200,255);
 					gbScreen.DrawRectFilled(iDebugdeleteme,iDebugdeleteme,32,32,"Manager");
 					iDebugdeleteme++;
 					
-					GBuffer32BGRA.SetBrushRgba(212,208,200,255);
+					GBuffer.SetBrushRgba(212,208,200,255);
 					WriteLine("iHeight:"+gbScreen.iHeight.ToString()); //gfontDefault.Render(ref gbScreen, ref ipTemp, "iHeight:"+gbScreen.iHeight.ToString(), GFont.GlyphTypeBold);
 					
-					GBuffer32BGRA.SetBrushRgba(128,byTry,byTry,255);
+					GBuffer.SetBrushRgba(128,byTry,byTry,255);
 					gbScreen.DrawRectFilled(iDebugdeleteme,iDebugdeleteme,32,32,"Manager");
 					//IZone izoneReturn=new IZone();
 					//gfontDefault.TypeHTML(ref gbScreen, ref izoneReturn, ref vsStyle, "<i>X</i>&&<i>Y</i>:<b>"+iDebugdeleteme.ToString()+"</b>",ref ipTemp, true);

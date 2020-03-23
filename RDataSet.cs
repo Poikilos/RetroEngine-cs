@@ -6,9 +6,9 @@ using System;
 
 namespace ExpertMultimedia {
 	///<summary>
-	///This class describes an array of raw data.
+	///This class describes the values inside an array of raw data.
 	///</summary>
-	public class DataSet { //array of these is used for listing known Riff leaves (lowest hierarchical raw datasets)
+	public class RDataSet { //array of these is used for listing known Riff leaves (lowest hierarchical raw datasets)
 		public string sID;
 		private string[] sarrType;
 		private string[] sarrEasyName;
@@ -52,7 +52,7 @@ namespace ExpertMultimedia {
 				return sarrType!=null?sarrType.Length:0;
 			}
 		}
-		public DataSet(string sSetID, string[] sarrSetType, string[] sarrSetEasyName) {
+		public RDataSet(string sSetID, string[] sarrSetType, string[] sarrSetEasyName) {
 			Init(sSetID,sarrSetType,sarrSetEasyName);
 		}
 		public bool Init(string sSetID, string[] sarrSetType, string[] sarrSetEasyName) {
@@ -76,9 +76,9 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"DataSet Init("+sSetID+",...)","setting dataset description \""+sSetID+"\"");
+				RReporting.ShowExn(exn,"setting dataset description","RDataSet Init("+sSetID+",...)");
 			}
 			return bGood;
 		}
-	}//end class DataSet
+	}//end class RDataSet
 }//end namespace

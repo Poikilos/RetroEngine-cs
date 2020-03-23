@@ -15,7 +15,7 @@ using System.IO;
 //using System.Drawing.Text;
 
 namespace ExpertMultimedia {
-	public class Anim32BGRA {
+	public class RAnim {
 		//public int iWidth;
 		//public int iHeight;
 		//public int iBytesPP;
@@ -42,7 +42,7 @@ namespace ExpertMultimedia {
 		public int Width {
 			get {
 				try {
-					if (gbFrame!=null) return gbFrame.iWidth;
+					if (riFrame!=null) return riFrame.iWidth;
 				}
 				catch (Exception exn) {
 				}
@@ -52,7 +52,7 @@ namespace ExpertMultimedia {
 		public int Height {
 			get {
 				try {
-					if (gbFrame!=null) return gbFrame.iHeight;
+					if (riFrame!=null) return riFrame.iHeight;
 				}
 				catch (Exception exn) {
 				}
@@ -71,21 +71,21 @@ namespace ExpertMultimedia {
 		/// <summary>
 		/// only full if lFramesCached==lFrames
 		/// </summary>
-		private GBuffer32BGRA[] gbarrAnim=null;
+		private RImage[] riarrAnim=null;
 		//public byte[] byarrFrame;
-		public GBuffer32BGRA gbFrame=null;
+		public RImage riFrame=null;
 		//private byte[][] by2dMask;
 		//public byte[] byarrMask;
 		public Effect[] effectarr=null;
 		#region constructors
-		public Anim32BGRA Copy() {
-			Anim32BGRA animReturn=null;
-			string sVerbNow="copying anim frame bitmap";
+		public RAnim Copy() {
+			RAnim animReturn=null;
+			string sParticiple="copying anim frame bitmap";
 			try {
-				animReturn=new Anim32BGRA();
+				animReturn=new RAnim();
 				if (bmpLoaded!=null) animReturn.bmpLoaded=(Bitmap)bmpLoaded.Clone();
 				animReturn.gunit=gunit;
-				sVerbNow="getting anim rect while copying anim"; 
+				sParticiple="getting anim rect while copying anim"; 
 				animReturn.rectNowF=new RectangleF(rectNowF.Left,rectNowF.Top,rectNowF.Width,rectNowF.Height);
 				animReturn.rectNow=new Rectangle(rectNow.Left,rectNow.Top,rectNow.Width,rectNow.Height);
 				animReturn.lFramesCached=lFramesCached;
@@ -100,24 +100,24 @@ namespace ExpertMultimedia {
 				animReturn.imageOrig=imageOrig;
 				animReturn.iMaxEffects=iMaxEffects;
 				animReturn.lFramesCached=lFramesCached;
-				sVerbNow="copying anim frames";
+				sParticiple="copying anim frames";
 				if (lFramesCached==lFrames) {
 					if (lFramesCached>0) {
-						if (gbarrAnim!=null) {
-							animReturn.gbarrAnim=new GBuffer32BGRA[lFramesCached];
+						if (riarrAnim!=null) {
+							animReturn.riarrAnim=new RImage[lFramesCached];
 							for (long lNow=0; lNow<lFramesCached; lNow++) {
-								sVerbNow="copying anim frame ["+lNow.ToString()+"] (in "+lFramesCached+"-frame animation)";
-								animReturn.gbarrAnim[lNow]=gbarrAnim[lNow].Copy();
+								sParticiple="copying anim frame ["+lNow.ToString()+"] (in "+lFramesCached+"-frame animation)";
+								animReturn.riarrAnim[lNow]=riarrAnim[lNow].Copy();
 							}
 						}
-						else Base.ShowErr("Copying null animation ("+lFramesCached+" frames).");
+						else RReporting.ShowErr("Copying null animation ("+lFramesCached+" frames).");
 					}
-					else Base.ShowErr("Copying "+lFramesCached+"-frame animation.");
+					else RReporting.ShowErr("Tried to copy "+lFramesCached.ToString()+"-frame animation.");
 				}
-				else Base.ShowErr("Copying an uncached video is not yet implemented","Anim32BGRA Copy"); //nyi
-				sVerbNow="copying anim current frame";
+				else RReporting.ShowErr("Copying an uncached video is not yet implemented"); //nyi
+				sParticiple="copying anim current frame";
 				animReturn.GotoFrame(lFrameNow);
-				sVerbNow="copying anim effects";
+				sParticiple="copying anim effects";
 				if (iEffects>0) {
 					animReturn.effectarr=new Effect[iEffects];
 					for (int i=0; i<iEffects; i++) {
@@ -126,26 +126,30 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Anim32BGRA Copy",sVerbNow);
+				RReporting.ShowExn(exn,sParticiple,"RAnim Copy");
 			}
 			return animReturn;
 		}
-		public Anim32BGRA CopyAsGray() {
+		public RAnim CopyAsGray() {
 			return CopyAsGray(-1);
 		}
 		/// <summary>
-		/// Makes a new Anim32BGRA object from any channel (or the value) of this one.
+		/// Makes a new RAnim object from any channel (or the value) of this one.
 		/// </summary>
 		/// <param name="iChannelOffset">Pick a channel to copy.  Set to -1 to take average of RGB.</param>
 		/// <returns></returns>
-		public Anim32BGRA CopyAsGray(int iChannelOffset) {
-			Anim32BGRA animReturn=null;
+		public RAnim CopyAsGray(int iChannelOffset) {
+			RAnim animReturn=null;
+			string sParticiple="creating anim";
 			try {
-				animReturn=new Anim32BGRA();
-				animReturn.bmpLoaded=(Bitmap)bmpLoaded.Clone();
+				animReturn=new RAnim();
+				sParticiple="copying bitmaploaded";
+				if (bmpLoaded!=null) animReturn.bmpLoaded=(Bitmap)bmpLoaded.Clone();
+				sParticiple="setting dimensions";
 				animReturn.gunit=gunit;
 				animReturn.rectNowF=new RectangleF(rectNowF.Left,rectNowF.Top,rectNowF.Width,rectNowF.Height);
 				animReturn.rectNow=new Rectangle(rectNow.Left,rectNow.Top,rectNow.Width,rectNow.Height);
+				sParticiple="creating frames cached";
 				animReturn.lFramesCached=lFramesCached;
 				animReturn.sPathFileBaseName=sPathFileBaseName;
 				animReturn.sFileExt=sFileExt;
@@ -158,21 +162,27 @@ namespace ExpertMultimedia {
 				animReturn.imageOrig=imageOrig;
 				animReturn.iMaxEffects=iMaxEffects;
 				animReturn.lFramesCached=lFramesCached;
+				sParticiple="checking frame cache status";
 				if (lFramesCached==lFrames) {
-					animReturn.gbarrAnim=new GBuffer32BGRA[lFramesCached];
+					Console.Error.Write("CopyAsGray {frames:"+lFramesCached);
+					Console.Error.WriteLine("}");
+					sParticiple="creating destination riarrAnim";
+					animReturn.riarrAnim=new RImage[lFramesCached];
 					if (iChannelOffset<0) {
 						for (long l=0; l<lFrames; l++) {
-							GBuffer32BGRA.MaskFromValue(ref animReturn.gbarrAnim[l], ref gbarrAnim[l]);
+							sParticiple="getting mask from value for frame "+l.ToString();
+							RImage.MaskFromValue(ref animReturn.riarrAnim[l], ref riarrAnim[l]);
 						}
 					}
 					else {
 						for (long l=0; l<lFrames; l++) {
-							GBuffer32BGRA.MaskFromChannel(ref animReturn.gbarrAnim[l], ref gbarrAnim[l], iChannelOffset);
+							sParticiple="getting mask from channel for frame "+l.ToString();
+							RImage.MaskFromChannel(ref animReturn.riarrAnim[l], ref riarrAnim[l], iChannelOffset);
 						}
 					}
 				}
-				else Base.ShowErr("Copying an uncached video to gray is not yet implemented","Anim32BGRA CopyAsGray");
-				animReturn.gbFrame=animReturn.gbarrAnim[lFrameNow];
+				else RReporting.ShowErr("Copying an uncached video to gray is not yet implemented","","RAnim CopyAsGray");
+				animReturn.riFrame=animReturn.riarrAnim[lFrameNow];
 				if (iEffects>0) {
 					animReturn.effectarr=new Effect[iEffects];
 					for (int i=0; i<iEffects; i++) {
@@ -181,7 +191,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Anim32BGRA CopyAsGray","copying animation to grayscale mask");
+				RReporting.ShowExn(exn,sParticiple,"RAnim CopyAsGray");
 			}
 			return animReturn;
 		}//end CopyAsGray
@@ -189,12 +199,12 @@ namespace ExpertMultimedia {
 		///Detects sub-images inside an image using at least one full column of transparent pixels of height iCellHeigt;
 		///</summary>
 		//public static int iDebug=0;
-		public bool SplitFromFixedHeightStaggered(GBuffer32BGRA gbSrc, int iCellHeight) {
+		public bool SplitFromFixedHeightStaggered(RImage riSrc, int iCellHeight) {
 			bool bGood=false;
-			//Base.ShowErr("SplitFromFixedHeightStaggered is Not Yet Implemented");
+			//RReporting.ShowErr("SplitFromFixedHeightStaggered is Not Yet Implemented");
 			
-			GBuffer32BGRAStack gbstackNow=new GBuffer32BGRAStack(256);
-			int iRows=Base.ICeiling((double)gbSrc.iHeight/(double)iCellHeight);
+			RImageStack ristackNow=new RImageStack(256);
+			int iRows=RMath.ICeiling((double)riSrc.iHeight/(double)iCellHeight);
 			int iLocLine=0;
 			int iSrc=iLocLine;
 			int iLine=0;
@@ -203,65 +213,67 @@ namespace ExpertMultimedia {
 			bool bFoundStart=false;
 			//string sDebugFile="0.SplitFromFixedHeightStaggered"+iDebug.ToString()+".log.txt";
 			//string sDebugZonesFile="0.SplitFromFixedHeightStaggered"+iDebug.ToString()+".Zones.log.txt";
-			//string sDebugCharsBase="/home/Owner/Projects/RetroEngine/bin/fonts/etc/font"+Base.sarrAlphabetUpper[iDebug];
+			//string sDebugCharsBase="/home/Owner/Projects/RetroEngine/bin/fonts/etc/font"+RString.sarrAlphabetUpper[iDebug];
 			//iDebug++;
-			//Base.SafeDelete(sDebugFile);
-			//Base.SafeDelete(sDebugZonesFile);
-			//GBuffer32BGRA gbTemp=gbSrc.Copy();
-			for (int iRow=0; iRow<iRows&&iLocLine<gbSrc.iBytesTotal; iRow++) {
+			//RString.SafeDelete(sDebugFile);
+			//RString.SafeDelete(sDebugZonesFile);
+			//RImage riTemp=riSrc.Copy();
+			for (int iRow=0; iRow<iRows&&iLocLine<riSrc.iBytesTotal; iRow++) {
 				x=0;
 				iSrc=iLocLine;
-				if (y+iCellHeight>gbSrc.iHeight) {
+				if (y+iCellHeight>riSrc.iHeight) {
 					//fixes if has odd end
-					Base.WriteLine("Warning: fixed odd end in SplitFromFixedHeightStaggered ("+gbSrc.iWidth.ToString()+"x"+gbSrc.iHeight.ToString()+" image's height is not evenly divisible by "+iCellHeight.ToString()+")");
-					iCellHeight=gbSrc.iHeight-y;
+					RReporting.Warning(String.Format("Warning: fixed odd end in SplitFromFixedHeightStaggered ({0}x{1} image's height is not evenly divisible by cellheight:{2})",
+						riSrc.iWidth,riSrc.iHeight,iCellHeight)
+					);
+					iCellHeight=riSrc.iHeight-y;
 				}
-				while (x<gbSrc.iWidth) {
+				while (x<riSrc.iWidth) {
 					//bFoundStart=false;
-					while (x<gbSrc.iWidth&&gbSrc.IsTransparentVLine(x,y,iCellHeight)) {
-						//Base.AppendForeverWrite(sDebugFile,"0");//debug only
+					while (x<riSrc.iWidth&&riSrc.IsTransparentVLine(x,y,iCellHeight)) {
+						//RString.AppendForeverWrite(sDebugFile,"0");//debug only
 						x++;
 					}
 					xStartNow=x;
-					if (xStartNow<gbSrc.iWidth) {
+					if (xStartNow<riSrc.iWidth) {
 						//bFoundStart=true;
-						while (x<gbSrc.iWidth&&!gbSrc.IsTransparentVLine(x,y,iCellHeight)) {
-							//Base.AppendForeverWrite(sDebugFile,"1");//debug only
+						while (x<riSrc.iWidth&&!riSrc.IsTransparentVLine(x,y,iCellHeight)) {
+							//RString.AppendForeverWrite(sDebugFile,"1");//debug only
 							x++;
 						}
 						
-						//gbTemp.SetPixelG(xStartNow,y,255);//debug only
-						//gbTemp.SetPixelR(x-1,(y+iCellHeight)-1,255);//debug only
-						GBuffer32BGRA gbChar=gbSrc.CreateFromZoneEx(xStartNow,y,x,y+iCellHeight);
-						//gbChar.Save(sDebugCharsBase+Base.FixedWidth(gbstackNow.Count.ToString(),3,"0")+".png"); //debug only
-						gbstackNow.Push(gbChar);
-						//Base.AppendForeverWrite(sDebugZonesFile,"("+Base.FixedWidth(xStartNow.ToString(),3)+","+Base.FixedWidth(y.ToString(),3)+","+Base.FixedWidth(x.ToString(),3)+","+Base.FixedWidth((y+iCellHeight).ToString(),3)+")");
+						//riTemp.SetPixelG(xStartNow,y,255);//debug only
+						//riTemp.SetPixelR(x-1,(y+iCellHeight)-1,255);//debug only
+						RImage riChar=riSrc.CreateFromZoneEx(xStartNow,y,x,y+iCellHeight);
+						//riChar.Save(sDebugCharsBase+RString.FixedWidth(ristackNow.Count.ToString(),3,"0")+".png"); //debug only
+						ristackNow.Push(riChar);
+						//RString.AppendForeverWrite(sDebugZonesFile,"("+RString.FixedWidth(xStartNow.ToString(),3)+","+RString.FixedWidth(y.ToString(),3)+","+RString.FixedWidth(x.ToString(),3)+","+RString.FixedWidth((y+iCellHeight).ToString(),3)+")");
 						
 						
 					}
-					//Base.AppendForeverWrite(sDebugFile,IZone.Description(xStartNow,y,x,y+iCellHeight));
+					//RString.AppendForeverWrite(sDebugFile,IZone.Description(xStartNow,y,x,y+iCellHeight));
 				}
 				y+=iCellHeight;//y++;
-				iLocLine+=gbSrc.iStride*iCellHeight;//gbSrc.iStride;
-				//Base.AppendForeverWriteLine(sDebugFile);
-				//Base.AppendForeverWriteLine(sDebugZonesFile);
+				iLocLine+=riSrc.iStride*iCellHeight;//riSrc.iStride;
+				//RString.AppendForeverWriteLine(sDebugFile);
+				//RString.AppendForeverWriteLine(sDebugZonesFile);
 			}
-			//gbTemp.Save(sDebugZonesFile+".png");//debug only
-			if (gbstackNow.Count>0) bGood=true;
-			lFrames=(long)gbstackNow.Count;
+			//riTemp.Save(sDebugZonesFile+".png");//debug only
+			if (ristackNow.Count>0) bGood=true;
+			lFrames=(long)ristackNow.Count;
 			lFramesCached=lFrames;
-			gbarrAnim=gbstackNow.ToArrayByReferences();
+			riarrAnim=ristackNow.ToArrayByReferences();
 			return bGood;
 		}//end SplitFromFixedHeightStaggered
-		public bool SplitFromImage32(ref GBuffer32BGRA gbSrc, int iCellWidth, int iCellHeight, int iRows, int iColumns, IPoint ipAsCellSpacing, IZone izoneAsMargins) {
+		public bool SplitFromImage32(ref RImage riSrc, int iCellWidth, int iCellHeight, int iRows, int iColumns, IPoint ipAsCellSpacing, IZone izoneAsMargins) {
 			bool bGood=true;
 			lFrames=(long)iRows*(long)iColumns;
 			lFramesCached=lFrames; //so cached anim will be accessed
 			try {
-				gbarrAnim=new GBuffer32BGRA[lFrames];
+				riarrAnim=new RImage[lFrames];
 				bmpLoaded=new Bitmap(iCellWidth, iCellHeight, PixelFormatNow());
 				for (int lFrameX=0; lFrameX<lFrames; lFrameX++) {
-					gbarrAnim[lFrameX]=new GBuffer32BGRA(iCellWidth, iCellHeight, 4); //assumes 32-bit
+					riarrAnim[lFrameX]=new RImage(iCellWidth, iCellHeight, 4); //assumes 32-bit
 				}
 				if (ipAsCellSpacing==null) {
 					ipAsCellSpacing=new IPoint();
@@ -270,9 +282,9 @@ namespace ExpertMultimedia {
 					izoneAsMargins=new IZone();
 				}
 				//lFrameNow=0; //not used
-				int iSrcByteOfCellTopLeft=izoneAsMargins.Top*gbSrc.iStride + izoneAsMargins.Left*gbSrc.iBytesPP;
+				int iSrcByteOfCellTopLeft=izoneAsMargins.Top*riSrc.iStride + izoneAsMargins.Left*riSrc.iBytesPP;
 				int iSrcByteOfCellNow;
-				//int iSrcAdder=gbSrc.iStride-gbSrc.iBytesPP*iCellWidth;
+				//int iSrcAdder=riSrc.iStride-riSrc.iBytesPP*iCellWidth;
 				//int iSrcNextCellAdder=
 				//int iSrcStride=iColumns*iWidth*4; //assumes 32-bit source
 				int iSrcByte;
@@ -281,11 +293,11 @@ namespace ExpertMultimedia {
 				//int iCellStride=iWidth*iBytesPP;
 				//int yStrideAdder=iSrcStride*(iHeight-1);
 				//int iSrcAdder=iSrcStride-iWidth*iBytesPP;
-				int iDestStride=gbarrAnim[0].iStride;
-				int iHeight=gbarrAnim[0].iHeight;
-				int iSrcStride=gbSrc.iStride;
-				int iCellPitchX=gbSrc.iBytesPP*(iCellWidth+ipAsCellSpacing.X);
-				int iCellPitchY=gbSrc.iStride*(iCellHeight+ipAsCellSpacing.Y);
+				int iDestStride=riarrAnim[0].iStride;
+				int iHeight=riarrAnim[0].iHeight;
+				int iSrcStride=riSrc.iStride;
+				int iCellPitchX=riSrc.iBytesPP*(iCellWidth+ipAsCellSpacing.X);
+				int iCellPitchY=riSrc.iStride*(iCellHeight+ipAsCellSpacing.Y);
 				long lFrameLoad=0;
 				for (int yCell=0; yCell<iRows; yCell++) {
 					for (int xCell=0; xCell<iColumns; xCell++) {
@@ -294,7 +306,7 @@ namespace ExpertMultimedia {
 						iSrcByte=iSrcByteOfCellNow;
 						GotoFrame(lFrameLoad);
 						for (int iLine=0; iLine<iHeight; iLine++) {
-							if (Memory.CopyFast(ref gbFrame.byarrData, ref gbSrc.byarrData, iDestByte, iSrcByte, iDestStride)==false)
+							if (RMemory.CopyFast(ref riFrame.byarrData, ref riSrc.byarrData, iDestByte, iSrcByte, iDestStride)==false)
 								bGood=false;
 							iDestByte+=iDestStride;
 							iSrcByte+=iSrcStride;
@@ -302,13 +314,13 @@ namespace ExpertMultimedia {
 						lFrameLoad++;
 					}
 				}
-				if (!bGood) Base.ShowErr("There was data copy error while splitting the image with the specified cell sizes","Anim32BGRA SplitFromImage32");
+				if (!bGood) RReporting.ShowErr("There was data copy error while splitting the image with the specified cell sizes","","RAnim SplitFromImage32");
 				//else bGood=GrayMapFromPixMapChannel(3);
 				bGood=true;
 				lFramesCached=lFrames;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Anim32BGRA SplitFromImage32","splitting image with specified cell sizes");
+				RReporting.ShowExn(exn,"splitting image with specified cell sizes","RAnim SplitFromImage32");
 			}
 			return bGood;
 		}//end SplitFromImage32
@@ -320,15 +332,15 @@ namespace ExpertMultimedia {
 			try { //first write debug file
 				sFileExt=sFileExt1;
 				sPathFileBaseName=sFileBase;
-				Base.StringToFile(sFileBase+".txt", ToString(true));
+				RString.StringToFile(sFileBase+".txt", ToString(true));
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Anim32BGRA SaveSeq","saving sequence info file");
+				RReporting.ShowExn(exn,"saving sequence info file","RAnim SaveSeq");
 			}
 			for (long lFrameSave=0; lFrameSave<lFrames; lFrameSave++) {
 				if (!SaveSeqFrame(lFrameSave)) {
 					bGood=false;
-					Base.ShowErr("Couldn't save sequence frame", "Anim32BGRA SaveSeq("+PathFileOfSeqFrame(sFileBase, sFileExt1, lFrameNow, iSeqDigitsMin)+")");
+					RReporting.ShowErr("Couldn't save sequence frame","", "RAnim SaveSeq("+PathFileOfSeqFrame(sFileBase, sFileExt1, lFrameNow, iSeqDigitsMin)+")");
 				}
 			}
 			return bGood;
@@ -340,7 +352,7 @@ namespace ExpertMultimedia {
 			bool bGood=true;
 			if (!GotoFrame(lFrameSave)) {
 				bGood=false;
-				Base.ShowErr("Error advancing to frame "+lFrameSave.ToString(), "Anim32BGRA SaveSeqFrame");
+				RReporting.ShowErr( "advancing to frame ", String.Format("RAnim SaveSeqFrame({0},{1},{2})",sFileBase,sFileExt1,lFrameSave),"SaveSeqFrame");
 			}
 			else {
 				bGood=CopyFrameToInternalBitmap();
@@ -348,10 +360,10 @@ namespace ExpertMultimedia {
 					sFileExt=sFileExt1;
 					bGood=SaveInternalBitmap(PathFileOfSeqFrame(sFileBase, sFileExt1, lFrameSave, iSeqDigitsMin), ImageFormatFromExt());
 					if (!bGood) {
-						Base.ShowErr("Failed to save "+PathFileOfSeqFrame(sFileBase, sFileExt1, lFrameSave, iSeqDigitsMin), "Anim32BGRA SaveSeqFrame");
+						RReporting.ShowErr("Failed to save "+PathFileOfSeqFrame(sFileBase, sFileExt1, lFrameSave, iSeqDigitsMin),"", "RAnim SaveSeqFrame");
 					}
 				}
-				else Base.ShowErr("Failed to copy data to frame image","Anim32BGRA SaveSeqFrame");
+				else RReporting.ShowErr("Error copying data to frame image","","RAnim SaveSeqFrame");
 			}
 			return bGood;
 		}
@@ -361,7 +373,7 @@ namespace ExpertMultimedia {
 				bmpLoaded.Save(sFileName, imageformat);
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Anim32BGRA SaveInternalBitmap(\""+sFileName+"\","+imageformat.ToString()+")");
+				RReporting.ShowExn(exn,"","RAnim SaveInternalBitmap(\""+sFileName+"\","+imageformat.ToString()+")");
 				bGood=false;
 			}
 			return bGood;
@@ -377,31 +389,31 @@ namespace ExpertMultimedia {
 				bmpLoaded.Save(sFileName);
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Anim32BGRA SaveInternalBitmap(\""+sFileName+"\")");
+				RReporting.ShowExn(exn,"","RAnim SaveInternalBitmap(\""+sFileName+"\")");
 				bGood=false;
 			}
 			return bGood;
 		}
 		public bool SplitFromImage32(string sFile, int iCellWidth, int iCellHeight, int iRows, int iColumns, IPoint ipAsCellSpacing, IZone izoneAsMargins) {
-			GBuffer32BGRA gbTemp;
+			RImage riTemp;
 			bool bGood=false;
 			try {
-				gbTemp=new GBuffer32BGRA(sFile);
-				if (gbTemp.iBytesTotal==0) {
-					Base.ShowErr("Could not find data in image","Anim32BGRA SplitFromImage32("+sFile+",...)","checking loaded font graphic size");
+				riTemp=new RImage(sFile);
+				if (riTemp.iBytesTotal==0) {
+					RReporting.ShowErr("Could not find data in image","checking loaded font graphic size","RAnim SplitFromImage32("+sFile+",...)");
 					bGood=false;
 				}
 				else {
-					//bmpLoaded=gbTemp.bmpLoaded;//SplitFromImage32 remakes bmpLoaded
-					bGood=SplitFromImage32(ref gbTemp, iCellWidth, iCellHeight, iRows, iColumns, ipAsCellSpacing, izoneAsMargins);
+					//bmpLoaded=riTemp.bmpLoaded;//SplitFromImage32 remakes bmpLoaded
+					bGood=SplitFromImage32(ref riTemp, iCellWidth, iCellHeight, iRows, iColumns, ipAsCellSpacing, izoneAsMargins);
 					//sLogLine="Saving test bitmap for debug...";
-					//gbTemp.Save("1.test bitmap for debug.tif", ImageFormat.Tiff);
-					//gbTemp.SaveRaw("1.test bitmap for debug.raw");
+					//riTemp.Save("1.test bitmap for debug.tif", ImageFormat.Tiff);
+					//riTemp.SaveRaw("1.test bitmap for debug.raw");
 					//sLogLine="Done saving test Bitmap for debug";
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Anim32BGRA SplitFromImage32");
+				RReporting.ShowExn(exn,"","RAnim SplitFromImage32");
 				bGood=false;
 			}
 			return bGood;
@@ -420,20 +432,20 @@ namespace ExpertMultimedia {
 		public bool TransposeFramesAsMatrix(int iResultRows, int iResultCols) {
 			//TODO: exception handling
 			bool bGood=false;
-			GBuffer32BGRA[] gbarrNew;
+			RImage[] riarrNew;
 			string sDebug="starting TranslateFrameOrder()"+Environment.NewLine;
-			Base.StringToFile("C:\\DOCUME~1\\OWNER\\MYDOCU~1\\DATABOX\\anim.TranslateFrameOrder debug.txt", sDebug);
+			if (RReporting.bDebug) RString.StringToFile("1.anim.TranslateFrameOrder debug.txt", sDebug);
 			try {
-				gbarrNew=new GBuffer32BGRA[(int)lFrames];
+				riarrNew=new RImage[(int)lFrames];
 				int iFrames=(int)lFrames;
 				for (int iFrame=0; iFrame<iFrames; iFrame++) {
 					int iNew=(int)(iFrame/iResultCols)+(int)(iFrame%iResultCols)*iResultRows; //switched (must be)
 					sDebug+="old:"+iFrame.ToString()+"; new:"+iNew.ToString()+Environment.NewLine;
-					gbarrNew[iFrame]=gbarrAnim[iNew];
+					riarrNew[iFrame]=riarrAnim[iNew];
 				}
-				gbarrAnim=gbarrNew;
-				Base.StringToFile("C:\\Documents and Settings\\Owner\\My Documents\\Databox\\anim.TranslateFrameOrder debug.txt", sDebug);
-				gbFrame=gbarrAnim[this.lFrameNow];
+				riarrAnim=riarrNew;
+				if (RReporting.bDebug) RString.StringToFile("1.anim.TranslateFrameOrder debug.txt", sDebug);
+				riFrame=riarrAnim[this.lFrameNow];
 				bGood=true;
 			}
 			catch (Exception exn) {
@@ -441,25 +453,24 @@ namespace ExpertMultimedia {
 				//TODO: handle exception
 			}
 			sDebug+="Finished.";
-			//TODO: in future don't set bGood according to StringToFile
-			bGood=Base.StringToFile("C:\\Documents and Settings\\Owner\\My Documents\\Databox\\anim.TranslateFrameOrder debug.txt", sDebug);
+			if (RReporting.bDebug) RString.StringToFile("1.anim.TranslateFrameOrder debug.txt", sDebug);
 			return bGood;
 		}//end TranslateFrameOrder
 		
-		//public GBuffer32BGRA ToOneImage(int iCellW, int iCellH, int iRows, int iColumns, IPoint ipAsCellSpacing, IZone izoneAsMargins) {
-		//public bool SplitFromImage32(ref GBuffer32BGRA gbSrc, int iCellWidth, int iCellHeight, int iRows, int iColumns, IPoint ipAsCellSpacing, IZone izoneAsMargins) {
-		public GBuffer32BGRA ToOneImage(int iCellWidth, int iCellHeight, int iRows, int iColumns, IPoint ipAsCellSpacing, IZone izoneAsMargins) {
+		//public RImage ToOneImage(int iCellW, int iCellH, int iRows, int iColumns, IPoint ipAsCellSpacing, IZone izoneAsMargins) {
+		//public bool SplitFromImage32(ref RImage riSrc, int iCellWidth, int iCellHeight, int iRows, int iColumns, IPoint ipAsCellSpacing, IZone izoneAsMargins) {
+		public RImage ToOneImage(int iCellWidth, int iCellHeight, int iRows, int iColumns, IPoint ipAsCellSpacing, IZone izoneAsMargins) {
 			bool bGood=true;
 			int iFrames=iRows*iColumns;
 			lFramesCached=lFrames; //so cached anim will be accessed
-			GBuffer32BGRA gbNew=null;
+			RImage riNew=null;
 			try {
-				//gbarrAnim=new GBuffer32BGRA[lFrames];
+				//riarrAnim=new RImage[lFrames];
 				this.GotoFrame(0);
-				gbNew=new GBuffer32BGRA(iCellWidth*iColumns, iCellHeight*iRows, this.gbFrame.iBytesPP);
+				riNew=new RImage(iCellWidth*iColumns, iCellHeight*iRows, this.riFrame.iBytesPP);
 				//bmpLoaded=new Bitmap(iCellWidth, iCellHeight, PixelFormatNow());
 				//for (int lFrameX=0; lFrameX<lFrames; lFrameX++) {
-				//	gbarrAnim[lFrameX]=new GBuffer32BGRA(iCellWidth, iCellHeight, 4); //assumes 32-bit
+				//	riarrAnim[lFrameX]=new RImage(iCellWidth, iCellHeight, 4); //assumes 32-bit
 				//}
 				if (ipAsCellSpacing==null) {
 					ipAsCellSpacing=new IPoint();
@@ -468,15 +479,15 @@ namespace ExpertMultimedia {
 					izoneAsMargins=new IZone();
 				}
 				lFrameNow=0; //TODO: use new var instead of class var
-				int iDestByteOfCellTopLeft=izoneAsMargins.Top*gbNew.iStride + izoneAsMargins.Left*gbNew.iBytesPP;
+				int iDestByteOfCellTopLeft=izoneAsMargins.Top*riNew.iStride + izoneAsMargins.Left*riNew.iBytesPP;
 				int iDestByteOfCellNow;
 				int iDestByte;
 				int iSrcByte;
-				int iSrcStride=gbFrame.iStride;
-				int iHeight=gbFrame.iHeight;
-				int iDestStride=gbNew.iStride;
-				int iCellPitchX=gbNew.iBytesPP*(iCellWidth+ipAsCellSpacing.X);
-				int iCellPitchY=gbNew.iStride*(iCellHeight+ipAsCellSpacing.Y);
+				int iSrcStride=riFrame.iStride;
+				int iHeight=riFrame.iHeight;
+				int iDestStride=riNew.iStride;
+				int iCellPitchX=riNew.iBytesPP*(iCellWidth+ipAsCellSpacing.X);
+				int iCellPitchY=riNew.iStride*(iCellHeight+ipAsCellSpacing.Y);
 				long lFrameLoad=0;
 				for (int yCell=0; yCell<iRows; yCell++) {
 					for (int xCell=0; xCell<iColumns; xCell++) {
@@ -484,9 +495,9 @@ namespace ExpertMultimedia {
 						iDestByteOfCellNow=iDestByteOfCellTopLeft + yCell*iCellPitchY + xCell*iCellPitchX;
 						iDestByte=iDestByteOfCellNow;
 						GotoFrame(lFrameLoad);
-						//gbFrame.Save("debugToOneImage"+Base.SequenceDigits(lFrameLoad)+".png",ImageFormat.Png);
+						//riFrame.Save("debugToOneImage"+Base.SequenceDigits(lFrameLoad)+".png",ImageFormat.Png);
 						for (int iLine=0; iLine<iHeight; iLine++) {
-							if (!Memory.CopyFast(ref gbNew.byarrData, ref gbFrame.byarrData, iDestByte, iSrcByte, iSrcStride))
+							if (!RMemory.CopyFast(ref riNew.byarrData, ref riFrame.byarrData, iDestByte, iSrcByte, iSrcStride))
 								bGood=false;
 							iSrcByte+=iSrcStride;
 							iDestByte+=iDestStride;
@@ -494,15 +505,15 @@ namespace ExpertMultimedia {
 						lFrameLoad++;
 					}
 				}
-				if (!bGood) Base.ShowErr("There was data copy error while combining to one image","Anim32BGRA ToOneImage","combining graphic data to single image");
+				if (!bGood) RReporting.ShowErr("There was data copy error while combining to one image","combining graphic data to single image","RAnim ToOneImage");
 				//else bGood=GrayMapFromPixMapChannel(3);
 				bGood=true;
 				lFramesCached=lFrames;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Anim32BGRA ToOneImage","splitting image with specified cell sizes");
+				RReporting.ShowExn(exn,"splitting image with specified cell sizes","RAnim ToOneImage");
 			}
-			return gbNew;
+			return riNew;
 		}//end ToOneImage
 		#endregion file operations
 		
@@ -525,23 +536,23 @@ namespace ExpertMultimedia {
 						+"; iEffects:"+this.iEffects
 						+"; iMaxEffects:"+this.iMaxEffects
 						+"; iSeqDigitsMin:"+this.iSeqDigitsMin;
-					if (gbFrame!=null) {
+					if (riFrame!=null) {
 						try {
-							sReturn+="; gbFrame.iBytesTotal:"+gbFrame.iBytesTotal
-								+"; gbFrame.iWidth:"+gbFrame.iWidth
-								+"; gbFrame.iHeight:"+gbFrame.iHeight
-								+"; gbFrame.iWidth:"+gbFrame.iWidth
-								+"; gbFrame.iBytesPP:"+gbFrame.iBytesPP
-								+"; gbFrame.iStride:"+gbFrame.iStride;
+							sReturn+="; riFrame.iBytesTotal:"+riFrame.iBytesTotal
+								+"; riFrame.iWidth:"+riFrame.iWidth
+								+"; riFrame.iHeight:"+riFrame.iHeight
+								+"; riFrame.iWidth:"+riFrame.iWidth
+								+"; riFrame.iBytesPP:"+riFrame.iBytesPP
+								+"; riFrame.iStride:"+riFrame.iStride;
 						}
 						catch (Exception exn) {
-							Base.ShowExn(exn,"Anim32BGRA ToString("+(bDumpVars?"true":"false")+")","accessing gbFrame values to save to text file");
+							RReporting.ShowExn(exn,"accessing riFrame values to save to text file","RAnim ToString("+(bDumpVars?"true":"false")+")");
 						}
 					}
 					sReturn+=";}";
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"Anim32BGRA ToString("+(bDumpVars?"true":"false")+")","dumping values to text file");
+					RReporting.ShowExn(exn,"dumping values to text file","RAnim ToString("+(bDumpVars?"true":"false")+")");
 				}
 				return sReturn;
 			}
@@ -570,13 +581,13 @@ namespace ExpertMultimedia {
 		public bool ResetBitmapUsingFrameNow() {
 			bool bGood=true;
 			try {
-				bmpLoaded=new Bitmap(gbFrame.iWidth, gbFrame.iHeight, PixelFormatNow());
+				bmpLoaded=new Bitmap(riFrame.iWidth, riFrame.iHeight, PixelFormatNow());
 				//bmpLoaded.Save(Manager.sDataFolderSlash+"1.test-blank.png", ImageFormat.Png);
 				//sLogLine="Saved blank test PNG for Bitmap debug";
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"Anim32BGRA ResetBitmapUsingFrameNow","creating new image using framework");
+				RReporting.ShowExn(exn,"creating new image using framework","RAnim ResetBitmapUsingFrameNow");
 			}
 			return bGood;
 		}
@@ -592,7 +603,7 @@ namespace ExpertMultimedia {
 					bGood=ResetBitmapUsingFrameNow();
 				}
 				if (bmpLoaded==null) {
-					Base.ShowErr("Failed to initialize internal frame image","Anim32BGRA CopyFrameToInternalBitmap");
+					RReporting.ShowErr("Failed to initialize internal frame image","","RAnim CopyFrameToInternalBitmap");
 				}
 				else {
 					rectNowF = bmpLoaded.GetBounds(ref gunit);
@@ -600,11 +611,11 @@ namespace ExpertMultimedia {
 										(int)rectNowF.Width, (int)rectNowF.Height);
 					bmpdata = bmpLoaded.LockBits(rectNow, ImageLockMode.WriteOnly, PixelFormatNow());
 					bLocked=true;
-					if ((gbFrame.iStride!=bmpdata.Stride)
-							|| (gbFrame.iWidth!=rectNow.Width)
-							|| (gbFrame.iHeight!=rectNow.Height)
-							|| (gbFrame.iBytesPP!=bmpdata.Stride/rectNow.Width)
-							|| (gbFrame.iBytesTotal!=(bmpdata.Stride*rectNow.Height))) {
+					if ((riFrame.iStride!=bmpdata.Stride)
+							|| (riFrame.iWidth!=rectNow.Width)
+							|| (riFrame.iHeight!=rectNow.Height)
+							|| (riFrame.iBytesPP!=bmpdata.Stride/rectNow.Width)
+							|| (riFrame.iBytesTotal!=(bmpdata.Stride*rectNow.Height))) {
 						bmpLoaded.UnlockBits(bmpdata);
 						bLocked=false;
 						bGood=ResetBitmapUsingFrameNow();
@@ -626,37 +637,37 @@ namespace ExpertMultimedia {
 						
 						if (bLocked) bmpLoaded.UnlockBits(bmpdata);
 						int xNow=0,yNow=0;
-						while (iSrcByte<gbFrame.iBytesTotal && iDestPixel<iDestPixelsTotal) {
-							if (gbFrame.iBytesPP==1) {
-								bmpLoaded.SetPixel(xNow,yNow,Color.FromArgb(255,gbFrame.byarrData[iSrcByte],gbFrame.byarrData[iSrcByte],gbFrame.byarrData[iSrcByte]));
+						while (iSrcByte<riFrame.iBytesTotal && iDestPixel<iDestPixelsTotal) {
+							if (riFrame.iBytesPP==1) {
+								bmpLoaded.SetPixel(xNow,yNow,Color.FromArgb(255,riFrame.byarrData[iSrcByte],riFrame.byarrData[iSrcByte],riFrame.byarrData[iSrcByte]));
 							}
-							else if (gbFrame.iBytesPP==4) {
-								bmpLoaded.SetPixel(xNow,yNow,Color.FromArgb(gbFrame.byarrData[iSrcByte+3],gbFrame.byarrData[iSrcByte+2],gbFrame.byarrData[iSrcByte+1],gbFrame.byarrData[iSrcByte]));
+							else if (riFrame.iBytesPP==4) {
+								bmpLoaded.SetPixel(xNow,yNow,Color.FromArgb(riFrame.byarrData[iSrcByte+3],riFrame.byarrData[iSrcByte+2],riFrame.byarrData[iSrcByte+1],riFrame.byarrData[iSrcByte]));
 							}
-							else if (gbFrame.iBytesPP==3) {
-								bmpLoaded.SetPixel(xNow,yNow,Color.FromArgb(255,gbFrame.byarrData[iSrcByte+2],gbFrame.byarrData[iSrcByte+1],gbFrame.byarrData[iSrcByte]));
+							else if (riFrame.iBytesPP==3) {
+								bmpLoaded.SetPixel(xNow,yNow,Color.FromArgb(255,riFrame.byarrData[iSrcByte+2],riFrame.byarrData[iSrcByte+1],riFrame.byarrData[iSrcByte]));
 							}
 							else {
-								Base.ShowErr("Cannot copy "+gbFrame.iBytesPP.ToString()+"-channel images to internal bitmap","Anim32BGRA CopyFrameToInternalBitmap");
+								RReporting.ShowErr("Cannot copy "+riFrame.iBytesPP.ToString()+"-channel images to internal bitmap","","RAnim CopyFrameToInternalBitmap");
 								break;
 							}
 							iDestPixel++;
-							iSrcByte+=gbFrame.iBytesPP;
+							iSrcByte+=riFrame.iBytesPP;
 							xNow+=1;
 							if (xNow==rectNow.Width) {
 								xNow=0;
 								yNow++;
 							}
 						}
-						//while (iSrcByte<gbFrame.iBytesTotal && iDestByte<iDestBytesTotal) {
-						//	*lpbyNow=gbFrame.byarrData[iSrcByte];
+						//while (iSrcByte<riFrame.iBytesTotal && iDestByte<iDestBytesTotal) {
+						//	*lpbyNow=riFrame.byarrData[iSrcByte];
 						//	lpbyNow+=iDestBytesPP;
 						//	iDestByte+=iDestBytesPP;
-						//	iSrcByte+=gbFrame.iBytesPP;
+						//	iSrcByte+=riFrame.iBytesPP;
 						//}
 					}
 					else {
-						Base.ShowErr("Failed to reinitialize internal frame image","Anim32BGRA CopyFrameToInternalBitmap");
+						RReporting.ShowErr("Failed to reinitialize internal frame image","","RAnim CopyFrameToInternalBitmap");
 						//bLocked=false;
 					}
 				}//end else not still null
@@ -666,10 +677,10 @@ namespace ExpertMultimedia {
 				if (bLocked) {
 					try{	bmpLoaded.UnlockBits(bmpdata); }
 					catch (Exception exn2) {
-						Base.ShowExn(exn2,"Anim32BGRA CopyFrameToInternalBitmap","unlocking bitmap during recovery");
+						RReporting.ShowExn(exn2,"unlocking bitmap during recovery","RAnim CopyFrameToInternalBitmap");
 					}
 				}
-				Base.ShowExn(exn,"Anim32BGRA CopyFrameToInternalBitmap");
+				RReporting.ShowExn(exn,"","RAnim CopyFrameToInternalBitmap");
 				bGood=false;
 			}
 			return bGood;
@@ -680,14 +691,14 @@ namespace ExpertMultimedia {
 				if (bmpLoaded!=null) bmpLoaded.Dispose();
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Anim32BGRA LoadInternalBitmap(\""+sFile+"\")","disposing previous frame image");
+				RReporting.ShowExn(exn,"disposing previous frame image","RAnim LoadInternalBitmap(\""+sFile+"\")");
 			}
 			try {
 				bmpLoaded=new Bitmap(sFile);
 				bGood=CopyFrameFromInternalBitmap();
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Anim32BGRA LoadInternalBitmap(\""+sFile+"\")","accessing image format or file location");
+				RReporting.ShowExn(exn,"accessing image format or file location","RAnim LoadInternalBitmap(\""+sFile+"\")");
 				bGood=false;
 			}
 			return bGood;
@@ -700,51 +711,57 @@ namespace ExpertMultimedia {
 				rectNow = new Rectangle((int)rectNowF.X, (int)rectNowF.Y,
 									(int)rectNowF.Width, (int)rectNowF.Height);
 				bmpdata = bmpLoaded.LockBits(rectNow, ImageLockMode.ReadOnly, PixelFormatNow());
-				if (  (gbFrame.iStride!=bmpdata.Stride)
-				   || (gbFrame.iWidth!=rectNow.Width)
-				   || (gbFrame.iHeight!=rectNow.Height)
-				   || (gbFrame.iBytesPP!=bmpdata.Stride/rectNow.Width)
-				   || (gbFrame.iBytesTotal!=(bmpdata.Stride*rectNow.Height)) ) {
-					gbFrame.iStride=bmpdata.Stride;
-					gbFrame.iWidth=rectNow.Width;
-					gbFrame.iHeight=rectNow.Height;
-					gbFrame.iBytesPP=gbFrame.iStride/gbFrame.iWidth;
-					gbFrame.iBytesTotal=gbFrame.iStride*gbFrame.iHeight;
-					gbFrame.byarrData=new byte[gbFrame.iBytesTotal];
+				if (  (riFrame.iStride!=bmpdata.Stride)
+				   || (riFrame.iWidth!=rectNow.Width)
+				   || (riFrame.iHeight!=rectNow.Height)
+				   || (riFrame.iBytesPP!=bmpdata.Stride/rectNow.Width)
+				   || (riFrame.iBytesTotal!=(bmpdata.Stride*rectNow.Height)) ) {
+					riFrame.iStride=bmpdata.Stride;
+					riFrame.iWidth=rectNow.Width;
+					riFrame.iHeight=rectNow.Height;
+					riFrame.iBytesPP=riFrame.iStride/riFrame.iWidth;
+					riFrame.iBytesTotal=riFrame.iStride*riFrame.iHeight;
+					riFrame.byarrData=new byte[riFrame.iBytesTotal];
 				}
 				byte* lpbyNow = (byte*) bmpdata.Scan0.ToPointer();
-				for (int iBy=0; iBy<gbFrame.iBytesTotal; iBy++) {
-					gbFrame.byarrData[iBy]=*lpbyNow;
+				for (int iBy=0; iBy<riFrame.iBytesTotal; iBy++) {
+					riFrame.byarrData[iBy]=*lpbyNow;
 					lpbyNow++;
 				}
 				bmpLoaded.UnlockBits(bmpdata);
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Anim32BGRA CopyFrameFromInternalBitmap");
+				RReporting.ShowExn(exn,"","RAnim CopyFrameFromInternalBitmap");
 				bGood=false;
 			}
 			return bGood;
 		}//end CopyFrameFromInternalBitmap
-		public GBuffer32BGRA Frame(long lFrameX) {
+		public RImage Frame(long lFrameX) {
 			GotoFrame(lFrameX);
-			return gbFrame;
+			return riFrame;
 		}
 		public bool GotoFrame(long lFrameX) {
 			//refers to a file if a file is used.\
 			bool bGood=true;
 			try {
 				if (lFramesCached==lFrames) {
-					gbFrame=gbarrAnim[lFrameX];
-					lFrameNow=lFrameX;
-				}
+					if (riarrAnim!=null) {
+						if (lFrameX<riarrAnim.Length) {
+							riFrame=riarrAnim[lFrameX];
+							lFrameNow=lFrameX;
+						}
+						else Console.Error.WriteLine("Tried to go to frame "+lFrameX+" of "+riarrAnim.Length);
+					}
+					else Console.Error.WriteLine("GotoFrame error: Null frame buffer; Frame count:"+lFrames.ToString());
+				}//end if all frames cached
 				else {//if ((sPathFile!=null) && (sPathFile.Length>0)) {
-					Base.ShowErr("GotoFrame of non-cached sequence is not available in this version","Anim32BGRA GotoFrame");//debug NYI
+					RReporting.ShowErr("GotoFrame of non-cached sequence is not available in this version","","RAnim GotoFrame");//debug NYI
 					//image.SelectActiveFrame(image.FrameDimensionsList[lFrameX], (int)lFrameX);
 					//debug NYI load from file
-				}
+				}//end else frames not cached
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Anim32BGRA GotoFrame","accessing video index "+lFrameX.ToString());
+				RReporting.ShowExn( exn,"accessing video index",String.Format("RAnim GotoFrame({0})",lFrameX) );
 				bGood=false;
 			}
 			return bGood;
@@ -758,7 +775,7 @@ namespace ExpertMultimedia {
 			try {
 				sReturn=sFileBaseName1;
 				if (iDigitsMin>0) {
-					long lDivisor=Base.SafeE10L((int)(iDigitsMin-1));//returns long since implied base is 10L
+					long lDivisor=RMath.SafeE10L((int)(iDigitsMin-1));//returns long since implied base is 10L
 					long lDestruct=lFrameTarget;
 					while (lDivisor>0) {
 						long lResult=lDestruct/lDivisor;
@@ -772,7 +789,7 @@ namespace ExpertMultimedia {
 				sReturn+="."+sFileExt1;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Anim32BGRA PathFileOfSeqFrame");
+				RReporting.ShowExn(exn,"","RAnim PathFileOfSeqFrame");
 				sReturn="";
 			}
 			return sReturn;
@@ -787,7 +804,7 @@ namespace ExpertMultimedia {
 				sReturn=PathFileOfSeqFrame(sPathFileBaseName, sFileExt, lFrameTarget, iSeqDigitsMin);
 			//}
 			//catch (Exception exn) {
-			//	Base.ShowExn(exn,"Anim32BGRA PathFileOfSeqFrame("+lFrameTarget.ToString()+")");
+			//	RReporting.ShowExn(exn,"","RAnim PathFileOfSeqFrame("+lFrameTarget.ToString()+")");
 			//	sReturn="";
 			//}
 			return sReturn;
@@ -801,19 +818,19 @@ namespace ExpertMultimedia {
 		//public bool FromFrames(byte[][] by2dFrames, long lFrames, int iBytesPPNow, int iWidthNow, int iHeightNow) {
 		//}
 		#region draw methods
-		public bool DrawFrameOverlay(ref GBuffer32BGRA gbDest, ref IPoint ipDest, long lFrame) {
+		public bool DrawFrameOverlay(ref RImage riDest, ref IPoint ipDest, long lFrame) {
 			bool bGood=GotoFrame(lFrame);
-			if (DrawFrameOverlay(ref gbDest, ref ipDest)==false) bGood=false;
+			if (DrawFrameOverlay(ref riDest, ref ipDest)==false) bGood=false;
 			return bGood;
 		}
-		public bool DrawFrameOverlay(ref GBuffer32BGRA gbDest, ref IPoint ipDest) {
-			return GBuffer32BGRA.OverlayNoClipToBigCopyAlpha(ref gbDest, ref ipDest, ref gbFrame);
+		public bool DrawFrameOverlay(ref RImage riDest, ref IPoint ipDest) {
+			return RImage.OverlayNoClipToBigCopyAlpha(ref riDest, ref ipDest, ref riFrame);
 		}
 		#endregion draw methods
-	}//end class Anim32BGRA;
+	}//end class RAnim;
 	
 	public class Clip {
-		public int iParent; //index of parent Anim32BGRA in animarr
+		public int iParent; //index of parent RAnim in animarr
 		public long lFrameStart;
 		public long lFrames;
 		public long lFrameNow;
@@ -858,7 +875,7 @@ namespace ExpertMultimedia {
 				fxReturn.sScript=sScript;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Effect Copy");
+				RReporting.ShowExn(exn,"","Effect Copy");
 			}
 			return fxReturn;
 		}

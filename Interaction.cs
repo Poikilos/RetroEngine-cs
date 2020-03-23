@@ -30,8 +30,8 @@ namespace ExpertMultimedia {
 		public uint bitsAttrib;
 		public int iNum;//i.e. mouse/joystick button number
 //		public int iTokenBytes;//length of token
-//		public int iTickSent; // = Environment.TickCount; set upon send		
-//		public int iTickArrived; // = Environment.TickCount; //set upon receipt
+//		public int iTickSent; // = RetroEngine.TickCount; set upon send		
+//		public int iTickArrived; // = RetroEngine.TickCount; //set upon receipt
 		public char cText;
 		public string sText; //stores text
 		public string sFrom; //stores sender name

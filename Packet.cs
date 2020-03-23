@@ -41,8 +41,8 @@ namespace ExpertMultimedia {
 		public int iTokenNum; //so Client packet can be verified by Server
 		public byte[] byarrToken;//token
 		public int iTokenBytes;//length of token
-		public int iTickSent; // = Environment.TickCount; set upon send		
-		public int iTickArrived; // = Environment.TickCount; //set upon receipt
+		public int iTickSent; // = RetroEngine.TickCount; set upon send (by Packeter)
+		public int iTickArrived; // = RetroEngine.TickCount; //set upon receipt (by Packeter)
 		private Variables vsData;//keep as Variables not Var, for speed and size
 		public string sFrom; //stores sender name
 		public string sTo; //optionally stores recipient name

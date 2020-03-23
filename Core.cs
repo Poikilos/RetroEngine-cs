@@ -45,7 +45,7 @@ namespace ExpertMultimedia {
 			while (bContinue) {
 				//if (bShuttingDown) {
 					//if (iPacketsSending==0) bContinue=false; //debug this statement should be fixed and used
-				//	if (Environment.TickCount-iTickShutdown>iTicksToShutdown) bContinue=false;
+				//	if (RetroEngine.TickCount-iTickShutdown>iTicksToShutdown) bContinue=false;
 				//}
   			}
 			Base.WriteLine("Scenario manager stopped");

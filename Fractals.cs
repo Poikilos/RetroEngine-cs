@@ -50,7 +50,7 @@ namespace ExpertMultimedia {
 		private FRACTALREAL rPassUnitsPerChunk;
 		private FRACTALREAL rUnitsPerPixel=fr_001;//fixed later
 		private int iPassPixelsPerChunk;
-		private GBuffer32BGRA gbFractal=null;
+		private GBuffer gbFractal=null;
 		private FRACTALREAL rPixelsPerUnit=300;//i.e. 300 will fit in 800x600 screen
 		private static int iMaxIterations=512;
 		private static int iMaxRangeSquared=4;
@@ -179,22 +179,22 @@ namespace ExpertMultimedia {
 			Init(iPixelsWide,iPixelsHigh);
 		}
 		private void Init(int iPixelsWide, int iPixelsHigh) {
-			gbFractal=new GBuffer32BGRA(iPixelsWide, iPixelsHigh, iDefaultBytesPP);
+			gbFractal=new GBuffer(iPixelsWide, iPixelsHigh, iDefaultBytesPP);
 			iMaxPPF=iDefaultMaxPPF;
 			ResetPasses();
 			OnStartPass();
 		}
-		public bool RenderIncrement(GBuffer32BGRA gbDest) {
+		public bool RenderIncrement(GBuffer gbDest) {
 			gbDest.ToRect(ref rectDestDefault);
 			return RenderIncrement(gbDest,rectDestDefault);
 		}
-		public bool RenderIncrement(GBuffer32BGRA gbDest, IRect rectDest) {
+		public bool RenderIncrement(GBuffer gbDest, IRect rectDest) {
 			bool bGood=true;
 			try {
 				gbFractal.SetPixelArgb(400,300, 255,255,0,0);//debug only
 				if (!FinishedRenderingAll()) {
 					iTickStartPrev=iTickStart;
-					iTickStart=Environment.TickCount;
+					iTickStart=PlatformNow.TickCount;
 					if (iTickStartPrev!=-1) {//&&iTickStart!=-1) {
 						iTicksPerFrame=iTickStart-iTickStartPrev;
 						//if (iTicksPerFrame>iMaxUsableTicksPerFrame_ElseIgnoreFrameRate) {
@@ -226,7 +226,7 @@ namespace ExpertMultimedia {
 							if (iPass==1||Base.Dist((double)(gbFractal.Width/2.0),(double)(gbFractal.Height/2.0),(double)xDest,(double)yDest)<(double)iDetailRadius) {
 								FRACTALREAL rFractalness=(FRACTALREAL)(ResultMandelbrot((FRACTALREAL)xSrc,(FRACTALREAL)ySrc)%255)/fr255;
 								if (iPassPixelsPerChunk>1) {
-									GBuffer32BGRA.SetBrushHsva(rFractalness,1.0,rFractalness,1.0);
+									GBuffer.SetBrushHsva(rFractalness,1.0,rFractalness,1.0);
 									gbFractal.DrawRectCroppedFilled(xDest,yDest,iPassPixelsPerChunk,iPassPixelsPerChunk);
 								}
 								else gbFractal.SetPixelHsva(xDest,yDest,rFractalness,1.0,rFractalness,1.0);
@@ -250,7 +250,7 @@ namespace ExpertMultimedia {
 				//gbFractal.SetPixelArgb(400,300, 255,0,255,0);//debug only
 				if (!gbDest.Draw(rectDest,gbFractal)) {
 					bGood=false;
-					Base.Warning("Couldn't draw Fractal buffer to destination.","{gbFractal:"+Base.VariableMessage(gbFractal)+"; gbDest:"+Base.VariableMessage(gbDest)+"; rectDest:"+rectDest.Description()+"}");
+					Base.Warning("Couldn't draw Fractal buffer to destination.","{gbFractal:"+GBuffer.VariableMessage(gbFractal)+"; gbDest:"+GBuffer.VariableMessage(gbDest)+"; rectDest:"+rectDest.Description()+"}");
 				}
 			}
 			catch (Exception exn) {
@@ -259,16 +259,16 @@ namespace ExpertMultimedia {
 			}
 			return bGood;
 		}//end RenderIncrement
-		public bool Render(GBuffer32BGRA gbDest) {
+		public bool Render(GBuffer gbDest) {
 			gbDest.ToRect(ref rectDestDefault);
 			return Render(gbDest,rectDestDefault);
 		}
-		public bool RenderAll(GBuffer32BGRA gbDest) {
+		public bool RenderAll(GBuffer gbDest) {
 			gbDest.ToRect(ref rectDestDefault);
 			return RenderAll(gbDest,rectDestDefault);
 		}
 		
-// 		public bool Render(GBuffer32BGRA gbDest, IRect rectDest) {
+// 		public bool Render(GBuffer gbDest, IRect rectDest) {
 // 			bool bGood=true;
 // 			IRect rectShrinking=gbDest.ToRect();
 // 			//int iBlobSizeNow=8;
@@ -284,7 +284,7 @@ namespace ExpertMultimedia {
 // 			}
 // 			return bGood;
 // 		}
-		public bool Render(GBuffer32BGRA gbDest, IRect rectDest) {//, DPoint pPixelOrigin, double rPixelsPerUnit, double rSeed) {
+		public bool Render(GBuffer gbDest, IRect rectDest) {//, DPoint pPixelOrigin, double rPixelsPerUnit, double rSeed) {
 			bool bGood=true;
 			try {
 				ResetPasses();//fixes iDetailRadius etc
@@ -349,7 +349,7 @@ namespace ExpertMultimedia {
 							//if (iBlobSize>1) {
 							//	try {
 							//		if (xDest>=0&&yDest>=0&&xDest+iBlobSize<=gbFractal.Width&&yDest+iBlobSize<=gbFractal.Height) {
-							//			GBuffer32BGRA.SetBrushHsva(rFractalness,1.0,rFractalness,1.0);
+							//			GBuffer.SetBrushHsva(rFractalness,1.0,rFractalness,1.0);
 							//			if (!gbFractal.DrawRectFilledSafe(xDest,yDest,iBlobSize,iBlobSize)) {
 							//				Base.Warning("Skipped fractal blob.","{location:"+IPoint.Description(xDest,yDest)+"; size:"+IPoint.Description(iBlobSize,iBlobSize)+"}");
 							//			}
@@ -365,12 +365,12 @@ namespace ExpertMultimedia {
 					}
 					ySrc+=rUnitsPerPixel;
 				}
-				//GBuffer32BGRA.SetBrushRgb(255,0,0);
+				//GBuffer.SetBrushRgb(255,0,0);
 				//gbFractal.DrawRectFilledSafe(0,0,64,64);
 				//gbFractal.DrawRectFilledSafe(gbFractal.Width-64,gbFractal.Height-64,64,64);
 				//if (!gbDest.DrawSmallerWithoutCropElseCancel(rectDest.X,rectDest.Y,gbFractal)) bGood=false;
 				if (!gbDest.Draw(rectDest,gbFractal,rectSrcDefault)) bGood=false;
-				//if (!GBuffer32BGRA.Render(gbDest,rectDest,gbFractal,rectCropFractal,GBuffer32BGRA.DrawModeCopyAlpha)) bGood=false;
+				//if (!GBuffer.Render(gbDest,rectDest,gbFractal,rectCropFractal,GBuffer.DrawModeCopyAlpha)) bGood=false;
 				if (bGood) iFramesRendered++;
 			}
 			catch (Exception exn) {	
@@ -379,7 +379,7 @@ namespace ExpertMultimedia {
 			return bGood;
 		}//end Render
 		DPoint pOrigin=new DPoint(0,0);
-		public bool RenderAll(GBuffer32BGRA gbDest, IRect rectDest) {//, DPoint pOrigin, double rScale, double rSetSeed) {
+		public bool RenderAll(GBuffer gbDest, IRect rectDest) {//, DPoint pOrigin, double rScale, double rSetSeed) {
 			bool bGood=false;
 			try {
 				//int xDest=rectDest.Left;

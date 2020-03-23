@@ -18,7 +18,7 @@ namespace ExpertMultimedia {
 	/// Simple Memory/File Buffering system.
 	/// </summary>
 	/// <remarks>
-	/// Forces little-endian reads/writes to Byter.byarr and disk
+	/// Forces little-endian reads/writes to RFile.byarr and disk
 	/// <p>Written by Jake Gustafson</p>
 	/// <p>Big-endian systems haven't been tested,
 	/// so go to www.expertmultimedia.com and notify if problems.</p>
@@ -27,7 +27,7 @@ namespace ExpertMultimedia {
 	/// </p>
 	/// </remarks>
 	#endregion Class Documentation
-	public class Byter {
+	public class RFile {//formerly Byter
 		
 		#region of variables
 		
@@ -36,12 +36,12 @@ namespace ExpertMultimedia {
 		public int iLastCountDesired; //i.exn. =4 if int was read/written
 		private int iPlace;
 		private int iPlaceTemp;
-		public string sFileNow="1.Noname.Byter.raw";
+		public string sFileNow="1.Noname.RFile.raw";
 		public char[] carrChunkType=new char[] {'R','I','F','F'};
 		public string[] sarrKnownType=null; //TODO: when setting this, automatically change byte[] to byte[numberofbytesgohere] as necessary.  The array would, for example, contain new string[]{uint,uint,ushort,ushort}
 		//TODO: finish this (all 3 arrays must match):
-		public static readonly DataSet[] riffKnownLeaf=new DataSet[]{new DataSet("FMT ", new string[]{"ushort","ushort","uint","uint","ushort","ushort","ushort"}, new string[]{"AudioMethod","ChannelCount","SampleRate","AverageBytesPerSecond","Chunks Per Sample Slice aka BlockAlign (= SignificantBitsPerSample / 8 * NumChannels)","SignificantBitsPerSample","Number of Method Bytes That Follow (always padded to multiple of 2)"}),new DataSet("DATA",new string[]{"byte[]"},new string[]{"RawWaveData"})};
-		public DataSet dataset=null;//this class describes an array of raw data
+		public static readonly RDataSet[] riffKnownLeaf=new RDataSet[]{new RDataSet("FMT ", new string[]{"ushort","ushort","uint","uint","ushort","ushort","ushort"}, new string[]{"AudioMethod","ChannelCount","SampleRate","AverageBytesPerSecond","Chunks Per Sample Slice aka BlockAlign (= SignificantBitsPerSample / 8 * NumChannels)","SignificantBitsPerSample","Number of Method Bytes That Follow (always padded to multiple of 2)"}),new RDataSet("DATA",new string[]{"byte[]"},new string[]{"RawWaveData"})};
+		public RDataSet dataset=null;//this class describes an array of raw data
 		//public static readonly string[] sarrKnownRiffLeaf=new string[]{
 		//	"FMT ",
 		//	"DATA"
@@ -101,7 +101,7 @@ namespace ExpertMultimedia {
 		}//end ChunkType
 		private int iBuffer; //Buffer size as written to the file.
 		public byte[] byarr=null; //Buffer
-		public Byter[] byterarr=null; //riff chunks (if null assume IsLeaf)
+		public RFile[] byterarr=null; //riff chunks (if null assume IsLeaf)
 		public bool IsLeaf {//IsRiffLeaf
 			get {
 				return byterarr==null;
@@ -121,17 +121,17 @@ namespace ExpertMultimedia {
 				try {
 					if (value>byarr.Length) {
 						byte[] byarrTemp=new byte[value];
-						if (Memory.CopyFast(ref byarrTemp, ref byarr,0,0,(byarr.Length<value)?byarr.Length:value)) {
+						if (RMemory.CopyFast(ref byarrTemp, ref byarr,0,0,(byarr.Length<value)?byarr.Length:value)) {
 							byarrTemp[value-1]=byarrTemp[value-1]; //test for exception
 							byarr=byarrTemp;
 							byarr[value-1]=byarr[value-1]; //test for exception
 						}
-						else Base.ShowErr("Can't copy old buffer to new buffer.","set Byter Length");
+						else RReporting.ShowErr("Can't copy old buffer to new buffer.","setting RFile Length","RFile set Length="+value.ToString());
 					}
 					iBuffer=byarr.Length;
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"set byter Length","resizing to "+value.ToString()+" bytes");
+					RReporting.ShowExn(exn,"resizing to byter","set byter Length="+value.ToString());
 				}
 				
 			}
@@ -178,16 +178,16 @@ namespace ExpertMultimedia {
 		#endregion variables
 		
 		#region constructors
-		public Byter() {
+		public RFile() {
 			Init(1024*1024); //1MB default size
 		}
-		public Byter(int iBytesTotalDesired) {
+		public RFile(int iBytesTotalDesired) {
 			Init(iBytesTotalDesired);
 		}
-		public static Byter Create(string sFileToLoadCompletelyToMemory) {//formerly FromFile
-			Byter byterNew=null;
+		public static RFile Create(string sFileToLoadCompletelyToMemory) {//formerly FromFile
+			RFile byterNew=null;
 			//try {
-				byterNew=new Byter();
+				byterNew=new RFile();
 				byterNew.Load(sFileToLoadCompletelyToMemory);
 			//}
 			//catch (Exception exn) {
@@ -202,7 +202,7 @@ namespace ExpertMultimedia {
 				iBuffer=0;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Init(iBuffer="+iBytesTotalDesired.ToString()+")");
+				RReporting.ShowExn(exn,"","Init(iBuffer:"+iBytesTotalDesired.ToString()+")");
 			}
 		}
 		#endregion constructors
@@ -220,7 +220,7 @@ namespace ExpertMultimedia {
 				iBuffer=0;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"ResetTo("+iNumOfBytes.ToString()+")","resizing to "+iNumOfBytes.ToString()+" bytes");
+				RReporting.ShowExn(exn,"resizing byter","ResetTo("+iNumOfBytes.ToString()+")");
 				return false;
 			}
 			return true;
@@ -231,14 +231,14 @@ namespace ExpertMultimedia {
 				fiLoad=new FileInfo(sPathFile);
 				iLastFileSize=(int)fiLoad.Length; //convert from Long
 				if ((long)iLastFileSize!=fiLoad.Length)
-					Base.ShowErr("File length exceeded 32-bit integer!");
+					RReporting.ShowErr("File length exceeded 32-bit integer!");
 				fsLoad = new FileStream(sPathFile, 
 					FileMode.Open, FileAccess.Read);
 				bGood=true;
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"OpenLoad(\""+sPathFile+"\")","open file for reading \""+sPathFile+"\"");
+				RReporting.ShowExn(exn,"opening file in byter","OpenLoad(\""+sPathFile+"\")");
 			}
 			return bGood;
 		}
@@ -252,7 +252,7 @@ namespace ExpertMultimedia {
 			catch (Exception exn) {
 				bGood=false;
 				fsLoad=null;
-				Base.ShowExn(exn,"CloseLoad(\""+sPathFile+"\")","closing file after reading \""+sPathFile+"\"");
+				RReporting.ShowExn(exn,"closing byter file","CloseLoad(\""+sPathFile+"\")");
 			}
 			return bGood;
 		}
@@ -263,38 +263,40 @@ namespace ExpertMultimedia {
 				int iTest=fsLoad.Read(byarr,0,iBytes);
 				if (iTest<iBytes) {
 					bGood=false;
-					Base.ShowErr("Only "+iTest.ToString()+" of "+iBytes.ToString()+" found in file.");
+					RReporting.ShowErr("File appears to be missing data","loading fixed number of bytes",String.Format("LoadBytes({0},{1}){{loaded-bytes:{3}",sPathFile,iBytes,iTest) );
 				}
 			}
 			catch (Exception exn) {
 				bGood=false;
 				fsLoad=null;
 				iLastFileSize=0;
-				Base.ShowExn(exn,"LoadBytes(\""+sPathFile+"\","+iBytes.ToString()+")","closing file after reading \""+sPathFile+"\"");
+				RReporting.ShowExn(exn,"closing file after reading", "RFile LoadBytes(\""+sPathFile+"\","+iBytes.ToString()+")");
 			}
 			return bGood;
-		}
+		}//end LoadBytes
 		public bool LoadRiff(string sPathFile) {
 			bool bGood=false;
 			bool bGoodRiff=false;
 			sFileNow=sPathFile;
 			if (!File.Exists(sPathFile)) {
-				Base.ShowErr("File doesn't exist: \""+sPathFile+"\"","byter Load","loading sPathFile");
+				RReporting.ShowErr("File doesn't exist","",String.Format("LoadRiff(\"{0}\")",sPathFile));
 				return false;
 			}
 			try {
 				bGood=OpenLoad(sPathFile);
-				Byter byterHeader=new Byter(8);
+				RFile byterHeader=new RFile(8);
 				if (byterHeader.LoadBytes(sPathFile+" (header)",8)) {
 					byterHeader.Position=0;
 					string sType=byterHeader.GetForcedAscii(4);
 					uint dwExpect=byterHeader.GetForcedUint();
 					if (sType.ToUpper()!="RIFF") {
-						Base.ShowErr("No riff header.");
+						RReporting.ShowErr("No riff header.");
 						bGoodRiff=false;
 					}
 					else if (dwExpect!=(uint)iLastFileSize-8) {
-						Base.ShowErr("Riff bytes do not match file size (8+"+dwExpect.ToString()+" not equal to "+iLastFileSize+").");
+						RReporting.ShowErr("Riff bytes do not match file size","",
+						String.Format("LoadRiff({0}){{Expected:8+{1}; FileSize:{2}}}",
+							sPathFile,dwExpect,iLastFileSize) );
 						bGoodRiff=false;
 					}
 					if (bGoodRiff) {
@@ -303,7 +305,7 @@ namespace ExpertMultimedia {
 					}
 					else {
 						Position=0;
-						Base.ShowErr("Loading using old (raw non-riff) method.");
+						RReporting.ShowErr("Loading using old (raw non-riff) method.");
 						bGood=LoadBytes(sPathFile,iLastFileSize);
 					}
 					if (!CloseLoad(sPathFile)) bGood=false;
@@ -316,15 +318,15 @@ namespace ExpertMultimedia {
 				bGood=false;
 				bGoodRiff=false;
 				byarr=null;
-				Base.ShowExn(exn,"Load("+sPathFile+")","writing file");
+				RReporting.ShowExn(exn,"writing file","RFile LoadRiff("+sPathFile+")");
 			}
 			return bGoodRiff;
-		}
+		}//end LoadRiff
 		public bool Load(string sPathFile) {
 			bool bGood=false;
 			sFileNow=sPathFile;
 			if (!File.Exists(sPathFile)) {
-				Base.ShowErr("File doesn't exist: \""+sPathFile+"\"","byter Load","loading sPathFile");
+				RReporting.ShowErr("File doesn't exist","", String.Format("RFile Load(\"{0}\")",sPathFile) );
 				return false;
 			}
 			try {
@@ -337,10 +339,10 @@ namespace ExpertMultimedia {
 			catch (Exception exn) {
 				bGood=false;
 				byarr=null;
-				Base.ShowExn(exn,"Load("+sPathFile+")","writing file");
+				RReporting.ShowExn(exn,"writing file","Load("+sPathFile+")");
 			}
 			return bGood;
-		}
+		}//end Load
 		public bool Save() {
 			return Save(sFileNow);
 		}
@@ -354,7 +356,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"OpenSaveForceRecreate(\""+sPathFile+"\")","open file for writing \""+sPathFile+"\"");
+				RReporting.ShowExn(exn,"open file for writing", "OpenSaveForceRecreate(\""+sPathFile+"\")");
 			}
 			return bGood;
 		}
@@ -367,7 +369,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"CloseSave(\""+sPathFile+"\")","closing file after writing \""+sPathFile+"\"");
+				RReporting.ShowExn(exn,"closing file after writing","CloseSave(\""+sPathFile+"\")");
 			}
 			return bGood;
 		}
@@ -381,7 +383,7 @@ namespace ExpertMultimedia {
 			catch (Exception exn) {
 				bGood=false;
 				iLastFileSize=0;
-				Base.ShowExn(exn,"SaveBytes(\""+sPathFile+"\")","closing file after writing \""+sPathFile+"\"");
+				RReporting.ShowExn(exn,"closing file after writing","SaveBytes(\""+sPathFile+"\")");
 			}
 			return bGood;
 		}
@@ -393,12 +395,12 @@ namespace ExpertMultimedia {
 				bGood=SaveBytes(sPathFile);
 				bGood=CloseSave(sPathFile);
 				if (iLastFileSize==0) {
-					Base.ShowErr("last file size is zero!","byter Save","saving file");
+					RReporting.ShowErr("last file size is zero!","saving file", String.Format("byter Save(\"{0}\")",sPathFile) );
 				}
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"Save("+sPathFile+")","writing file");
+				RReporting.ShowExn(exn,"writing file","Save("+sPathFile+")");
 			}
 			return bGood;
 		}
@@ -406,7 +408,7 @@ namespace ExpertMultimedia {
 			bool bGood=false;
 			if (IsLeaf) {
 				//save chunk opener
-				Byter byterHeader=new Byter(8);
+				RFile byterHeader=new RFile(8);
 				string sChunkType=ChunkType;
 				byterHeader.WriteAscii(ref sChunkType);//i.e. RIFF
 				byterHeader.Write((uint)iBuffer);
@@ -415,10 +417,10 @@ namespace ExpertMultimedia {
 				//save data
 				bGood=SaveBytes(sPathFile);//DOES set iLastFileSize
 				if (iLastFileSize==0) {
-					Base.ShowErr("last file size is zero!","byter SaveRiffTree","saving file chunk");
+					RReporting.ShowErr("last file size is zero!","saving file chunk","byter SaveRiffTree");
 				}
 				else if (iLastFileSize!=iBuffer) {
-					Base.ShowErr("incorrect file chunk length saved!","byter SaveRiffTree","saving file chunk ("+iLastFileSize.ToString()+", expected "+iBuffer.ToString()+")");
+					RReporting.ShowErr("incorrect file chunk length saved!","saving file chunk", String.Format("byter SaveRiffTree(){{saved:{0}, expected {1}}}", iLastFileSize,iBuffer) );
 				}
 			}
 			else {
@@ -438,7 +440,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"Save("+sPathFile+")","writing file");
+				RReporting.ShowExn(exn,"writing file","Save("+sPathFile+")");
 			}
 			return bGood;
 		}
@@ -454,11 +456,11 @@ namespace ExpertMultimedia {
 				fsAppend.Close();
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"AppendToFile("+sPathFile+")","writing file");
+				RReporting.ShowExn(exn,"writing file","AppendToFile("+sPathFile+")");
 				return false;
 			}
 			return true;
-		}
+		}//end AppendToFile
 		public bool AppendToFileOrCreate(string sPathFile) {
 			FileStream fsAppendOrCreate;
 			try {
@@ -472,11 +474,11 @@ namespace ExpertMultimedia {
 				fsAppendOrCreate.Close();
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"AppendOnly("+sPathFile+")","writing file");
+				RReporting.ShowExn(exn,"writing file","AppendOnly("+sPathFile+")");
 				return false;
 			}
 			return true;
-		}
+		}//end AppendOnly
 		public bool Seek(int iByte) {
 			try {
 				iPlace=iByte;
@@ -484,10 +486,10 @@ namespace ExpertMultimedia {
 				return true;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Seek("+iByte.ToString()+")");
+				RReporting.ShowExn(exn,"","Seek("+iByte.ToString()+")");
 			}
 			return false;
-		}
+		}//end Seek
 #endregion utility methods
 
 		#region peek methods
@@ -500,13 +502,13 @@ namespace ExpertMultimedia {
 					val=BitConverter.ToSingle(byarr, iPlaceTemp);
 				}
 				else {
-					byte[] byarrNow=Base.SubArrayReversed(byarr, iPlaceTemp, iLastCountDesired);
+					byte[] byarrNow=RMemory.SubArrayReversed(byarr, iPlaceTemp, iLastCountDesired);
 					val=BitConverter.ToSingle(byarrNow, 0);
 				}
 				iPlaceTemp+=iLastCountDesired;
 			}
 			catch (Exception exn) {
-				 Base.ShowExn(exn,"Peek float");
+				 RReporting.ShowExn(exn,"","Peek float");
 			}
 			iLastCount=iPlaceTemp-iPlace;
 		}
@@ -519,13 +521,13 @@ namespace ExpertMultimedia {
 					val=BitConverter.ToDouble(byarr, iPlaceTemp);
 				}
 				else {
-					byte[] byarrNow=Base.SubArrayReversed(byarr, iPlaceTemp, iLastCountDesired);
+					byte[] byarrNow=RMemory.SubArrayReversed(byarr, iPlaceTemp, iLastCountDesired);
 					val=BitConverter.ToDouble(byarrNow, 0);
 				}
 				iPlaceTemp+=iLastCountDesired;
 			}
 			catch (Exception exn) {
-				 Base.ShowExn(exn,"Peek double");
+				 RReporting.ShowExn(exn,"","Peek double");
 			}
 			iLastCount=iPlaceTemp-iPlace;
 		}
@@ -552,7 +554,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				 Base.ShowExn(exn,"Peek int24");
+				 RReporting.ShowExn(exn,"","Peek int24");
 			}
 			iLastCount=iPlaceTemp-iPlace;
 		}
@@ -566,13 +568,13 @@ namespace ExpertMultimedia {
 					val=BitConverter.ToInt32(byarr, iPlaceTemp);
 				}
 				else {
-					byte[] byarrNow=Base.SubArrayReversed(byarr, iPlaceTemp, iLastCountDesired);
+					byte[] byarrNow=RMemory.SubArrayReversed(byarr, iPlaceTemp, iLastCountDesired);
 					val=BitConverter.ToInt32(byarrNow, 0);
 				}
 				iPlaceTemp+=iLastCountDesired;
 			}
 			catch (Exception exn) {
-				 Base.ShowExn(exn,"Peek int");
+				 RReporting.ShowExn(exn,"","Peek int");
 			}
 			iLastCount=iPlaceTemp-iPlace;
 		}
@@ -586,13 +588,13 @@ namespace ExpertMultimedia {
 					val=BitConverter.ToInt64(byarr, iPlaceTemp);
 				}
 				else {
-					byte[] byarrNow=Base.SubArrayReversed(byarr, iPlaceTemp, iLastCountDesired);
+					byte[] byarrNow=RMemory.SubArrayReversed(byarr, iPlaceTemp, iLastCountDesired);
 					val=BitConverter.ToInt64(byarrNow, 0);
 				}
 				iPlaceTemp+=iLastCountDesired;
 			}
 			catch (Exception exn) {
-				 Base.ShowExn(exn,"Peek long");
+				 RReporting.ShowExn(exn,"","Peek long");
 			}
 			iLastCount=iPlaceTemp-iPlace;
 		}
@@ -604,7 +606,7 @@ namespace ExpertMultimedia {
 				iLastCount++;
 			}
 			catch (Exception exn) {
-				 Base.ShowExn(exn,"Peek byte");
+				 RReporting.ShowExn(exn,"","Peek byte");
 			}
 		}
 		public void Peek(ref ushort val) {
@@ -616,13 +618,13 @@ namespace ExpertMultimedia {
 					val=BitConverter.ToUInt16(byarr, iPlaceTemp);
 				}
 				else {
-					byte[] byarrNow=Base.SubArrayReversed(byarr, iPlaceTemp, iLastCountDesired);
+					byte[] byarrNow=RMemory.SubArrayReversed(byarr, iPlaceTemp, iLastCountDesired);
 					val=BitConverter.ToUInt16(byarrNow, 0);
 				}
 				iPlaceTemp+=iLastCountDesired;
 			}
 			catch (Exception exn) {
-				 Base.ShowExn(exn,"Peek ushort");
+				 RReporting.ShowExn(exn,"","Peek ushort");
 			}
 			iLastCount=iPlaceTemp-iPlace;
 		}
@@ -639,7 +641,7 @@ namespace ExpertMultimedia {
 				iPlaceTemp++;
 			}
 			catch (Exception exn) {
-				 Base.ShowExn(exn,"Peek uint24");
+				 RReporting.ShowExn(exn,"","Peek uint24");
 			}
 			iLastCount=iPlaceTemp-iPlace;
 		}
@@ -652,13 +654,13 @@ namespace ExpertMultimedia {
 					val=BitConverter.ToUInt32(byarr, iPlaceTemp);
 				}
 				else {
-					byte[] byarrNow=Base.SubArrayReversed(byarr, iPlaceTemp, iLastCountDesired);
+					byte[] byarrNow=RMemory.SubArrayReversed(byarr, iPlaceTemp, iLastCountDesired);
 					val=BitConverter.ToUInt32(byarrNow, 0);
 				}
 				iPlaceTemp+=iLastCountDesired;
 			}
 			catch (Exception exn) {
-				 Base.ShowExn(exn,"Peek uint");
+				 RReporting.ShowExn(exn,"","Peek uint");
 			}
 			iLastCount=iPlaceTemp-iPlace;
 		}
@@ -671,13 +673,13 @@ namespace ExpertMultimedia {
 					val=BitConverter.ToUInt64(byarr, iPlaceTemp);
 				}
 				else {
-					byte[] byarrNow=Base.SubArrayReversed(byarr, iPlaceTemp, iLastCountDesired);
+					byte[] byarrNow=RMemory.SubArrayReversed(byarr, iPlaceTemp, iLastCountDesired);
 					val=BitConverter.ToUInt64(byarrNow, 0);
 				}
 				iPlaceTemp+=iLastCountDesired;
 			}
 			catch (Exception exn) {
-				 Base.ShowExn(exn,"Peek ulong");
+				 RReporting.ShowExn(exn,"","Peek ulong");
 			}
 			iLastCount=iPlaceTemp-iPlace;
 		}
@@ -699,7 +701,7 @@ namespace ExpertMultimedia {
 		public void PeekFast(ref byte[] byarrVar, int iByteFromByter, int iBytes) {
 			iLastCountDesired=iBytes;
 			if (byarrVar==null) byarrVar=new byte[iBytes];
-			if (Memory.CopyFast(ref byarrVar, ref byarr, 0, iPlace, iBytes)) {
+			if (RMemory.CopyFast(ref byarrVar, ref byarr, 0, iPlace, iBytes)) {
 				iLastCount=iBytes;
 			}
 			else iLastCount=0;
@@ -710,7 +712,7 @@ namespace ExpertMultimedia {
 			iLastCountDesired=iDim1*iDim2*iDim3;
 			int iLast=iPlace+iLastCountDesired;
 			if (!ValidReadPosition(iLast)) {
-				Base.ShowErr("Invalid buffer or not available at "+iLast.ToString(),"Peek by3dArray");
+				RReporting.ShowErr("Invalid buffer or data not available","", String.Format("RFile Peek(by3dArray,...){{at:{0}}}",iLast) );
 			}
 			try {
 				for (int iD1=0; iD1<iDim1; iD1++) {
@@ -724,7 +726,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Peek(by3dArray...){iCount:"+iCount.ToString()+"}");
+				RReporting.ShowExn(exn,"","Peek(by3dArray...){iCount:"+iCount.ToString()+"}");
 				return false;
 			}
 			iLastCount=iCount;
@@ -737,7 +739,7 @@ namespace ExpertMultimedia {
 			try {
 				for (int iChar=0; iChar<iChars; iChar++) {
 					if (iPlaceTemp>=byarr.Length) {
-						Base.ShowErr("PeekAscii is Beyond byarr length, at "+iChar.ToString());
+						RReporting.ShowErr("PeekAscii is Beyond byarr length","", String.Format("PeekAscii({0})",iChar) );
 						break;
 					}
 					sReturn+=Char.ToString((char)byarr[iPlaceTemp]);
@@ -745,7 +747,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.IgnoreExn(exn,"Byter PeekAscii");//TODO: handle exception
+				RReporting.Debug(exn,"","RFile PeekAscii");//TODO: handle exception
 			}
 			iLastCount=iPlaceTemp-iPlace;
 			return sReturn;
@@ -774,7 +776,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Peek unicode");
+				RReporting.ShowExn(exn,"","Peek unicode");
 			}
 			iLastCount=iPlaceTemp-iPlace;
 			return sReturn;
@@ -799,7 +801,7 @@ namespace ExpertMultimedia {
 				iLastCount=0;
 				if (!ValidReadPosition(iByteLast)) {
 					bGood=false;
-					Base.ShowErr("Buffer area of "+iBuffer.ToString()+" is too small to read bitmap data that would end at position "+iByteLast.ToString()+".","PeekBitmap32BGRA","trying to read the image from the data source");
+					RReporting.ShowErr("Data source is not big enough to contain the expected image","trying to read image from data source", String.Format("PeekBitmap32BGRA(...){{EndingPositionExpected:{0}; BufferSize:{1}; Expected:{2}}}",iByteLast,iBuffer,iLastCountDesired) );
 				}
 				else { //debug performance, use CopyFastVoid?
 					int iBy=Position;
@@ -820,11 +822,11 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"PeekBitmap32BGRA");
+				RReporting.ShowExn(exn,"","PeekBitmap32BGRA");
 			}
 			if (iLastCount!=iLastCountDesired) {
 				bGood=false;
-				Base.ShowErr("The image data was incomplete.","PeekBitmap32BGRA");
+				RReporting.ShowErr("The image data was incomplete.","","PeekBitmap32BGRA");
 			}
 			return bGood;
 		}
@@ -841,7 +843,7 @@ namespace ExpertMultimedia {
 				iLastCount=1;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Poke byte");
+				RReporting.ShowExn(exn,"","Poke byte");
 				iLastCount=0;
 			}
 			UsedCountAtLeast(iPlace+1);
@@ -856,7 +858,7 @@ namespace ExpertMultimedia {
 				iPlaceTemp++;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Poke ushort");
+				RReporting.ShowExn(exn,"","Poke ushort");
 			}
 			UsedCountAtLeast(iPlaceTemp); //OK to call after increment since adjusts a length val
 			iLastCount=iPlaceTemp-iPlace;
@@ -878,16 +880,15 @@ namespace ExpertMultimedia {
 				iPlaceTemp++;
 			}
 			catch (Exception exn) {
-				string sTest="";
-				Base.StyleBegin(ref sTest);
-				Base.StyleAppend(ref sTest, "iLastCount", iPlaceTemp-iPlace);
-				Base.StyleAppend(ref sTest, "val", val);
-				Base.StyleEnd(ref sTest);
-				Base.ShowExn(exn,"Poke Uint24");
+				RReporting.ShowExn(exn,"",String.Format("Poke Uint24({0}){{{1}}}",
+					RReporting.DebugStyle("value",val,false),
+					RReporting.DebugStyle("iLastCount",iPlaceTemp-iPlace,false)
+					)
+				);
 			}
 			UsedCountAtLeast(iPlaceTemp);
 			iLastCount=iPlaceTemp-iPlace;
-		}
+		}//end Poke Uint24
 		public void Poke(ref uint val) {
 			iLastCountDesired=4;//sizeof(val);
 			iPlaceTemp=iPlace;
@@ -897,25 +898,23 @@ namespace ExpertMultimedia {
 					Poke(ref byarrNow);
 				}
 				else {
-					byarrNow=Base.SubArrayReversed(byarrNow, 0, iLastCountDesired);
+					byarrNow=RMemory.SubArrayReversed(byarrNow, 0, iLastCountDesired);
 					Poke(ref byarrNow);
 				}
 				//iPlaceTemp+=iLastCountDesired;//done by Poke byte[]
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Poke uint");
+				RReporting.ShowExn(exn,"","Poke uint");
 			}
 			UsedCountAtLeast(iPlaceTemp);
 			iLastCount=iPlaceTemp-iPlace;
-			string sTest="";
 			if (iLastCount!=iLastCountDesired) { //debug only
-				Base.StyleBegin(ref sTest);
-				Base.StyleAppend(ref sTest, "iLastCount", iLastCount);
-				Base.StyleAppend(ref sTest, "iLastCountDesired", iLastCountDesired);
-				Base.StyleEnd(ref sTest);
-				//MessageBox.Show(sTest,"Poke uint");
+				RReporting.Debug(String.Format("Poke uint {{{0};{1}}}",
+					RReporting.DebugStyle("iLastCount",iLastCount,false),
+					RReporting.DebugStyle("iLastCountDesired",iLastCountDesired,false) )
+				);
 			}
-		}
+		}//end Poke
 		public void Poke(ref ulong val) {
 			iLastCountDesired=8;//sizeof(val);
 			iPlaceTemp=iPlace;
@@ -925,13 +924,13 @@ namespace ExpertMultimedia {
 					Poke(ref byarrNow);
 				}
 				else {
-					byarrNow=Base.SubArrayReversed(byarrNow, 0, iLastCountDesired);
+					byarrNow=RMemory.SubArrayReversed(byarrNow, 0, iLastCountDesired);
 					Poke(ref byarrNow);
 				}
 				//iPlaceTemp+=iLastCountDesired;//done by Poke byte[]
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Poke ulong");
+				RReporting.ShowExn(exn,"","Poke ulong");
 			}
 			UsedCountAtLeast(iPlaceTemp);
 			iLastCount=iPlaceTemp-iPlace;
@@ -1006,7 +1005,7 @@ namespace ExpertMultimedia {
 				//if (bOverflow) throw new ApplicationException(val.ToString()+ " is to not within the (signed) int24 range (-8388608 to 8388607 inclusively) and was set to the closest value (either the maximum or minimum) instead.");
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Poke int24");
+				RReporting.ShowExn(exn,"","Poke int24");
 			}
 			UsedCountAtLeast(iPlaceTemp);
 			iLastCount=iPlaceTemp-iPlace;
@@ -1020,13 +1019,13 @@ namespace ExpertMultimedia {
 					Poke(ref byarrNow);
 				}
 				else {
-					byarrNow=Base.SubArrayReversed(byarrNow, 0, iLastCountDesired);
+					byarrNow=RMemory.SubArrayReversed(byarrNow, 0, iLastCountDesired);
 					Poke(ref byarrNow);
 				}
 				//iPlaceTemp+=iLastCountDesired;//done by Poke byte[]
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Poke int");
+				RReporting.ShowExn(exn,"","Poke int");
 			}
 			UsedCountAtLeast(iPlaceTemp);
 			//iLastCount=iPlaceTemp-iPlace;//done by Poke byte[]
@@ -1096,7 +1095,7 @@ namespace ExpertMultimedia {
 				//TODO: note overflow as warning (not error)
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Poke int48");
+				RReporting.ShowExn(exn,"","Poke int48");
 			}
 			UsedCountAtLeast(iPlaceTemp);
 			iLastCount=iPlaceTemp-iPlace;
@@ -1110,13 +1109,13 @@ namespace ExpertMultimedia {
 					Poke(ref byarrNow);
 				}
 				else {
-					byarrNow=Base.SubArrayReversed(byarrNow, 0, iLastCountDesired);
+					byarrNow=RMemory.SubArrayReversed(byarrNow, 0, iLastCountDesired);
 					Poke(ref byarrNow);
 				}
 				//iPlaceTemp+=iLastCountDesired;//done by Poke byte[]
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Poke long");
+				RReporting.ShowExn(exn,"","Poke long");
 			}
 			UsedCountAtLeast(iPlaceTemp);
 			//iLastCount=iPlaceTemp-iPlace;//done by Poke byte[]
@@ -1130,13 +1129,13 @@ namespace ExpertMultimedia {
 					Poke(ref byarrNow);
 				}
 				else {
-					byarrNow=Base.SubArrayReversed(byarrNow, 0, iLastCountDesired);
+					byarrNow=RMemory.SubArrayReversed(byarrNow, 0, iLastCountDesired);
 					Poke(ref byarrNow);
 				}
 				//iPlaceTemp+=iLastCountDesired;//done by Poke byte[]
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Poke float");
+				RReporting.ShowExn(exn,"","Poke float");
 			}
 			UsedCountAtLeast(iPlaceTemp);
 			//iLastCount=iPlaceTemp-iPlace;//done by Poke byte[]
@@ -1150,13 +1149,13 @@ namespace ExpertMultimedia {
 					Poke(ref byarrNow);
 				}
 				else {
-					byarrNow=Base.SubArrayReversed(byarrNow, 0, iLastCountDesired);
+					byarrNow=RMemory.SubArrayReversed(byarrNow, 0, iLastCountDesired);
 					Poke(ref byarrNow);
 				}
 				//iPlaceTemp+=iLastCountDesired;//done by Poke byte[]
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Poke double");
+				RReporting.ShowExn(exn,"","Poke double");
 			}
 			UsedCountAtLeast(iPlaceTemp);
 			//iLastCount=iPlaceTemp-iPlace;//done by Poke byte[]
@@ -1167,7 +1166,7 @@ namespace ExpertMultimedia {
 			iLastCountDesired=iDim1*iDim2*iDim3;
 			int iLast=iPlace+iLastCountDesired;
 			if (!ValidWritePosition(iLast)) {
-				Base.ShowErr("Invalid buffer or not available at "+iLast.ToString(),"Poke by3dArray");
+				RReporting.ShowErr("Invalid buffer or not large enough", String.Format("Poke(by3dArray){{ExpectedEnd:{0};BufferSize:{1}}}",iLast,iBuffer) );
 			}
 			try {
 				for (int iD1=0; iD1<iDim1; iD1++) {
@@ -1181,7 +1180,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Poke by3dArray","writing at location#"+iCount.ToString());
+				RReporting.ShowExn(exn,"writing 3d array","Poke(by3dArray){location:" +iCount.ToString()+"}");
 				return false;
 			}
 			UsedCountAtLeast(iPlaceTemp);
@@ -1221,7 +1220,7 @@ namespace ExpertMultimedia {
 		}
 		public void PokeFast(ref byte[] byarrVar, int iAtByterLoc, int iBytes) {
 			iLastCountDesired=iBytes;
-			if (Memory.CopyFast(ref byarr, ref byarrVar, iAtByterLoc, 0, iBytes)) {
+			if (RMemory.CopyFast(ref byarr, ref byarrVar, iAtByterLoc, 0, iBytes)) {
 				iLastCount=iBytes;
 			}
 			else iLastCount=0;
@@ -1242,7 +1241,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Poke ascii");
+				RReporting.ShowExn(exn,"","Poke ascii");
 			}
 			UsedCountAtLeast(iPlaceTemp);
 			iLastCount=iPlaceTemp-iPlace;
@@ -1263,7 +1262,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Poke unicode");
+				RReporting.ShowExn(exn,"","Poke unicode");
 			}
 			UsedCountAtLeast(iPlaceTemp);
 			iLastCount=iPlaceTemp-iPlace;
@@ -1276,7 +1275,7 @@ namespace ExpertMultimedia {
 				bGood=PokeBitmap32BGRA(ref bmpTemp);
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"PokeBitmap32BGRA(\""+sFile+"\")");
+				RReporting.ShowExn(exn,"","PokeBitmap32BGRA(\""+sFile+"\")");
 				bGood=false;
 			}
 			UsedCountAtLeast(iPlaceTemp);
@@ -1303,7 +1302,7 @@ namespace ExpertMultimedia {
 				int iByteLast=iByteEOF-1;
 				iLastCount=0;
 				if (!ValidWritePosition(iByteLast)) {
-					Base.ShowErr("Byter buffer of "+byarr.Length.ToString()+" is too small to fit bitmap data that would end at position "+iByteLast.ToString()+".","PokeBitmap32BGRA");
+					RReporting.ShowErr("Could not fit bitmap in buffer (byter corruption)","",String.Format("PokeBitmap32BGRA(){{ExpectedEnd:{0};BufferMaximum:{1}}}",iByteLast,byarr.Length) );
 				}
 				else {
 					for (int iBy=Position; iBy<iByteEOF; iBy++) {
@@ -1315,11 +1314,11 @@ namespace ExpertMultimedia {
 				bmpLoaded.UnlockBits(bmpdata);
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"PokeBitmap32BGRA");
+				RReporting.ShowExn(exn,"","PokeBitmap32BGRA");
 				return false;
 			}
 			UsedCountAtLeast(iPlaceTemp);
-			if (iLastCount!=iLastCountDesired) Base.ShowErr("Not all of bitmapdata was written.","PokeBitmap32BGRA");
+			if (iLastCount!=iLastCountDesired) RReporting.ShowErr("Not all of bitmapdata was written.");
 			return (iLastCount==iLastCountDesired);
 		}//end PokeBitmap32BGRA
 
@@ -1371,7 +1370,7 @@ namespace ExpertMultimedia {
 		}
 		public void ReadFast(ref byte[] byarrVar, int iBytes) {
 			iLastCountDesired=iBytes;
-			if (Memory.CopyFast(ref byarr, ref byarrVar, iPlace, 0, iBytes)) {
+			if (RMemory.CopyFast(ref byarr, ref byarrVar, iPlace, 0, iBytes)) {
 				iLastCount=iBytes;
 			}
 			else iLastCount=0;
@@ -1600,7 +1599,7 @@ namespace ExpertMultimedia {
 				iPlace+=byarrVar.Length;
 			}
 			catch (Exception exn) {
-				Base.IgnoreExn(exn,"Write","getting byarrVar Length");
+				RReporting.Debug(exn,"getting byarrVar Length","Write");
 			}
 		}
 		public void Write(byte[] byarrVar, int iBytes) {
@@ -1643,6 +1642,119 @@ namespace ExpertMultimedia {
 		//		mExpOf10++;
 		//	}
 		//}
+#region utilities
+		public static string KnownExtensionFromNameElseBlank(string sName) {
+			string sReturn="";
+			try {
+				if (sName!="" && sName.Length>2) {
+					string sLower=sName.ToLower();
+					if (sName.ToLower().EndsWith(".png")) { sReturn="png"; }
+					else if (sLower.EndsWith(".jpg")) { sReturn="jpg"; }
+					else if (sLower.EndsWith(".jpe")) { sReturn="jpe"; }
+					else if (sLower.EndsWith(".jpeg")){ sReturn="jpeg";}
+					else if (sLower.EndsWith(".gif")) { sReturn="gif"; }
+					else if (sLower.EndsWith(".exi")) { sReturn="exi"; }
+					else if (sLower.EndsWith(".exif")){ sReturn="exif";}
+					else if (sLower.EndsWith(".emf")) { sReturn="emf"; }
+					else if (sLower.EndsWith(".tif")) { sReturn="tif"; }
+					else if (sLower.EndsWith(".tiff")){ sReturn="tiff";}
+					else if (sLower.EndsWith(".ico")) { sReturn="ico"; }
+					else if (sLower.EndsWith(".wmf")) { sReturn="wmf"; }
+					else if (sLower.EndsWith(".bmp")) { sReturn="bmp"; }
+					else if (sLower.EndsWith(".txt")) { sReturn="txt"; }
+					else if (sLower.EndsWith(".raw")) { sReturn="raw"; }
+					else if (sLower.EndsWith(".ogg")) { sReturn="ogg"; }
+					else if (sLower.EndsWith(".mp3")) { sReturn="mp3"; }
+					else if (sLower.EndsWith(".wav")) { sReturn="wav"; }
+					else if (sLower.EndsWith(".ini")) { sReturn="ini"; }
+					else if (sLower.EndsWith(".html")) { sReturn="html"; }
+					else if (sLower.EndsWith(".htm")) { sReturn="htm"; }
+					else if (sLower.EndsWith(".php")) { sReturn="php"; }
+					else if (sLower.EndsWith(".js")) { sReturn="js"; }
+					else sReturn="";
+				}
+			}
+			catch (Exception exn) {
+				sReturn="";
+				RReporting.ShowExn(exn,"detecting file extension in name string");
+			}
+			return sReturn;
+		}//end KnownExtensionFromNameElseBlank
+		public static bool SafeDelete(string sFile) {
+			bool bGood=true;
+			try {
+				if (File.Exists(sFile)) File.Delete(sFile);
+			}
+			catch {
+				bGood=false;
+			}
+			return bGood;
+		}
+		public static bool ByteArrayToFile(string sFile, byte[] data) {
+			bool bGood=false;
+			FileStream fsNow=null;
+			BinaryWriter bwNow=null;
+			try {
+				try {
+					fsNow=new FileStream(sFile, FileMode.CreateNew);
+				}
+				catch (Exception exn) {
+					RReporting.Debug(exn);
+					fsNow=new FileStream(sFile,FileMode.Create);//TODO: show warning?
+				}
+				bwNow=new BinaryWriter(fsNow);
+				bwNow.Write(data);
+				bwNow.Close();
+				fsNow.Close();
+				bGood=true;
+			}
+			catch (Exception exn) {
+				bGood=false;
+				RReporting.ShowExn(exn);
+			}
+			return bGood;
+		}//end ByteArrayToFile
+		public static long FileSize(string sFile) {
+			FileInfo fiNow=null;
+			long iReturn=-2;
+			try {
+				fiNow=new FileInfo(sFile);
+				iReturn=fiNow.Length;
+			}
+			catch (Exception exn) {
+				iReturn=-3;
+				RReporting.ShowExn(exn);
+			}
+			return iReturn;
+		}
+		public static long SizeOfFile(string sFile) {
+			return FileSize(sFile);
+		}
+		public static bool FileToByteArray(out byte[] byarrData, string sFile) {
+			bool bGood=false;
+			byarrData=null;
+			FileInfo fiNow=null;
+			FileStream fsNow=null;
+			BinaryReader brNow=null;
+			long numBytes=-2;
+			try {
+				fiNow=new FileInfo(sFile);
+				numBytes=fiNow.Length;
+				fsNow=new FileStream(sFile, FileMode.Open, FileAccess.Read);
+				brNow=new BinaryReader(fsNow);
+				byarrData=brNow.ReadBytes((int)numBytes);
+				brNow.Close();
+				fsNow.Close();
+				bGood=true;
+			}
+			catch (Exception exn) {
+				bGood=false;
+				RReporting.ShowExn(exn);
+				byarrData=null;
+			}
+			return bGood;
+		}//end FileToByteArray
 
-	} //end class Byter
+#endregion utilities
+	} //end class RFile
 }

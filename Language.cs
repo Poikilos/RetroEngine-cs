@@ -22,6 +22,10 @@ using System.Windows.Forms;
 //--alpha is loudness
 //---blurred areas define randomness range
 //---image will look like a line graph with the part above the line being black.
+//Open-source dictionaries:
+// aspell,myspell
+//has pronunciation: stardict,gnome-dictionary
+// /usr/share/aspell/en_US-w_accents-only.cwl.gz (localized accent lists are in this folder)
 
 //TODO: 
 //--tell user to make retorical questions with a period or exclaimation point.
@@ -404,8 +408,8 @@ namespace ExpertMultimedia {
 				}
 			}
 			return dw2dReturn;
-		}
-	}
+		}//end DictSymbolsForEnglishWords(string[] words)
+	}//end Language class
 	public class MouthPosition { //manages phonemes
 		//debug security: make sure that face isn't too small to hit, neck isn't too short, etc
 		//TODO: make these RELATIVE locations somehow accounting for size--make sizes cascading from body anchor to neck to mouthpositions and relative to a body anchor scaler and a 1-meter-high body?
@@ -429,7 +433,7 @@ namespace ExpertMultimedia {
 				iarrPhoneme=iarrPhonemeChildrenArrayToKeepNotKeepCopy;
 			}
 		}
-	}
+	}//end MouthPosition class
 	//TODO: **KEEP 's' separate from 't' and 'd' since JAW ***AND*** CHEEK position is different
 	//TODO: mouth positions EVEN FOR DIFFERENT PUNCTUATIONS i.e. '?' is a "listening" look
 	//AUDIBLY unique phonemes
@@ -510,7 +514,7 @@ namespace ExpertMultimedia {
 			//--body language inputs must include Phonemes (including fForce calculated from italics or all caps) AND emote keywords (i.e. ":mad:" or ":(" )
 			//--emotion input should be driven by chemicals that dissapate with time and require more output statements to generate more, i.e. after an ":)", smile would slowly fade
 		//}
-	}
+	}//end Phoneme class
 	
 	public class PhonemeQ { //Phoneme Queue -- array, order left(First) to right(Last)
 		private Phoneme[] pharr;
@@ -748,9 +752,8 @@ namespace ExpertMultimedia {
 			//rein, science, seiche, seidel, seine, seismic, seize, sheik,
 			//society, sovereign, surfeit, teiid, veil, vein, weight,
 			//weir, weird
-    		//MORE EXCEPTIONS: http://alt-usage-english.org/I_before_E.html
-    		
-    		
+			//MORE EXCEPTIONS: http://alt-usage-english.org/I_before_E.html
+			
 			//ReplaceAll("protein","proteen", ref sUserString);
 			//ReplaceAll("seize","seez", ref sUserString);
 			//ReplaceAll("ei","ay", ref sUserString);
@@ -1160,5 +1163,45 @@ namespace ExpertMultimedia {
 			}
 			return bFound;
 		}//end SelectOrStayAtSyllable
-	}
-}
+		#region unused methods
+		//public static string SeparateSyllablesLower(string sWord, string sSeparator, uint[] dwDictSymbols) {
+		//	int iStartNow=0;
+		//	int iStartNext;
+		//	string sReturn=sWord;
+		//	bool bFound=true;
+		//	ArrayList alSep=new ArrayList();//keep this to prevent new additions from interfering with rules
+		//	
+		//	while (bFound) {
+		//		bFound=false;
+		//		int iVowelThenDoubleConsonantThenVowel=SafeIndexOfVowelThenDoubleConsonantThenVowelLower(sWord, iStartNow);
+		//		if (iVowelThenDoubleConsonantThenVowel>-1) {
+		//			alSep.Add(iVowelThenDoubleConsonantThenVowel+2); //+2 to get placement of separator
+		//			bFound=true;
+		//		}
+		//	}
+		//	//finish: other rules--checking long vowels etc by using dwDictSymbols
+		//
+		//	int iOffset=0;
+		//	foreach (int iSep in alSep) {
+		//		sReturn.Insert(iSep+iOffset,sSeparator);
+		//		iOffset+=sSeparator.Length;
+		//	}
+		//	return sReturn;
+		//}
+		//public static bool SeparateSyllablesLower(ref string[] sarrWords, string sSeparator) {
+		//	bool bGood=true; try {
+		//		if (sarrWords!=null) {
+		//			for (int iNow=0; iNow<sarrWords.Length; iNow++) {
+		//				sarrWords[iNow]=SeparateSyllablesLower(sarrWords[iNow]);
+		//			}
+		//		}
+		//		else {bGood=false; Base.ShowErr("null words array sent to SeparateSyllables");}
+		//	}
+		//	catch (Exception exn) {
+		//		Base.ShowExn(exn,"SeparateSyllables"); bGood=false;
+		//	}
+		//	return true;
+		//}
+		#endregion unused methods
+	}//end Speech class
+}//end namespace

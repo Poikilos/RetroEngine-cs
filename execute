@@ -1,4 +1,5 @@
 #!/bin/sh
+killall outputinspector
 ./build
 ./run
 #konqueror /home/Owner/Projects/RetroEngine/bin

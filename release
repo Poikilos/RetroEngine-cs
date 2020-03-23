@@ -1,0 +1,34 @@
+#!/bin/sh
+echo
+echo
+echo
+echo
+echo
+echo
+echo
+echo
+echo
+#sVer=$(date +%Y%m%d-%k.%M)
+sVer=$(date +%Y%m%d)
+sFolder="RetroEngine"
+echo "Publishing revision $sVer"
+cd ~/Projects
+rm -Rvf $sFolder-$sVer
+mkdir $sFolder-$sVer
+cp -R --no-dereference $sFolder/* $sFolder-$sVer
+chmod -x $sFolder-$sVer/src/release
+rm $sFolder-$sVer/src/*~
+rm $sFolder-$sVer/*~
+rm $sFolder-$sVer/TextLockerData*
+mkdir ~/$sFolder-$sVer/src
+mkdir ~/$sFolder-$sVer/Library
+mkdir ~/$sFolder-$sVer/Library/Fonts
+cp -f ~/Projects/RetroEngine/bin/Library/Fonts/thepixone-12x16-bold.png ~/$sFolder-$sVer/Library/Fonts/
+cp -f ~/Projects/RetroEngine/bin/Library/Fonts/thepixone-12x16.png ~/$sFolder-$sVer/Library/Fonts/
+echo 1-$sVer > $sFolder-$sVer/1.Version.txt
+zip -ru $sFolder-$sVer.zip $sFolder-$sVer
+rm -Rvf $sFolder-$sVer
+mkdir ~/Documents/www/expertmultimedia/releases/$sFolder
+mv -f $sFolder-$sVer.zip ~/Documents/www/expertmultimedia/releases/$sFolder/
+echo
+echo "Finished."

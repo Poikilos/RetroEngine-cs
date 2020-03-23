@@ -2,11 +2,21 @@
 using System;
 
 namespace ExpertMultimedia {
-	public class Liner {
+	public class RTextBox {
+		public static bool bDebug {
+			get { return RForms.bDebug; }
+		}
+	
+	
+	
+	///TODO: remake to self-render and inherit from RForm! (when setting parent, always also set rformParent)
+	///-then make RGrid, staring with ViewModeForm with self-rendering RTextBoxes (which looks like old-school database form), and eventually add everything up to and including a tile-based map editor (tile-based maps with average height stored in the tile can speed up hit detection for voxel-based landscapes).
+
 		#region vars
 		private string[] sarrLine=null;//TextArea version of  sText
 		public bool bEndWithNewLine;
 		private bool bSuspendChanges=false;
+		private RForm rformContainer=null;//use as fake inheritance instead of real inheritance, for the purpose of keeping the rforms.rformarr containing only RForm types and not messy derivatives.
 		private int iSelRowStart=0;
 		private int iSelColStart=0;
 		private int iSelRowEnd=0;//inclusive //TODO: make sure it is inclusive
@@ -20,13 +30,14 @@ namespace ExpertMultimedia {
 		private int iWidestLine=0;
 		private int iTab=4;//TODO: finish this--implement this
 		private const int iMinModGroup=1;//always 1; mod group 0 is loading the file
-		private LinerMod[] modarr=null;
+		private RTextBoxMod[] modarr=null;
 		public static int DefaultMaxEditsForUndo=1024;
 		public static int DefaultLineBufferSize=1024;
-		public bool bChanges=false;
+		public bool bChanged=false;
+		public bool bMulti=true;//multiline
 		//public bool Change
 		//public void SetAsSaved() {	
-		//	bChanges=false;
+		//	bChanged=false;
 		//}
 		public string Line(int iLine) {
 			return (iLine>=0&&iLine<iUsed)?sarrLine[iLine]:"";
@@ -69,14 +80,14 @@ namespace ExpertMultimedia {
 		public int RowLength(int iLine) {
 			try {
 				if (iLine<0) {
-					Base.ShowErr("Tried to get length of text area line "+iLine.ToString());
+					RReporting.ShowErr("Tried to get length of text area line","","RowLength("+iLine.ToString()+")");
 					return 0;
 				}
-				if (iLine<iUsed) return sarrLine[iLine].Length;
+				else if (iLine<iUsed) return sarrLine[iLine].Length;
 				else return 0;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Liner get RowLength","getting length of text area line "+iLine.ToString()+" of "+Maximum.ToString()+" (unexpected error)");
+				RReporting.ShowExn(exn,"getting length of text area (TextBox corruption)","RTextBox RowLength(row:"+iLine.ToString()+"){Maximum: "+Maximum.ToString()+"}");
 			}
 			return 0;
 		}
@@ -86,7 +97,7 @@ namespace ExpertMultimedia {
 		//		else polyReturn.Clear();
 		//	}
 		//	catch (Exception exn) {
-		//		Base.ShowExn(exn,"GetSelPoly",);
+		//		RReporting.ShowExn(exn,"","GetSelPoly");
 		//	}
 		//	return bGood;
 		//}
@@ -103,27 +114,31 @@ namespace ExpertMultimedia {
 			}
 			set {
 				try {
-					if (value<=0) {
-						Base.WriteLine("Warning: Liner Maximum set to 0");
-						sarrLine=null;
-						bWarnedOnZeroLines=true;
-					}
-					else if (value!=Maximum) {
-						//int iMin=(Maximum<value)?Maximum:value;
-						//int iMax=(Maximum>value)?Maximum:value;
-						//do NOT use sarrLine.Length since it is allowed to be null here!
-						string[] LinesNew=new string[value];
-						if (value<iUsed) Base.WriteLine("Warning: lines being truncated from "+iUsed.ToString()+" used lines to "+value.ToString()+" Maximum.");
-						for (int iLine=0; iLine<LinesNew.Length; iLine++) {
-							LinesNew[iLine]=(iLine<iUsed)?sarrLine[iLine]:"";
+					if (bMulti||Maximum==0) {
+						int SetMaximum=value;
+						if (!bMulti) SetMaximum=1;
+						if (SetMaximum<=0) {
+							RReporting.Warning("RTextBox Maximum set to 0");
+							sarrLine=null;
+							bWarnedOnZeroLines=true;
 						}
-						if (bWarnedOnZeroLines) Base.WriteLine("Liner Maximum set to "+Maximum.ToString()+" (showing value since had been manually set to zero last time)");
-						bWarnedOnZeroLines=false;
-						sarrLine=LinesNew;
+						else if (SetMaximum!=Maximum) {
+							//int iMin=(Maximum<SetMaximum)?Maximum:SetMaximum;
+							//int iMax=(Maximum>SetMaximum)?Maximum:SetMaximum;
+							//do NOT use sarrLine.Length since it is allowed to be null here!
+							string[] LinesNew=new string[SetMaximum];
+							if (SetMaximum<iUsed) RReporting.Warning("lines being truncated from "+iUsed.ToString()+" used lines to "+SetMaximum.ToString()+" Maximum.");
+							for (int iLine=0; iLine<LinesNew.Length; iLine++) {
+								LinesNew[iLine]=(iLine<iUsed)?sarrLine[iLine]:"";
+							}
+							if (bWarnedOnZeroLines) RReporting.Warning("RTextBox Maximum set to "+Maximum.ToString()+" (showing SetMaximum since had been manually set to zero last time)");
+							bWarnedOnZeroLines=false;
+							sarrLine=LinesNew;
+						}
 					}
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"Liner set Maximum","resizing text area content array");
+					RReporting.ShowExn(exn,"resizing text area content array","RTextBox set Maximum");
 				}
 			}
 		}
@@ -136,27 +151,27 @@ namespace ExpertMultimedia {
 			set {
 				try {
 					if (value<=0) {
-						Base.WriteLine("Warning: Liner MaxEdits set to 0");
+						RReporting.Warning("RTextBox MaxEdits set to 0");
 						modarr=null;
 						bWarnedOnZeroEdits=true;
 					}
 					else if (value!=MaxEdits&&value>=iMods) {//value!=MaxEdits) {
 						//do NOT use modarr.Length since it is allowed to be null here!
-						LinerMod[] modarrNew=new LinerMod[value];
-						if (value<iMods) Base.WriteLine("Warning: undo buffer being truncated from "+iMods.ToString()+" actions history to "+value.ToString()+" MaxEdits.");
+						RTextBoxMod[] modarrNew=new RTextBoxMod[value];
+						if (value<iMods) RReporting.Warning("undo buffer being truncated from "+iMods.ToString()+" actions history to "+value.ToString()+" MaxEdits.");
 						for (int iNow=0; iNow<modarrNew.Length; iNow++) {
-							modarrNew[iNow]=(iNow<iMods)?modarr[iNow]:new LinerMod();
+							modarrNew[iNow]=(iNow<iMods)?modarr[iNow]:new RTextBoxMod();
 						}
-						if (bWarnedOnZeroEdits) Base.WriteLine("Liner undo buffer MaxEdits set to "+MaxEdits.ToString()+" (showing value since had been manually set to zero last time)");
+						if (bWarnedOnZeroEdits) RReporting.Warning("RTextBox undo buffer MaxEdits set to "+MaxEdits.ToString()+" (showing value since had been manually set to zero last time)");
 						bWarnedOnZeroEdits=false;
 					}
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"Liner set MaxEdits","resizing undo buffer");
+					RReporting.ShowExn(exn,"resizing undo buffer","RTextBox set MaxEdits");
 				}
 			}
 		}
-		public int Chars {
+		public int Length {
 			get {
 				int iReturn=0;
 				try {
@@ -166,32 +181,38 @@ namespace ExpertMultimedia {
 				}
 				catch (Exception exn) {
 					iReturn=-1;
-					Base.ShowExn(exn,"Liner get Chars");
+					RReporting.ShowExn(exn,"","RTextBox get Chars");
 				}
 				return iReturn;
 			}
 		}
 		#endregion vars
 		#region constructors
-		public Liner() {
-			Init(DefaultLineBufferSize);
+		public RTextBox(RForm rformSetContainer) {
+			Init(rformSetContainer, DefaultLineBufferSize, true);
 		}
-		public Liner(int iSetMaxLines) {
-			Init(DefaultLineBufferSize);
+		public RTextBox(RForm rformSetContainer, int iSetMaxLines) {
+			Init(rformSetContainer, DefaultLineBufferSize, true);
 		}
-		public bool Init(int iSetMaxLines) {
+		public RTextBox(RForm rformSetContainer, int iSetMaxLines, bool bAsMulti) {
+			Init(rformSetContainer, DefaultLineBufferSize, bAsMulti);
+		}
+		public bool Init(RForm rformSetContainer, int iSetMaxLines, bool bAsMulti) {
 			bool bGood=false;
 			bSuspendChanges=true;
 			try {
+				bMulti=bAsMulti;
+				if (!bMulti) iSetMaxLines=1;
+				rformContainer=rformSetContainer;
 				sarrLine=null;
 				Maximum=iSetMaxLines;
 				iUsed=0;
 				bGood=true;
-				modarr=new LinerMod[1024];
+				modarr=new RTextBoxMod[1024];
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"Liner Init(int)","initializing text area");
+				RReporting.ShowExn( exn, "initializing RTextBox", String.Format("RTextBox Init(,,bMultiline:{0})", bMulti?"yes=TextArea":"no=EditBox") );
 			}
 			bSuspendChanges=false;
 			return bGood;
@@ -210,12 +231,12 @@ namespace ExpertMultimedia {
 			//	}
 			//	catch (Exception exn) {
 			//		bGood=false;
-			//		Base.ShowExn(exn,"Liner Init(string[])","initializing text area");
+			//		RReporting.ShowExn(exn,"initializing text area","RTextBox Init(string[])");
 			//	}
 			//}
 			//else {
 			//	bGood=false;
-			//	Base.ShowErr("Tried to initialize text area with empty line array","Liner Init(string[])","initializing null text area");
+			//	RReporting.ShowErr("Tried to initialize text area with empty line array","initializing null text area","RTextBox Init(string[])");
 			//}
 			//bSuspendChanges=false;
 			//FindMaxLine();
@@ -227,7 +248,7 @@ namespace ExpertMultimedia {
 			if (!bSuspendChanges) {
 				FindMaxLine();//debug performance
 			}
-			bChanges=true;
+			bChanged=true;
 		}
 		private void FindMaxLine() {
 			try {
@@ -243,14 +264,15 @@ namespace ExpertMultimedia {
 			catch (Exception exn) {
 				iWidestLineChars=0;
 				iWidestLine=0;
-				Base.ShowExn(exn,"FindMaxLine");
+				RReporting.ShowExn(exn,"","FindMaxLine");
 			}
 		}
 		public void SetFuzzyMaxLinesByLocation(int iLoc) {
-			Maximum=Base.LocationToFuzzyMaximum(Maximum,iLoc);
+			Maximum=RMath.LocationToFuzzyMaximum(Maximum,iLoc);
 		}
-		public void SetFuzzyMaxEditsByLocation(int iLoc) {
-			MaxEdits=Base.LocationToFuzzyMaximum(MaxEdits,iLoc);
+		public bool SetFuzzyMaxEditsByLocation(int iLoc) {
+			MaxEdits=RMath.LocationToFuzzyMaximum(MaxEdits,iLoc);
+			return iLoc<=MaxEdits;
 		}
 		//public int LongestLine() {
 		//	int iReturn=0;
@@ -270,6 +292,18 @@ namespace ExpertMultimedia {
 			bool bWasInRange=true;
 			try {
 				if (iRowStart<0) {iRowStart=0;bWasInRange=false;}
+				if (iRowStart>=iUsed) { iRowStart=iUsed==0?0:iUsed-1; bWasInRange=false;}
+				if (iRowEnd<0) {iRowEnd=0;bWasInRange=false;}
+				if (iRowEnd>=iUsed) {iRowEnd=iUsed==0?0:iUsed-1; bWasInRange=false;}
+				
+				if (iColStart<0) {iColStart=0;bWasInRange=false;}
+				if (iColStart>Line(iRowStart).Length) {iColStart=Line(iRowStart).Length;bWasInRange=false;}
+				if (iColEnd<0) {iColEnd=0;bWasInRange=false;}
+				if (iColEnd>Line(iRowEnd).Length) {iColEnd=Line(iRowEnd).Length;bWasInRange=false;}
+
+				
+				/*
+				if (iRowStart<0) {iRowStart=0;bWasInRange=false;}
 				if (iRowStart>=iUsed) {iRowStart=iUsed>0?iUsed-1:0;bWasInRange=false;}
 				if (iRowEnd<0) {iRowEnd=0;bWasInRange=false;}
 				if (iRowEnd>=iUsed) {iRowEnd=iUsed>0?iUsed-1:0;bWasInRange=false;}
@@ -285,17 +319,26 @@ namespace ExpertMultimedia {
 						bWasInRange=false;
 					}
 				}
+				*/
 			}
 			catch (Exception exn) {
 				bWasInRange=false;
-				Base.ShowExn(exn,"InRange","cropping cursor variables to range");
+				RReporting.ShowExn(exn,"cropping cursor variables to range","InRange");
 			}
-			if (!bWasInRange) Base.Warning("selection out of range","{iRowStart:"+iRowStart.ToString()+"; iColStart:"+iColStart.ToString()+";iRowEnd:"+iRowEnd.ToString()+";iColEnd:"+iColEnd.ToString()+";}");
+			if (!bWasInRange&&bDebug) RReporting.Warning("selection out of range {iRowStart:"+iRowStart.ToString()+"; iColStart:"+iColStart.ToString()+";iRowEnd:"+iRowEnd.ToString()+";iColEnd:"+iColEnd.ToString()+"; Length:"+Length.ToString()+"}");
 			return bWasInRange;
 		}//end InRange
 		public bool IsInRange(int iRowStart, int iColStart, int iRowEnd, int iColEnd) {
 			bool bReturn=false; //iSelColStart<iSelColEnd
-			try { bReturn=iRowStart>=0&&iRowStart<iUsed&&iColStart>=0&&iColEnd>=0&&iRowEnd>=0&&iRowEnd<iUsed&&iColEnd<=sarrLine[iRowEnd].Length;
+			try {
+				//TODO: fix this--this should NOT be linear
+				bReturn=
+						   ((iRowStart==0&&iUsed==0) || iRowStart<iUsed)
+						&& iColStart<=Line(iRowStart).Length
+						&& ((iRowEnd==0&&iUsed==0) || iRowEnd<iUsed)
+						&& iColEnd<=Line(iRowEnd).Length;
+				//iRowStart<=iUsed to allow typing at end of line
+				//bReturn=iRowStart>=0&&iRowStart<=iUsed&&iColStart>=0&&iColEnd>=0&&iRowEnd>=0&&(iRowEnd<iUsed||(iUsed==0&&iRowEnd==0))&&iColEnd<=sarrLine[iRowEnd].Length;
 			}
 			catch {
 				bReturn=false;
@@ -308,14 +351,14 @@ namespace ExpertMultimedia {
 		public static void OrderLocations(ref int iRowStart, ref int iColStart, ref int iRowEnd, ref int iColEnd) {
 			//do NOT use the more specific Base.OrderPoints(ref iColStart, ref iRowStart, ref iColEnd, ref iRowEnd);
 			if (iRowStart==iRowEnd) {
-				if (iColStart>iColEnd) Base.Swap(ref iColStart, ref iColEnd);
+				if (iColStart>iColEnd) RMemory.Swap(ref iColStart, ref iColEnd);
 			}
 			else if (iColStart==iColEnd) {
-				if (iRowStart>iRowEnd) Base.Swap(ref iRowStart, ref iRowEnd);
+				if (iRowStart>iRowEnd) RMemory.Swap(ref iRowStart, ref iRowEnd);
 			}
 			else if (iRowStart>iRowEnd) {
-				Base.Swap(ref iRowStart, ref iRowEnd);
-				Base.Swap(ref iColStart, ref iColEnd);
+				RMemory.Swap(ref iRowStart, ref iRowEnd);
+				RMemory.Swap(ref iColStart, ref iColEnd);
 			}
 		}
 		///<summary>
@@ -350,14 +393,19 @@ namespace ExpertMultimedia {
 					sMsg+="iCountChars:"+iCountChars.ToString()+"; ";
 					sMsg+="Maximum:"+Maximum.ToString()+"; ";
 					sMsg+="}";
-					Base.ShowExn(exn,"LocOfRowCol "+sMsg,"getting location");
+					RReporting.ShowExn(exn,"getting location","LocOfRowCol "+sMsg);
 				}
 			}
-			else Base.ShowErr("row "+iRowStart+" col "+iColStart+" and/or "+iRowEnd+" col "+iColEnd+" are not valid locations");
+			else RReporting.ShowErr("Invalid row/column locations","","RowColToLinear{row:"+iRowStart+" col:"+iColStart+" rowend: "+iRowEnd+" colend:"+iColEnd+"}");
 			return bGood?iCountChars:-1;
 		}//end RowColToLinear
 		public override string ToString() {
-			return ToString(Environment.NewLine);
+			string sBuild="";
+			for (int iNow=0; iNow<iUsed; iNow++) {
+				sBuild+=(sBuild=="")?Line(iNow):(Environment.NewLine+Line(iNow));//debug forcing Environment.NewLine
+			}
+			//Console.WriteLine("rtextbox{count:"+iUsed.ToString()+"; max:"+sarrLine.Length+"} ToString:\""+sBuild+"\"");
+			return sBuild;
 		}
 		public string DumpStyle() {
 			string sMsg="{";
@@ -366,6 +414,8 @@ namespace ExpertMultimedia {
 			sMsg+="iSelRowEnd:"+iSelRowEnd.ToString()+"; ";
 			sMsg+="iSelColEnd:"+iSelColEnd.ToString()+"; ";
 			sMsg+="Maximum:"+Maximum.ToString()+"; ";
+			sMsg+="Maximum:"+Maximum.ToString()+"; ";
+			sMsg+="LastModification: "+(iMods-1).ToString();
 			sMsg+="}";
 			return sMsg;
 		}
@@ -394,21 +444,29 @@ namespace ExpertMultimedia {
 		#region undo
 		public bool Undo() {
 			bool bGood=true;
-			if (iModGroups>0) {
-				Base.ShowErr("Undo is not available in this version.");//TODO: finish this
+			try {
+				if (iModGroups>0) {
+					RReporting.ShowErr("Undo is not yet implemented.");//TODO: finish this
+				}
+				else {
+					bGood=false;
+					RReporting.ShowErr("Can't undo.");
+				}
 			}
-			else {
-				bGood=false;
-				Base.ShowErr("Can't undo.");
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"","RTextBox Undo");
 			}
 			return bGood;
 		}
-		private bool AddMod(LinerMod modNow) {//, int iLine, string sOldVal, string sNewVal, int iGroupOfGroup) {
-			//Base.WriteLine("("+iModGroups+")AddMod["+iMods+"]=\""+modNow.ToString()+"\"");
+		private bool AddMod(RTextBoxMod modNow) {//, int iLine, string sOldVal, string sNewVal, int iGroupOfGroup) {
+			//RReporting.Debug("("+iModGroups+")AddMod["+iMods+"]=\""+modNow.ToString()+"\"");
 			bool bGood=false;
 			try {
-				if (iMods>MaxEdits) Base.ShowErr("Exceeded Undo Buffer (should not be possible unless there was a computer memory problem) {iMods:"+iMods.ToString()+"; MaxEdits:"+MaxEdits.ToString()+"}");
-				else if (iMods==MaxEdits) {Base.ClearErr();SetFuzzyMaxEditsByLocation(iMods);bGood=!Base.HasErr();}
+				if (iMods>MaxEdits) RReporting.ShowErr("Exceeded Undo Buffer (might be out of memory)","adding textbox modification","AddMod(...){iMods:"+iMods.ToString()+"; MaxEdits:"+MaxEdits.ToString()+"}");
+				else if (iMods==MaxEdits) {
+					SetFuzzyMaxEditsByLocation(iMods);
+					if(iMods>=MaxEdits) bGood=false;
+				}
 				else bGood=true;
 				if (bGood) {
 					//Base.Write("Adding...");
@@ -421,24 +479,24 @@ namespace ExpertMultimedia {
 						//Base.Write("Done.  ");
 					}
 					else {
-						Base.ShowErr("Could not resize undo buffer (should not be possible unless out of memory)");
+						RReporting.ShowErr("Could not resize undo buffer (might be out of memory)");
 					}
 				}//else SetFuzzyMaxEditsByLocation already has already shown error
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"AddMod","saving undo group");
+				RReporting.ShowExn(exn,"saving undo group","AddMod");
 				bGood=false;
 			}
 			return bGood;
 		}
-		private LinerMod LastMod {
+		private RTextBoxMod LastMod {
 			get {
 				try {
 					if (iMods>0) return modarr[iMods-1];
 					else return null;
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"Liner get LastMod","accessing undo buffer for saving last modification group");
+					RReporting.ShowExn(exn,"accessing undo buffer for saving last modification group","RTextBox get LastMod");
 				}
 				return null;
 			}
@@ -450,7 +508,9 @@ namespace ExpertMultimedia {
 			iSelColStart=iSetColStart;
 			iSelRowEnd=iSetRowEnd;
 			iSelColEnd=iSetColEnd;
-			return (InRange(ref iSelRowStart, ref iSelColStart, ref iSelRowEnd, ref iSelColEnd));
+			bool bGood=InRange(ref iSelRowStart, ref iSelColStart, ref iSelRowEnd, ref iSelColEnd);
+			//RReporting.Debug("RTextBox SetSelection (row"+iSelRowStart+", col"+iSelColStart+")-(row"+iSelRowEnd+",col"+iSelColEnd.ToString()+")");// from modified mouse  ("+((int)(xMouse-ActiveNode.XInner)).ToString()+","+((int)(yMouse-ActiveNode.YInner)).ToString()+"), original ("+xMouse.ToString()+","+yMouse.ToString()+")");			//debug only
+			return bGood;
 		}
 		public bool SetSelectionStart(int iSetRowStart, int iSetColStart) {
 			return SetSelection(iSetRowStart,iSetColStart,iSelRowEnd,iSelColEnd);
@@ -478,7 +538,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"Home","setting selection "+DumpStyle());
+				RReporting.ShowExn(exn,"setting selection",String.Format("Home({0}) ",bWithShiftKey)+DumpStyle());
 			}
 			return bGood;
 		}
@@ -490,7 +550,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"End","setting selection "+DumpStyle());
+				RReporting.ShowExn(exn,"setting selection", String.Format("End({0})",bWithShiftKey)+DumpStyle());
 			}
 			return bGood;
 		}
@@ -615,7 +675,7 @@ namespace ExpertMultimedia {
 					bGood=SetSelectionInRange();
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"ShiftSelection","moving cursor");
+					RReporting.ShowExn(exn,"moving cursor","ShiftSelection");
 				}
 			//}
 			//else {//shifting nonzero selection
@@ -636,27 +696,27 @@ namespace ExpertMultimedia {
 			bool bGood=false;
 			bool bSuspendChangesPrev=bSuspendChanges;
 			bSuspendChanges=true;
-			string sVerbNow="inserting line (before starting insertion)";
+			string sParticiple="inserting line (before starting insertion)";
 			int iFreed=0;
 			try {
-				sVerbNow="inserting line (adding undo step)";
-				AddMod(new LinerMod(LinerMod.TypeRemove, iLine, iCol_ForReferenceOnly, sarrLine[iLine], sLine, iModGroups));
-				sVerbNow="inserting line (setting line range)";
+				sParticiple="inserting line (adding undo step)";
+				AddMod(new RTextBoxMod(RTextBoxMod.TypeRemove, iLine, iCol_ForReferenceOnly, sarrLine[iLine], sLine, iModGroups));
+				sParticiple="inserting line (setting line range)";
 				if (Maximum<iUsed+1) SetFuzzyMaxLinesByLocation(iUsed);
-				sVerbNow="inserting line (pushing lines down)";
+				sParticiple="inserting line (pushing lines down)";
 				if (iUsed>0) {
 					for (iFreed=iUsed+1; iFreed>iLine; iFreed--) {
 						sarrLine[iFreed]=sarrLine[iFreed-1];
 					}
 				}
 				else iFreed=iLine;
-				sVerbNow="setting line "+iLine.ToString()+" in "+Maximum.ToString()+"-length array";
+				sParticiple="setting line "+iLine.ToString()+" in "+Maximum.ToString()+"-length array";
 				if (iFreed==iLine) {
 					bGood=true;
 					sarrLine[iLine]=sLine;
 					iUsed++;
 				}
-				else Base.ShowErr("Line location error","Liner InsertLine",sVerbNow+" {"
+				else RReporting.ShowErr("Line location error",sParticiple,"RTextBox InsertLine"+" {"
 					+"iLine:"+iLine.ToString()+"; "
 					+"iFreed:"+iFreed.ToString()+"; "
 					+"iUsed:"+iUsed.ToString()+"; "
@@ -665,7 +725,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"Liner InsertLine", sVerbNow+" {"
+				RReporting.ShowExn(exn,sParticiple, "RTextBox InsertLine {"
 					+"iLine:"+iLine.ToString()+"; "
 					+"iFreed:"+iFreed.ToString()+"; "
 					+"iUsed:"+iUsed.ToString()+"; "
@@ -684,7 +744,7 @@ namespace ExpertMultimedia {
 			bool bGood=false;
 			bool bSuspendChangesPrev=bSuspendChanges;
 			bSuspendChanges=true;
-			AddMod(new LinerMod(LinerMod.TypeRemove, iLine, iCol_ForReferenceOnly, sarrLine[iLine], "", iModGroups));
+			AddMod(new RTextBoxMod(RTextBoxMod.TypeRemove, iLine, iCol_ForReferenceOnly, sarrLine[iLine], "", iModGroups));
 			try {
 				int iNow=0;
 				for (iNow=iLine; iNow<iUsed-1; iNow++) {
@@ -694,7 +754,7 @@ namespace ExpertMultimedia {
 					bGood=true;
 					iUsed--;
 					if (iUsed<0) {	
-						Base.ShowErr("iUsed is "+iUsed.ToString()+" in RemoveLine!");
+						RReporting.ShowErr("No lines to remove","",String.Format("RemoveLine(){{lines:{0}}}",iUsed));
 						iUsed=0;
 					}
 				}
@@ -702,7 +762,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"RemoveLine("+iLine.ToString()+") {iUsed:"+iUsed.ToString()+")");
+				RReporting.ShowExn(exn,"","RemoveLine("+iLine.ToString()+") {iUsed:"+iUsed.ToString()+")");
 			}
 			if (!bWaitForAnotherPartOfGroup) iModGroups++;
 			bSuspendChanges=bSuspendChangesPrev;
@@ -719,8 +779,11 @@ namespace ExpertMultimedia {
 			return ChangeLine(iLine,iCol_ForReferenceOnly,sLine,false);
 		}
 		private bool ChangeLine(int iLine, int iCol_ForReferenceOnly, string sLine, bool bWaitForAnotherPartOfGroup) {
-			bool bTest=AddMod(new LinerMod(LinerMod.TypeModify, iLine, iCol_ForReferenceOnly, sarrLine[iLine], sLine, iModGroups));
+			bool bTest=AddMod(new RTextBoxMod(RTextBoxMod.TypeModify, iLine, iCol_ForReferenceOnly, sarrLine[iLine], sLine, iModGroups));
 			sarrLine[iLine]=sLine;
+			//Console.WriteLine(sarrLine[iLine]);//debug only 
+			if (iLine>=iUsed) iUsed=iLine+1;//TODO: save previous length for undo
+			
 			if (!bWaitForAnotherPartOfGroup) {
 				iModGroups++;
 				if (!bSuspendChanges) OnChange();
@@ -745,32 +808,45 @@ namespace ExpertMultimedia {
 		public bool SetText(string sVal) {
 			return SetLines(Base.StringToLines(sVal));
 		}
+		public bool SelectAll() {
+			return SetSelection(0,0,iUsed==0?0:iUsed-1,RowLength(iUsed==0?0:iUsed-1));
+		}
 		public bool Insert(string sTyped) {
-			if (Base.Contains(sTyped,Environment.NewLine)
+			if ( Base.Contains(sTyped,Environment.NewLine)
 				||Base.Contains(sTyped,'\r')
 				||Base.Contains(sTyped,'\n')
 				) {
-				Base.ShowErr("Inserting newlines is not possible!  Use Return() instead!");
+				//TODO: call a newline parsing function to handle this then recurse back to here
+				RReporting.ShowErr("Inserting newlines is not possible.  Use Return() instead (input corruption).");
 				return false;
 			}
+			
 			bool bGood=false;
+			Console.Write(sTyped);
 			try {
 				if (!IsZeroSelection()) {
 					bGood=Delete();
 					SetZeroSelection(iSelRowStart,iSelColStart);
 				}
+				Console.Write("[.]");//debug only
 				if (SelectionIsInRange()) {
 					if (!ChangeLine(iSelRowStart,iSelColStart,Base.SafeInsert(sarrLine[iSelRowStart],iSelColStart, sTyped))) {
 						bGood=false;
+						Console.Write("[-]");//debug only
 					}
 					else {
 						SetZeroSelection(iSelRowStart, iSelColStart+sTyped.Length);
+						Console.Write("[+]");//debug only
+						bGood=true;
 					}
 				}
-				else Base.ShowErr("Cannot type here since selection is not in range","Liner Insert","typing outside of range "+DumpStyle());
+				else {
+					Console.Write("[--]");//debug only
+					RReporting.ShowErr("Cannot type here since selection is not in range","typing outside of range ","RTextBox Insert()"+DumpStyle());
+				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Liner Insert","typing {sTyped:\""+sTyped+"\"; Selection ("+iSelColStart+","+iSelRowStart+") to ("+iSelColEnd+","+iSelRowEnd+")}");
+				RReporting.ShowExn(exn,"typing","RTextBox Insert(sTyped:"+RReporting.StringMessage(sTyped,true)+"{Selection: (row "+iSelRowStart+", col "+iSelColStart+") to (row "+iSelRowEnd+", col "+iSelColEnd+")}");
 			}
 			return bGood;
 		}//end Insert
@@ -791,10 +867,10 @@ namespace ExpertMultimedia {
 					}
 					SetZeroSelection(iSelRowStart+1, 0);
 				}
-				else Base.ShowErr("Cannot enter a line return here since selection is not in range "+DumpStyle());
+				else RReporting.ShowErr("Cannot enter a line return here since selection is not in range","typing","RTextBox Return "+DumpStyle());
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Liner Return","typing {sTyped:Return; Selection ("+iSelColStart+","+iSelRowStart+") to ("+iSelColEnd+","+iSelRowEnd+")}");
+				RReporting.ShowExn(exn,"typing","RTextBox Return {sTyped:Return; Selection ("+iSelColStart+","+iSelRowStart+") to ("+iSelColEnd+","+iSelRowEnd+")}");
 			}
 			bSuspendChanges=bSuspendChangesPrev;
 			if (!bSuspendChanges) OnChange();
@@ -804,24 +880,24 @@ namespace ExpertMultimedia {
 			bool bGood=false;
 			bool bSuspendChangesPrev=bSuspendChanges;
 			bSuspendChanges=true;
-			string sVerbNow="preparing location";
+			string sParticiple="preparing location";
 			int iRowStart=iSelRowStart, iRowEnd=iSelRowEnd, iColStart=iSelColStart, iColEnd=iSelColEnd;
 			OrderLocations(ref iRowStart, ref iColStart, ref iRowEnd, ref iColEnd);
 			try {
 				if (IsZeroSelection()) {
 					if (SelectionIsInRange()) {
 						if (iColStart==0) {//if at beginning of line
-							sVerbNow="checking row";
+							sParticiple="checking row";
 							if (iRowStart>0) {
-								sVerbNow="moving to previous line";
+								sParticiple="moving to previous line";
 								if(ChangeLine(iRowStart-1,Line(iRowStart-1).Length,Line(iRowStart-1)+Line(iRowStart),true)) {
-									sVerbNow="removing leftover space";
+									sParticiple="removing leftover space";
 									if (RemoveLine(iRowStart,0)) {
-										sVerbNow="resetting selection";
+										sParticiple="resetting selection";
 										if (LastMod!=null) SetZeroSelection(iRowStart-1,LastMod.iCol);
 										else {
 											SetZeroSelection(iRowStart-1,0);
-											Base.ShowErr("Last modification ("+(iMods-1).ToString()+") was not recorded properly! "+DumpStyle());
+											RReporting.ShowErr("Last modification was not recorded properly! ","typing","Backspace()"+DumpStyle());
 										}
 									}
 								}
@@ -829,17 +905,17 @@ namespace ExpertMultimedia {
 							//else do nothing since at top left
 						}
 						else {
-							sVerbNow="changing line";
+							sParticiple="changing line";
 							bGood=ChangeLine(iRowStart,iColStart,Base.SafeRemoveIncludingEnder(Line(iRowStart),iColStart-1,iColEnd-1));
 						}
-						sVerbNow="shifting selection";
+						sParticiple="shifting selection";
 						ShiftSelection(0,-1);
 					}
-					else Base.ShowErr("Backspace failed since selection out of range. "+DumpStyle());
-					sVerbNow="finishing";
+					else RReporting.ShowErr("Backspace failed since selection out of range.","typing","Backspace() "+DumpStyle());
+					sParticiple="finishing";
 				}
 				else {//else not IsZeroSelection
-					sVerbNow="deleting";
+					sParticiple="trying Delete method";
 					bGood=Delete();
 					//if (IsZeroSelection()) ShiftSelection(0,-1);
 					//else {
@@ -848,12 +924,12 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Liner Backspace","deleting before cursor ("+sVerbNow+") "+DumpStyle());
+				RReporting.ShowExn(exn,"deleting before cursor ("+sParticiple+")","RTextBox Backspace() "+DumpStyle());
 			}
 			bSuspendChanges=bSuspendChangesPrev;
-			sVerbNow="onchange";
+			sParticiple="onchange";
 			if (!bSuspendChanges) OnChange();
-			sVerbNow="finishing";
+			sParticiple="finishing";
 			return bGood;
 		}//end Backspace
 		public bool Delete() {
@@ -872,13 +948,13 @@ namespace ExpertMultimedia {
 											if (ChangeLine(iRowStart,iColStart,Line(iRowStart)+Line(iRowStart+1),true)) {
 												if (!RemoveLine(iRowStart+1,iColStart)) {
 													bGood=false;
-													//Base.ShowErr("Couldn't remove remnant of next line","Liner Delete","deleting line break (shifting following lines)"+DumpStyle());
+													//RReporting.ShowErr("Couldn't remove remnant of next line","deleting line break (shifting following lines)","RTextBox Delete "+DumpStyle());
 												}
 											}
 											else {
 												bGood=false;
 												iModGroups++;//manually concludes modgroup (undo step)
-												Base.ShowErr("Couldn't append next line to current line","Liner Delete","deleting line break "+DumpStyle());
+												RReporting.ShowErr("Couldn't append next line to current line","deleting line break","RTextBox Delete "+DumpStyle());
 											}
 										}
 										//else do nothing
@@ -889,7 +965,7 @@ namespace ExpertMultimedia {
 										}
 										else {
 											bGood=false;
-											Base.ShowErr("Couldn't append next line to current line","Liner Delete","deleting letter "+DumpStyle());
+											RReporting.ShowErr("Couldn't append next line to current line","deleting letter","RTextBox Delete "+DumpStyle());
 										}
 									}
 								}//end if delete one character 
@@ -903,7 +979,7 @@ namespace ExpertMultimedia {
 							else if (iRowStart==iUsed) {
 								//do nothing, but don't show error if at virtual line after last line
 							}
-							else Base.ShowErr("No text to delete (end of text area)","Liner Delete","trying to delete text in unused area"+DumpStyle());
+							else RReporting.ShowErr("No text to delete (end of text area)","trying to delete text in unused area","RTextBox Delete "+DumpStyle());
 					}
 					else {//multirow
 						//int iColStartNow;
@@ -919,27 +995,27 @@ namespace ExpertMultimedia {
 										iColStart,//iColStartNow,
 										Base.SafeSubstring(Line(iRow),0,iColStart)+Base.SafeSubstring(Line(iRowEnd),iColEnd),true)) {
 									bGood=false;
-									Base.ShowErr("Details: can't collapse data to first line","Liner Delete","deleting text (removing trailing lines) "+DumpStyle());
+									RReporting.ShowErr("can't collapse data to first line","deleting text (removing trailing lines)","RTextBox Delete() "+DumpStyle());
 									break;
 								}
 							}
 							else { //remove all lines INCLUDING the last line which was preserved as necessary above
 								if(!RemoveLine(iRow,0,true)) {
 									bGood=false;
-									Base.ShowErr("Details: failed to remove trailing lines","Delete","deleting text (removing trailing lines) "+DumpStyle());
+									RReporting.ShowErr("RemoveLine failure","deleting text (removing trailing lines)","RTextBox Delete() "+DumpStyle());
 									break;
 								}
 							}
 						}//end for iRow
 						iModGroups++;//manually close undo step
 						SetZeroSelection(iRowStart,iColStart);
-						//Base.ShowErr("Deleting multirow areas is not yet implemented.");
+						//RReporting.ShowErr("Deleting multirow areas is not yet implemented.");
 					}//end else multirow
 				}//end if in range
-				else Base.ShowErr("Deleting failed since selection out of range. "+DumpStyle());
+				else RReporting.ShowErr("Deleting failed since selection out of range.","RTextBox Delete() "+DumpStyle());
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Liner Delete","deleting selected text "+DumpStyle());
+				RReporting.ShowExn(exn,"deleting selected text","RTextBox Delete() "+DumpStyle());
 			}
 			bSuspendChanges=bSuspendChangesPrev;
 			if (!bSuspendChanges) OnChange();
@@ -959,7 +1035,62 @@ namespace ExpertMultimedia {
 			return bGood;
 		}
 		#endregion abstract editing
-	}//end class Liner
+		
+		#region drawing
+		public void Render(RImage gbDest, bool bAsActive) {
+			try {
+				int iCharH=rformContainer.rfont.Height;//int iCharW=7, iCharH=15;//iCharH=11, iCharDescent=4;//TODO: finish this -- get from font
+				int yStartLine=rformContainer.zoneInner.Top;
+				rformContainer.RenderText(gbDest,ToString());//only breaks on newline
+				//for (int iLine=0; iLine<this.LineCount; iLine++) {
+				//	rformContainer.rfont.Render(gbDest,rformContainer.zoneInner.Left, yStartLine,this.Line(iLine));//gDest.DrawString(this.Line(iLine), font, brush, rformContainer.zoneInner.Left, yStartLine);
+				//	yStartLine+=iCharH;
+				//}
+				int iAsGlyphType=RFont.GlyphTypeNormal;
+				int iColStartNow,iColEndNow;
+				
+				if (bAsActive) {
+					int iSelRowStartOrdered=SelRowStart, iSelRowEndOrdered=SelRowEnd, iSelColStartOrdered=SelColStart, iSelColEndOrdered=SelColEnd;
+					OrderLocations(ref iSelRowStartOrdered, ref iSelColStartOrdered, ref iSelRowEndOrdered, ref iSelColEndOrdered);
+					//int yRel=0; xRel=0;
+					for (int iRow=iSelRowStartOrdered; iRow<=iSelRowEndOrdered; iRow++) {
+						iColStartNow=0;
+						iColEndNow=RowLength(iRow);
+						if (iRow==iSelRowStartOrdered) {
+							iColStartNow=iSelColStartOrdered;
+						}
+						if (iRow==iSelRowEndOrdered) {
+							iColEndNow=iSelColEndOrdered;
+						}
+						string sLine=Line(iRow);
+						
+						//IRect.Set(rectNow,iColStartNow*iCharW, iRow*iCharH, (iColEndNow-iColStartNow)*iCharW, iCharH);
+						//rectNow.Inflate( 1, 1 );
+						//regionSelection.Union(rectNow);
+						
+						RForms.DrawSelectionRect(
+							gbDest,
+							rformContainer.rfont.WidthOf(Base.SafeSubstring(sLine,0,iColStartNow),iAsGlyphType),
+							(int)(iRow*iCharH),
+							rformContainer.rfont.WidthOf(Base.SafeSubstringByExclusiveEnder(sLine,iColStartNow,iColEndNow)),
+							iCharH
+							);//DrawSelectionRect(gbDest, iColStartNow*iCharW, iRow*iCharH, (iColEndNow-iColStartNow)*iCharW, iCharH);//DrawSelectionRect(bmpOffscreen, iColStartNow*iCharW, iRow*iCharH, (iColEndNow-iColStartNow)*iCharW, iCharH);//this is right since allows selection to be zero characters wide
+					}
+					if (RForms.TextCursorVisible) {
+						//gOffscreen.FillRectangle(brushTextNow, new Rectangle(SelColEnd*iCharW, SelRowEnd*iCharH, RForms.iTextCursorWidth, iCharH));
+						RForms.InvertRect(gbDest, rformContainer.rfont.WidthOf(Base.SafeSubstring(Line(SelRowEnd),0,SelColEnd)), SelRowEnd*iCharH, RForms.iTextCursorWidth, iCharH);//InvertRect(bmpOffscreen, SelColEnd*iCharW, SelRowEnd*iCharH, RForms.iTextCursorWidth, iCharH);
+					}
+				}//end if bActive
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn,"rendering text lines","RForms RenderRTextBox");
+			}
+		}//end Render
+		#endregion drawing
+	}//end class RTextBox
+	
+	
+                               ///  RTextBoxMod ///
 	
 	
 	
@@ -981,10 +1112,7 @@ namespace ExpertMultimedia {
 	
 	
 	
-	
-	
-	
-	public class LinerMod {
+	public class RTextBoxMod {
 		//there should never be more than these types, to keep undo and tracking simple!
 		public const int TypeNULL=0;//should never be the case unless unused
 		public const int TypeRemove=1;
@@ -998,10 +1126,10 @@ namespace ExpertMultimedia {
 		public int iGroup=0;//the undo modification group of which this is a part
 		
 		public int iCol=-1;//where the cursor was before the modification
-		public LinerMod() {
-			Base.WriteLine("Warning: LinerMod default constructor was called.");
+		public RTextBoxMod() {
+			RReporting.Warning("Warning: RTextBoxMod default constructor was called.");
 		}
-		public bool CopyTo(LinerMod modNow) {
+		public bool CopyTo(RTextBoxMod modNow) {
 			bool bGood=false;
 			try {
 				modNow.iType=iType;
@@ -1014,11 +1142,11 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"LinerMod CopyTo","copying undo modification group");
+				RReporting.ShowExn(exn,"copying undo modification group","RTextBoxMod CopyTo");
 			}
 			return bGood;
 		}
-		public LinerMod(int iSetType, int iSetRow, int iCol_ForReferenceOnly, string sSetLineOld, string sSetLineNew, int iSetGroup) {
+		public RTextBoxMod(int iSetType, int iSetRow, int iCol_ForReferenceOnly, string sSetLineOld, string sSetLineNew, int iSetGroup) {
 			Init(iSetType,iSetRow,iCol_ForReferenceOnly,sSetLineOld,sSetLineNew,iSetGroup);
 		}
 		public override string ToString() {//debug override
@@ -1055,16 +1183,16 @@ namespace ExpertMultimedia {
 			else {
 				bGood=false;
 				sLineOld="";
-				Base.ShowErr("null old line value in modification "+DumpStyle());
+				RReporting.ShowErr("null old line value in modification","initializing undo entry","RTextBoxMod Init() "+DumpStyle());
 			}
 			if (sSetLineNew!=null) sLineNew=sSetLineNew;
 			else {
 				bGood=false;
 				sLineNew="";
-				Base.ShowErr("null new line value in modification "+DumpStyle());
+				RReporting.ShowErr("null new line value in modification","initializing undo entry","RTextBoxMod Init() "+DumpStyle());
 			}
 			iGroup=iSetGroup;
 			return bGood;
 		}
-	}//end class LinerMod
+	}//end class RTextBoxMod
 }//end namespace

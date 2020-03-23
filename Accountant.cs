@@ -17,7 +17,7 @@ namespace ExpertMultimedia {
 	public class User { //current session data not stored in database
 		public int iPacketsSent;
 		public int iTickLastOp; //used for keepalive
-		public int iTickLogin; //usage on logout: iSecondsLogged += (Environment.TickCount-iTickLogin)/1000;
+		public int iTickLogin; //usage on logout: iSecondsLogged += (PlatformNow.TickCount-iTickLogin)/1000;
 		public UInt32 bitsAttrib;
 		//public PacketQ packetqToMe; //to client
 		//Database Cache://
@@ -81,7 +81,7 @@ namespace ExpertMultimedia {
 		}
 		public Accountant() {
 			//sFuncNow="Accountant constructor ";
-			rTokenNum=new Random(System.Environment.TickCount);
+			rTokenNum=new Random(PlatformNow.TickCount);
 			iAccounts=0;
 			iUsers=0;
 			iIndexers=0;
@@ -212,7 +212,7 @@ namespace ExpertMultimedia {
 			//debug NYI check if user is already logged in & relogin if errantly logged in
 			// (check before calling this function?)
 			//sFuncNow="Login("+sNameX+")";
-			Random rTokenByte=new Random(Environment.TickCount);
+			Random rTokenByte=new Random(PlatformNow.TickCount);
 			sReturnMessage="";
 			int iTokenX=PacketToken.Invalid; //(invalid token by default)
 			try {
@@ -335,9 +335,9 @@ namespace ExpertMultimedia {
 			int iReturn=PacketToken.Invalid;
 			int iMisses=0;
 			sReturnMessage="";
-			//if (rTokenNum==null) rTokenNum=new Random(System.Environment.TickCount()); //(?) may need System.Collections
+			//if (rTokenNum==null) rTokenNum=new Random(PlatformNow.TickCount); //(?) may need System.Collections
 			if (iUsers<iMaxUsers) {
-				//Random rTokenNum = new Random(System.Environment.TickCount()); //(?) may need System.Collections
+				//Random rTokenNum = new Random(PlatformNow.TickCount()); //(?) may need System.Collections
 				while (iReturn==PacketToken.Invalid){
 					iReturn= rTokenNum.Next(iMaxUsers); //without argument, Next returns up to System.Int32.MaxValue!
 					if (userarr[iReturn]!=null || iReturn==PacketToken.Invalid) {

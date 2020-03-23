@@ -9,14 +9,14 @@
 using System;
 
 namespace ExpertMultimedia {
-	public class StringStack { //pack Stack -- array, order left(First) to right(Last)
+	public class StringStack { //string Stack -- array, order left(First) to right(Last)
 		private string[] sarr=null;
 		private int Maximum {
 			get {
 				return (sarr==null)?0:sarr.Length;
 			}
 			set {
-				Memory.Redim(ref sarr,value,"StringStack");
+				RMemory.Redim(ref sarr,value,"StringStack");
 			}
 		}
 		private int iCount;
@@ -28,9 +28,7 @@ namespace ExpertMultimedia {
 			return (iElement<iCount&&iElement>=0&&sarr!=null)?sarr[iElement]:null;
 		}
 		public int Count {
-			get {
-				return iCount;
-			}
+			get { return iCount; }
 		}
 		///<summary>
 		///
@@ -58,19 +56,19 @@ namespace ExpertMultimedia {
 		}
 		public StringStack() { //Constructor
 			int iDefaultSize=100;
-			Base.settings.GetOrCreate(ref iDefaultSize,"StringStackDefaultStartSize");
+			//TODO: settings.GetOrCreate(ref iDefaultSize,"StringStackDefaultStartSize");
 			Init(iDefaultSize);
 		}
 		public StringStack(int iSetMax) { //Constructor
 			Init(iSetMax);
 		}
 		private void Init(int iSetMax) { //always called by Constructor
-			if (iSetMax<0) Base.Warning("StringStack initialized with negative number so it will be set to a default.");
-			else if (iSetMax==0) Base.Warning("StringStack initialized with zero so it will be set to a default.");
+			if (iSetMax<0) RReporting.Warning("StringStack initialized with negative number so it will be set to a default.");
+			else if (iSetMax==0) RReporting.Warning("StringStack initialized with zero so it will be set to a default.");
 			if (iSetMax<=0) iSetMax=1;
 			Maximum=iSetMax;
 			iCount=0;
-			if (sarr==null) Base.ShowErr("Stack constructor couldn't initialize sarr");
+			if (sarr==null) RReporting.ShowErr("Stack constructor couldn't initialize sarr");
 		}
 		public void Clear() {
 			iCount=0;
@@ -82,7 +80,8 @@ namespace ExpertMultimedia {
 			iCount=0;
 		}
 		public void SetFuzzyMaximumByLocation(int iLoc) {
-			Maximum=Base.LocationToFuzzyMaximum(Maximum,iLoc);
+			int iNew=iLoc+iLoc/2+1;
+			if (iNew>Maximum) Maximum=iNew;
 		}
 		public bool PushIfUnique(string sAdd) {
 			if (!Exists(sAdd)) return Push(sAdd); 
@@ -97,39 +96,74 @@ namespace ExpertMultimedia {
 				//sLogLine="debug enq iCount="+iCount.ToString();
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"StringStack Push("+((sAdd==null)?"null string":"non-null")+")","setting sarr["+NewIndex.ToString()+"]");
+				RReporting.ShowExn(exn,"accessing StringStack array","StringStack Push("+((sAdd==null)?"null string":"non-null")+"){at:"+NewIndex.ToString()+"}");
 				return false;
 			}
 			return true;
 			//}
 			//else {
 			//	if (sAdd==null) sAdd="";
-			//	Base.ShowErr("StringStack is full, can't push \""+sAdd+"\"! ( "+iCount.ToString()+" strings already used)","StringStack Push("+((sAdd==null)?"null string":"non-null")+")");
+			//	RReporting.ShowErr("StringStack is full, can't push","","StringStack Push("+((sAdd==null)?"null string":"non-null")+"){count:"+iCount.ToString()+"}");
 			//	return false;
 			//}
 		}
+		///<summary>
+		///Returns topmost occurance, or -1 if not present
+		///</summary>
+		public int HighestIndexOf(string val) {
+			try {
+				for (int iNow=iCount-1; iNow>=0; iNow--) {
+					if (sarr[iNow]==val) return iNow;
+				}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn);
+			}
+			return -1;
+		}
+		public bool Contains(string val) {
+			return HighestIndexOf(val)>=0;
+		}
+		public string Peek(int iAt) {
+			if (iAt>=0) {
+				if (!IsEmpty) {
+					if (iAt<iCount) return sarr[LastIndex];
+					else RReporting.Warning("not enough strings to return so returned null","","StringStack Peek("+iAt.ToString()+"){Count:"+Count.ToString()+"}");
+				}
+				else RReporting.Warning("no strings to return so returned null","","StringStack Peek("+iAt.ToString()+"){Count:"+Count.ToString()+"}");
+			}
+			else RReporting.ShowErr("Tried to peek at negative index","","StringStack Peek("+iAt.ToString()+"){Count:"+Count.ToString()+"}");
+			return null;
+		}
+		public string Peek() {
+			return Peek(LastIndex);
+		}
 		public string Pop() {
 			//sLogLine=("debug deq iCount="+iCount.ToString()+" and "+(IsEmpty?"is":"is not")+" empty.");
-			if (IsEmpty) {
-				//Base.ShowErr("no strings to return so returned null","StringStack Pop");
-				return null;
+			if (!IsEmpty) {
+				int iReturn = LastIndex;
+				iCount--;
+				return sarr[iReturn];
 			}
-			int iReturn = LastIndex;
-			iCount--;
-			return sarr[iReturn];
+			else {
+				RReporting.Warning("no strings to return so returned null","","StringStack Pop");
+			}
+			return null;
 		}
 		public string[] ToArray() {
 			string[] sarrReturn=null;
 			try {
-				if (iCount>0) sarrReturn=new string[iCount];
-				for (int iNow=0; iNow<iCount; iNow++) {
-					sarrReturn[iNow]=sarr[iNow];
+				if (iCount>0) {
+					sarrReturn=new string[iCount];
+					for (int iNow=0; iNow<iCount; iNow++) {
+						sarrReturn[iNow]=sarr[iNow];
+					}
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"StringStack ToStringArray");
+				RReporting.ShowExn(exn,"","StringStack ToStringArray");
 			}
 			return sarrReturn;
-		}
+		}//end ToArray()
 	}//end StringStack
 }//end namespace

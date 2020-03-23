@@ -19,12 +19,21 @@ echo
 echo
 ./clean
 
-mcs /target:library Base.cs Accountant.cs Anim32BGRA.cs AssemblyInfo-Base.cs Byter.cs Core.cs DataSet.cs Entity.cs Fractals.cs Gradient32BGRA.cs GBuffer32BGRA.cs GFont32BGRA.cs IAbstractor.cs Interaction.cs Keyboard.cs Liner.cs Mass3D.cs Memory.cs MyCallback.cs Packet.cs Packeter.cs Port.cs RForm.cs RForms.cs SafeConvert.cs Scene3D.cs Sprite.cs StringQ.cs StringStack.cs Var.cs Variables.cs WaveStream.cs -unsafe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Runtime.Remoting.dll
-mcs RetroEngine.cs AssemblyInfo-RetroEngine.cs -unsafe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:Base.dll /reference:../bin/Tao.Sdl.dll /reference:System.Web.dll
+
+gmcs /target:library Accountant.cs AssemblyInfo-Base.cs Byter.cs Core.cs DataSet.cs Entity.cs FastPanel.cs Fractals.cs IAbstractor.cs Interaction.cs Keyboard.cs Mass3D.cs MyCallback.cs Packet.cs Packeter.cs Port.cs PseudoRandom.cs RAnim_bgra32.cs RConvert.cs RForm.cs RForms.cs RFont_bgra32.cs RGradient_bgra32.cs RImage_bgra32.cs RMath.cs RMemory.cs RPlatform.cs RPlatform.Sdl.cs RReporting.cs RTextBox.cs RTypes.cs Scene3D.cs Sprite.cs StringQ.cs StringStack.cs Table.cs Test.cs Var.cs Variables.cs WaveStream.cs -unsafe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Runtime.Remoting.dll /reference:../bin/Tao.Sdl.dll 2> err.txt
+killall outputinspector
+outputinspector&
+sleep 1
+#only needs to reference Tao.Sdl.dll when using PlatformNow_Sdl.cs
+#Base.dll use to contain the old RetroEngine.cs, and the executable contained a file called RetroEngineWindow.cs
+gmcs RetroEngine.cs AssemblyInfo-RetroEngine.cs -unsafe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:Base.dll /reference:../bin/Tao.Sdl.dll /reference:System.Web.dll 2> err.txt
+outputinspector&
 #mcs Server.cs AssemblyInfo-Server.cs /reference:System.Drawing.dll /reference:System.Runtime.Remoting.dll /reference:Base.dll
 #NOW THE SERVER is something more abstract, and is created by RetroEngine.exe
+mv -f ../bin/Base.dll ../bin/Base.dll.wip
 mv Base.dll ../bin
 #mv Server.exe ../bin
+mv -f ../bin/RetroEngine.exe ../bin/RetroEngine.exe.wip
 mv RetroEngine.exe ../bin
 
 #deprecated:
