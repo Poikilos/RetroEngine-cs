@@ -1,8 +1,13 @@
  
-Notes:
+ToDo:
 -make each bone have a shader, so i.e. a man can have a robot arm easily
 	-Allow for simple props such as chairs or benches, otherwise just make these Voxel objects
+-Allow changing between hard, soft, arc, or if fast enough, flexible bezier
+-Lowlights (for bone shader): Create a flat silohuette curve of the object from the light's view, then save the non-culled part of the curve in 3D from the camera's view and use that part as the inner side of both the highlight and lowlight filled curves (in other words, the current bone's silohuette created from the cameras view must be split by the light's silohuette curve). This could quickly process multiple lights. The light silohuettes could also be cached for creating shadows.  Start writing the Retro Engine ini file now, with XML documentation: optionally draw shadows as partially blurry depending on light focus (estimate based on ratio of distance of object to shadow over distance to light--this should be cached whenever a light silohuette is created IF ShadowFocus==true
+-Adaptive subdivision and how it provides depth of field
+	If AdaptiveShadowSubdivision==1px then subdivide curve until it is 1 pixel per segment depending on distancefromcamera which should be cached if AdaptiveShadowSubdivision OR depthOfFocus are enabled (DepthOfFocus may also be simulated if points on ANY curve are farther apart than 1px depending How far apart in REAL space not pixel plane--this DepthOfField mode will only be available if AdaptiveCurveSubdivision is on, and the 3D distance to the next point closest to the camera must be cached.  For stereoscopic mode, Remember to cache stuff for ANY point that is not DOUBLE-culled
 
+	
 Families of objects (that need some way of being rendered) (in order of importance):
 Humanoid
 Ground (a bitmap of the ground)
@@ -40,3 +45,4 @@ Gestures:
 Actions (can be appended with 's'):
 :jump:
 :barf: (gag sign)
+:serious: (slight frown on left side, slightly-furrowed brow)
