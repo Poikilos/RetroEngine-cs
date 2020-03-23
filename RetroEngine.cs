@@ -133,7 +133,7 @@ namespace ExpertMultimedia {
 					else return cliparr[iSelectClip].iParent;
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"RetroEngine","getting iRootAnim");
+					RReporting.ShowExn(exn,"RetroEngine","getting iRootAnim");
 				}
 				return -1;
 			}
@@ -147,7 +147,7 @@ namespace ExpertMultimedia {
 					else return lSelectFrame+cliparr[iSelectClip].lFrameStart;
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"RetroEngine","getting lRootAnimFrame");
+					RReporting.ShowExn(exn,"RetroEngine","getting lRootAnimFrame");
 				}
 				return -1;
 			}
@@ -161,7 +161,7 @@ namespace ExpertMultimedia {
 					else return animarr[cliparr[iSelectClip].iParent].lFrames;
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"RetroEngine","getting lRootAnimFrames");
+					RReporting.ShowExn(exn,"RetroEngine","getting lRootAnimFrames");
 				}
 				return -1;
 			}
@@ -180,15 +180,15 @@ namespace ExpertMultimedia {
 		}
 		public int iMode {
 			set { try { iabstractor.SetMode(value); }
-				catch (Exception exn) { Base.ShowExn(exn,"RetroEngine set iMode"); } }
+				catch (Exception exn) { RReporting.ShowExn(exn,"RetroEngine set iMode"); } }
 			get { try { return iabstractor.Mode; }
-				catch (Exception exn) { Base.ShowExn(exn,"RetroEngine get iMode"); }
+				catch (Exception exn) { RReporting.ShowExn(exn,"RetroEngine get iMode"); }
 				return -1; }
 		}
 		public int iWorkspace {
 			get {
 				try { return iabstractor.Workspace; }
-				catch (Exception exn) { Base.ShowExn(exn,"RetroEngine get iWorkspace"); }
+				catch (Exception exn) { RReporting.ShowExn(exn,"RetroEngine get iWorkspace"); }
 				return -1;
 			}
 		}
@@ -204,10 +204,10 @@ namespace ExpertMultimedia {
 				iTargetBytesTotal=iTargetBPP/8*iTargetWidth*iTargetHeight;
 				iTargetPixels=iTargetWidth*iTargetHeight;
 				iTargetChunks64Total=iTargetBytesTotal/8;
-				Base.Debug("Updated primary surface vars for "+iTargetWidth.ToString()+"x"+iTargetHeight.ToString()+"x"+iBPP.ToString()+"bit");
+				RReporting.Debug("Updated primary surface vars for "+iTargetWidth.ToString()+"x"+iTargetHeight.ToString()+"x"+iBPP.ToString()+"bit");
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"RetroEngine UpdateScreenVars","reading screen format");
+				RReporting.ShowExn(exn,"RetroEngine UpdateScreenVars","reading screen format");
 				return false;
 			}
 			return true;
@@ -240,10 +240,10 @@ namespace ExpertMultimedia {
 					iTargetBPP, 
 					flags);
 				if (iptrSurfaceBackbuffer==IntPtr.Zero) {//iResultInit==0) {
-					Base.ShowErr("Bit depth setting of "+iTargetBPP.ToString()+"failed.");
+					RReporting.ShowErr("Bit depth setting of "+iTargetBPP.ToString()+"failed.");
 					//iTargetBPP=(iTargetBPP==32)?24:32;
 					//this is done later: UpdateScreenVars();
-					//Base.ShowErr("Bit depth reverting to "+iTargetBPP.ToString()+".");
+					//RReporting.ShowErr("Bit depth reverting to "+iTargetBPP.ToString()+".");
 					//iResultInit = Sdl.SDL_Init(Sdl.SDL_INIT_EVERYTHING);
 					//iptrSurfaceBackbuffer = Sdl.SDL_SetVideoMode(
 					//	iTargetWidth,
@@ -268,11 +268,11 @@ namespace ExpertMultimedia {
 
 				iResultSdl = SdlMixer.Mix_PlayMusic (iptrChunkMusic, 2);
 				if (iResultSdl == -1) {
-					Base.ShowErr("Music Error: " + Sdl.SDL_GetError());
+					RReporting.ShowErr("Music Error: " + Sdl.SDL_GetError());
 				}
 				iResultSdl = SdlMixer.Mix_PlayChannel(1,iptrChunkSound,1);
 				if (iResultSdl == -1) {
-					Base.ShowErr("Sound Error: " + Sdl.SDL_GetError());
+					RReporting.ShowErr("Sound Error: " + Sdl.SDL_GetError());
 				}
 				*/
 
@@ -295,27 +295,27 @@ namespace ExpertMultimedia {
 					typeof(Sdl.SDL_PixelFormat));
 				try {
 					UpdateScreenVars(pixelFormat.BitsPerPixel);
-					Base.WriteLine("pixelFormat.*");//.BitsPerPixel:"+pixelFormat.BitsPerPixel);
-					Base.WriteLine("BitsPerPixel:"+pixelFormat.BitsPerPixel);
-					Base.WriteLine("BytesPerPixel:"+pixelFormat.BytesPerPixel);
-					Base.WriteLine("Rmask:"+pixelFormat.Rmask);
-					Base.WriteLine("Gmask:"+pixelFormat.Gmask);
-					Base.WriteLine("Bmask:"+pixelFormat.Bmask);
-					Base.WriteLine("Amask:"+pixelFormat.Amask);
-					Base.WriteLine("videoInfo.*");//.BitsPerPixel:"+pixelFormat.BitsPerPixel);
-					Base.WriteLine("hw_available:"+videoInfo.hw_available);
-					Base.WriteLine("wm_available:"+videoInfo.wm_available);
-					Base.WriteLine("blit_hw:"+videoInfo.blit_hw);
-					Base.WriteLine("blit_hw_CC:"+videoInfo.blit_hw_CC);
-					Base.WriteLine("blit_hw_A:"+videoInfo.blit_hw_A);
-					Base.WriteLine("blit_sw:"+videoInfo.blit_sw);
-					Base.WriteLine("blit_hw_CC:"+videoInfo.blit_hw_CC);
-					Base.WriteLine("blit_hw_A:"+videoInfo.blit_hw_A);
-					Base.WriteLine("blit_fill:"+videoInfo.blit_fill);
-					Base.WriteLine("video_mem:"+videoInfo.video_mem);
+					RReporting.WriteLine("pixelFormat.*");//.BitsPerPixel:"+pixelFormat.BitsPerPixel);
+					RReporting.WriteLine("BitsPerPixel:"+pixelFormat.BitsPerPixel);
+					RReporting.WriteLine("BytesPerPixel:"+pixelFormat.BytesPerPixel);
+					RReporting.WriteLine("Rmask:"+pixelFormat.Rmask);
+					RReporting.WriteLine("Gmask:"+pixelFormat.Gmask);
+					RReporting.WriteLine("Bmask:"+pixelFormat.Bmask);
+					RReporting.WriteLine("Amask:"+pixelFormat.Amask);
+					RReporting.WriteLine("videoInfo.*");//.BitsPerPixel:"+pixelFormat.BitsPerPixel);
+					RReporting.WriteLine("hw_available:"+videoInfo.hw_available);
+					RReporting.WriteLine("wm_available:"+videoInfo.wm_available);
+					RReporting.WriteLine("blit_hw:"+videoInfo.blit_hw);
+					RReporting.WriteLine("blit_hw_CC:"+videoInfo.blit_hw_CC);
+					RReporting.WriteLine("blit_hw_A:"+videoInfo.blit_hw_A);
+					RReporting.WriteLine("blit_sw:"+videoInfo.blit_sw);
+					RReporting.WriteLine("blit_hw_CC:"+videoInfo.blit_hw_CC);
+					RReporting.WriteLine("blit_hw_A:"+videoInfo.blit_hw_A);
+					RReporting.WriteLine("blit_fill:"+videoInfo.blit_fill);
+					RReporting.WriteLine("video_mem:"+videoInfo.video_mem);
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"RetroEngine Run","displaying screen info");
+					RReporting.ShowExn(exn,"RetroEngine Run","displaying screen info");
 				}
 				int numeventarr= 10;
 				Sdl.SDL_Event[] eventarr = new Sdl.SDL_Event[numeventarr];
@@ -342,7 +342,7 @@ namespace ExpertMultimedia {
 					//debug NYI the rest of the above integers
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"RetroEngine Run","setting iarrAsciiOfSDLK (maximum array size needed was "+iSDLKeys.ToString()+")");
+					RReporting.ShowExn(exn,"RetroEngine Run","setting iarrAsciiOfSDLK (maximum array size needed was "+iSDLKeys.ToString()+")");
 				}
 				Sdl.SDL_WM_SetCaption(rforms.sTitle,"default");
 				Sdl.SDL_EnableKeyRepeat(0,9999);
@@ -362,7 +362,7 @@ namespace ExpertMultimedia {
 										if (true) bContinue=false;//TODO: if (ConfirmQuit()) bContinue=false;
 									}
 									catch (Exception exn) {
-										Base.ShowExn(exn,"RetroEngine Run","trying to confirm (quitting without confirmation)");
+										RReporting.ShowExn(exn,"RetroEngine Run","trying to confirm (quitting without confirmation)");
 									}
 								}
 								else if (sdleventX.type==Sdl.SDL_KEYDOWN) {
@@ -376,14 +376,14 @@ namespace ExpertMultimedia {
 											}
 											catch (Exception exn) {
 												sVerb="processing KEYDOWN (showing exception)";
-												Base.ShowExn(exn,"RetroEngine Run","trying to confirm Esc (escape) (quitting without confirmation)");
+												RReporting.ShowExn(exn,"RetroEngine Run","trying to confirm Esc (escape) (quitting without confirmation)");
 											}
 										}
 										//else if (sdleventX.key.keysym.sym == (int)Sdl.SDLK_p) {
-										//	Base.WriteLine("Key p event was added");
+										//	RReporting.WriteLine("Key p event was added");
 										//}
 										//else if (sdleventX.key.keysym.sym == (int)Sdl.SDLK_z) {
-										//	Base.WriteLine("Key z event was added");
+										//	RReporting.WriteLine("Key z event was added");
 										//}
 										sVerb="processing KEYDOWN (checking symbol)";
 										if ((int)sdleventX.key.keysym.sym!=0) {
@@ -395,24 +395,24 @@ namespace ExpertMultimedia {
 											//}
 											//else {
 											//	sVerb="processing KEYDOWN (null manager skipped)";
-											//	Base.ShowErr("Manager was not able to start!","RetroEngine Run","checking manager while processing KEYDOWN");
+											//	RReporting.ShowErr("Manager was not able to start!","RetroEngine Run","checking manager while processing KEYDOWN");
 											//}
 											//string sNow=Char.ToString((char)sdleventX.key.keysym.unicode);
 											//short shNow=sdleventX.key.keysym.unicode;
-											//Base.WriteLine("key="+shNow.ToString()+"    ");
+											//RReporting.WriteLine("key="+shNow.ToString()+"    ");
 										}
 									}
 									catch (Exception exn) {
-										Base.ShowExn(exn,"RetroEngine Run",sVerb);
+										RReporting.ShowExn(exn,"RetroEngine Run",sVerb);
 									}
 								}
 								else if (sdleventX.type == Sdl.SDL_KEYUP) {
 									//Sdl.SDL_
 									//byarrKeysNow=Sdl.SDL_GetKeyState(256); //debug internationalization
-									//ushort wKey=Base.GetUnsignedLossless(sdleventX.key.keysym.scancode);
+									//ushort wKey=RConvert.GetUnsignedLossless(sdleventX.key.keysym.scancode);
 									//sdleventX.key.type
 									KeyEvent(sdleventX.key.keysym.sym, (char)0, false);
-									//Base.WriteLine("keyup="+sdleventX.key.keysym.sym.ToString()+"    ");
+									//RReporting.WriteLine("keyup="+sdleventX.key.keysym.sym.ToString()+"    ");
 									
 								}
 								else if (sdleventX.type == Sdl.SDL_MOUSEMOTION) {
@@ -426,7 +426,7 @@ namespace ExpertMultimedia {
 								}
 							}
 							catch (Exception exn) {
-								Base.ShowExn(exn,"RetroEngine Run","processing controller input");
+								RReporting.ShowExn(exn,"RetroEngine Run","processing controller input");
 							}
 						}//end while Sdl events
 					}//end if get Sdl events
@@ -444,7 +444,7 @@ namespace ExpertMultimedia {
 						DrawBuffer(gbScreen);
 					} 
 					catch (Exception exn) {
-						 Base.ShowExn(exn,"RetroEngine Run","copying buffer to screen");
+						 RReporting.ShowExn(exn,"RetroEngine Run","copying buffer to screen");
 					}
 					bFirstRun=false;
 				}//end while bContinue
@@ -454,11 +454,11 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"RetroEngine Run");
+				RReporting.ShowExn(exn,"RetroEngine Run");
 				//Sdl.SDL_Quit();
 			}
-			//Base.SaveMessages("1.Output.txt");
-			//Base.SaveErrors("1.Error.txt");
+			//RReporting.SaveMessages("1.Output.txt");
+			//RReporting.SaveErrors("1.Error.txt");
 		}//end Run
 		private void DrawBuffer(GBuffer gbSrc) {
 			int iResultSdl = Sdl.SDL_LockSurface(iptrSurfaceBackbuffer);
@@ -496,7 +496,7 @@ namespace ExpertMultimedia {
 			}
 			else if (iTargetBPP<24) {
 				//NYI add other bit depths.
-				Base.ShowErr("Wrong bit depth.","RetroEngine Run");
+				RReporting.ShowErr("Wrong bit depth.","RetroEngine Run");
 				bContinue=false;
 			}
 			iResultSdl = Sdl.SDL_UnlockSurface(iptrSurfaceBackbuffer);
@@ -513,22 +513,22 @@ namespace ExpertMultimedia {
 				//if (gbSrc==null) gbSrc=new GBuffer(800,600,4);
 				if (bFirstRun) {
 					//if (mgr!=null) {
-						Base.WriteLine("Manager was created.");
+						RReporting.WriteLine("Manager was created.");
 						if (mgr.IsInitialized) {
-							Base.WriteLine("Manager was initialized.");
+							RReporting.WriteLine("Manager was initialized.");
 						}
 						if (mgr.gbSrc!=null) {
-							Base.WriteLine("Screen GBuffer was initialized.");
+							RReporting.WriteLine("Screen GBuffer was initialized.");
 						}
-						Base.WriteLine("Screen is "+mgr.Width+"x"+mgr.Height+" with "+mgr.iBytesPP+" channels.");
+						RReporting.WriteLine("Screen is "+mgr.Width+"x"+mgr.Height+" with "+mgr.iBytesPP+" channels.");
 					//}
 					try {
 						if (!gbSrc.IsSafe()) {//pxarrData[2].Y=gbSrc.pxarrData[2].Y;
-							Base.ShowErr("screen buffer is not accessible!","RetroEngine Run");
+							RReporting.ShowErr("screen buffer is not accessible!","RetroEngine Run");
 						}
 					}
 					catch (Exception exn) {
-						Base.ShowExn(exn,"RetroEngine Run","accessing screen buffer");
+						RReporting.ShowExn(exn,"RetroEngine Run","accessing screen buffer");
 					}
 				}//end if bFirstRun
 				int iDest=0;
@@ -538,8 +538,8 @@ namespace ExpertMultimedia {
 				byte by0=(byte)0, by255=(byte)255;
 				//int iStopDebug=360*gbSrc.iWidth;
 				for (int iPixel=0; iPixel<iTargetPixels; iPixel++) {
-							//Base.HsvToRgb(out lpDestNow[iDest+2], out lpDestNow[iDest+1], out lpDestNow[iDest], ref gbSrc.pxarrData[iPixel].H, ref gbSrc.pxarrData[iPixel].S, ref gbSrc.pxarrData[iPixel].Y); //Base.HsvToRgb(out byR, out byG, out byB, ref gbSrc.pxarrData[iPixel].H, ref gbSrc.pxarrData[iPixel].S, ref gbSrc.pxarrData[iPixel].Y);  //Base.YhsToRgb(out byR, out byG, out byB, gbSrc.pxarrData[iPixel].Y, gbSrc.pxarrData[iPixel].H, gbSrc.pxarrData[iPixel].S);//gbSrc.GetPixelRgbTo(out byR, out byG, out byB, iPixel);
-					//lpDestNow[iDest+2]=(byte)(gbSrc.pxarrData[iPixel].Y*Base.r255);iDest+=4;continue;//test
+							//RConvert.HsvToRgb(out lpDestNow[iDest+2], out lpDestNow[iDest+1], out lpDestNow[iDest], ref gbSrc.pxarrData[iPixel].H, ref gbSrc.pxarrData[iPixel].S, ref gbSrc.pxarrData[iPixel].Y); //RConvert.HsvToRgb(out byR, out byG, out byB, ref gbSrc.pxarrData[iPixel].H, ref gbSrc.pxarrData[iPixel].S, ref gbSrc.pxarrData[iPixel].Y);  //RConvert.YhsToRgb(out byR, out byG, out byB, gbSrc.pxarrData[iPixel].Y, gbSrc.pxarrData[iPixel].H, gbSrc.pxarrData[iPixel].S);//gbSrc.GetPixelRgbTo(out byR, out byG, out byB, iPixel);
+					//lpDestNow[iDest+2]=(byte)(gbSrc.pxarrData[iPixel].Y*RMath.r255);iDest+=4;continue;//test
 					
 					//TODO: create and use a precalculated offset from iDest from amask, rmask etc!
 					H=gbSrc.pxarrData[iPixel].H;
@@ -582,7 +582,7 @@ namespace ExpertMultimedia {
 				int iDest=0;
 				float H,S,V;
 				for (int iPixel=0; iPixel<iTargetPixels; iPixel++) {
-					//Base.HsvToRgb(out byR, out byG, out byB, ref gbSrc.pxarrData[iPixel].H, ref gbSrc.pxarrData[iPixel].S, ref gbSrc.pxarrData[iPixel].Y);//Base.YhsToRgb(out byR, out byG, out byB, gbSrc.pxarrData[iPixel].Y, gbSrc.pxarrData[iPixel].H, gbSrc.pxarrData[iPixel].S);//gbSrc.GetPixelRgbTo(out byR, out byG, out byB, iPixel);
+					//RConvert.HsvToRgb(out byR, out byG, out byB, ref gbSrc.pxarrData[iPixel].H, ref gbSrc.pxarrData[iPixel].S, ref gbSrc.pxarrData[iPixel].Y);//RConvert.YhsToRgb(out byR, out byG, out byB, gbSrc.pxarrData[iPixel].Y, gbSrc.pxarrData[iPixel].H, gbSrc.pxarrData[iPixel].S);//gbSrc.GetPixelRgbTo(out byR, out byG, out byB, iPixel);
 					H=(float)gbSrc.pxarrData[iPixel].H;
 					S=(float)gbSrc.pxarrData[iPixel].S;
 					V=(float)gbSrc.pxarrData[iPixel].Y;
@@ -619,7 +619,7 @@ namespace ExpertMultimedia {
 			}
 			else if (iTargetBPP<24) {
 				//TODO: debug NYI add 16-bit etc.
-				Base.ShowErr("Wrong bit depth.","RetroEngine Run");
+				RReporting.ShowErr("Wrong bit depth.","RetroEngine Run");
 				bContinue=false;
 			}
 			iResultSdl = Sdl.SDL_UnlockSurface(iptrSurfaceBackbuffer);
@@ -628,17 +628,17 @@ namespace ExpertMultimedia {
 		*/
 		private void MusicHasStopped() {
 			try {
-				Base.WriteLine("The Music has stopped!");
+				RReporting.WriteLine("The Music has stopped!");
 			}
 			catch (Exception exn) {
-				Base.Error_WriteLine("Exception error accessing retroengine--"+exn.ToString());
+				RReporting.Error_WriteLine("Exception error accessing retroengine--"+exn.ToString());
 			}
 		}//end MusicHasStopped
 
 		#region constructors
 		public bool Init(string sEnginePageStartHTMLFile, int iSetWidth, int iSetHeight) {
 			if (bInitialized) {
-				Base.ShowErr("Already Initialized.","Manager Init");
+				RReporting.ShowErr("Already Initialized.","Manager Init");
 				return false;
 			}
 			iComponentID=GenerateComponentID();
@@ -764,10 +764,10 @@ namespace ExpertMultimedia {
 				//	if (!File.Exists(RForms.sFontFolderSlash+"1.testfont0000.png")) {
 				//		gfontDefault.SaveSeq(RForms.sFontFolderSlash+"1.testfont", "png", GFont.GlyphTypeNormal);
 				//	}
-				//	else Base.ShowErr("GFont glyph debug images are already saved.","Init("+iSetWidth.ToString()+","+iSetHeight.ToString()+")");
+				//	else RReporting.ShowErr("GFont glyph debug images are already saved.","Init("+iSetWidth.ToString()+","+iSetHeight.ToString()+")");
 				//}
 				//catch (Exception exn) {
-				//	Base.ShowExn(exn,"Init("+iSetWidth.ToString()+","+iSetHeight.ToString()+")","saving font to image sequence for debug");
+				//	RReporting.ShowExn(exn,"Init("+iSetWidth.ToString()+","+iSetHeight.ToString()+")","saving font to image sequence for debug");
 				//}
 				
 				//gfontDefault.SetGradient(0,0,0,212,208,200);
@@ -782,7 +782,7 @@ namespace ExpertMultimedia {
 				bInitialized=true;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Init("+iSetWidth.ToString()+","+iSetHeight.ToString()+")");
+				RReporting.ShowExn(exn,"Init("+iSetWidth.ToString()+","+iSetHeight.ToString()+")");
 				bInitialized=false;
 			}
 			return bInitialized;
@@ -859,7 +859,7 @@ namespace ExpertMultimedia {
 				iKeyDownLast=sym;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Manager KeyEvent",sVerb);
+				RReporting.ShowExn(exn,"Manager KeyEvent",sVerb);
 			}
 		}//end KeyEvent
 		public int KeyGroup(int sym) {
@@ -1088,10 +1088,10 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				if (!bSavedFrameError) {
-					Base.ShowExn(exn,"Manager CustomDialog");
+					RReporting.ShowExn(exn,"Manager CustomDialog");
 					bSavedFrameError=true;
 				}
-				else Base.IgnoreExn(exn,"Manager CustomDialog");
+				else RReporting.IgnoreExn(exn,"Manager CustomDialog");
 			}
 			return "debug NYI";
 		}
@@ -1111,7 +1111,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"ProcessScript");
+				RReporting.ShowExn(exn,"ProcessScript");
 				bGood=false;
 			}
 			return bGood;
@@ -1153,12 +1153,12 @@ namespace ExpertMultimedia {
 				}
 				else {
 					sReturn="out-of-range-mode#"+iModeX.ToString();
-					Base.ShowErr("Invalid mode number.","ModeToString","{iModeX:"+iModeX.ToString()+"}");
+					RReporting.ShowErr("Invalid mode number.","ModeToString","{iModeX:"+iModeX.ToString()+"}");
 				}
 			}
 			catch (Exception exn) {
 				sReturn="uninitialized-type#"+iModeX.ToString();
-				Base.ShowExn(exn,"ModeToString","getting name of mode {iModeX:"+iModeX.ToString()+"}");
+				RReporting.ShowExn(exn,"ModeToString","getting name of mode {iModeX:"+iModeX.ToString()+"}");
 			}
 			return sReturn;
 		}//end ModeToString
@@ -1168,41 +1168,41 @@ namespace ExpertMultimedia {
 			int iTemp=0;
 			string sTemp="";
 			if (sLine!=null) {
-				Base.RemoveEndsWhiteSpace(ref sLine);
-				if (sLine.EndsWith(";")) sLine=Base.SafeSubstring(sLine,0,sLine.Length-1);
+				RString.RemoveEndsWhiteSpace(ref sLine);
+				if (sLine.EndsWith(";")) sLine=RString.SafeSubstring(sLine,0,sLine.Length-1);
 				if (sLine!="") {
 					try {
 						int iLineSplit=sLine.LastIndexOf(";");
 						if (iLineSplit>0) { //recursion if split
-							if (ProcessScriptLine(Base.SafeSubstring(sLine,0,iLineSplit))) bGood=true;
-							if (ProcessScriptLine(Base.SafeSubstring(sLine,iLineSplit+1))) bGood=true;
+							if (ProcessScriptLine(RString.SafeSubstring(sLine,0,iLineSplit))) bGood=true;
+							if (ProcessScriptLine(RString.SafeSubstring(sLine,iLineSplit+1))) bGood=true;
 						}
 						else {//else parse the line
 							string sValue="";
 							if (sLine.StartsWith("mode \"")) {
-								sTemp=Base.SafeSubstring(sLine,6,sLine.Length-7);
+								sTemp=RString.SafeSubstring(sLine,6,sLine.Length-7);
 								iabstractor.SetMode(sTemp);
 								rforms.From(iabstractor);
 							}
 							else if (sLine.StartsWith("mode ")) {
-								iTemp=SafeConvert.ToInt(Base.SafeSubstring(sLine,5));
+								iTemp=SafeConvert.ToInt(RString.SafeSubstring(sLine,5));
 								iabstractor.SetMode(iTemp);
 								rforms.From(iabstractor);
 							}
 							else if (sLine.StartsWith("tool \"")) {
-								sTemp=Base.SafeSubstring(sLine,6,sLine.Length-7);
+								sTemp=RString.SafeSubstring(sLine,6,sLine.Length-7);
 								sTool=sTemp;
 								iabstractor.SetTool(sTool);
 								rforms.From(iabstractor);
 							}
 							else if (sLine.StartsWith("workspace \"")) {
-								sTemp=Base.SafeSubstring(sLine,11,sLine.Length-12);
+								sTemp=RString.SafeSubstring(sLine,11,sLine.Length-12);
 								iabstractor.SetWorkspace(sTemp);
 								Console.WriteLine("set workspace to \""+sTemp+"\"");//debug only
 								rforms.From(iabstractor);
 							}
 							else if (sLine.StartsWith("workspace ")) {
-								iTemp=SafeConvert.ToInt(Base.SafeSubstring(sLine,10));
+								iTemp=SafeConvert.ToInt(RString.SafeSubstring(sLine,10));
 								iabstractor.SetWorkspace(iTemp);
 								Console.WriteLine("set workspace to "+iTemp.ToString());//debug only
 								rforms.From(iabstractor);
@@ -1216,12 +1216,12 @@ namespace ExpertMultimedia {
 								rZoomFractalPixelsPerUnit*=.5;
 							}
 							else {
-								Base.Warning("unknown script command: "+sLine);
+								RReporting.Warning("unknown script command: "+sLine);
 							}
 						}
 					}
 					catch (Exception exn) {
-						Base.ShowExn(exn,"ProcessScriptLine","translating {sLine:\""+sLine+"\"; iTemp:"+iTemp.ToString()+"; sTemp:\""+sTemp+"\"}");
+						RReporting.ShowExn(exn,"ProcessScriptLine","translating {sLine:\""+sLine+"\"; iTemp:"+iTemp.ToString()+"; sTemp:\""+sTemp+"\"}");
 						bGood=false;
 					}
 				}
@@ -1234,7 +1234,7 @@ namespace ExpertMultimedia {
 		//		if (rforms!=null) iNode=rforms.NodeAt(xAt,yAt);
 		//	}
 		//	catch (Exception exn) {
-		//		Base.ShowExn(exn,"Manager NodeAt {checking-iNode:"+iNode.ToString()+"}");
+		//		RReporting.ShowExn(exn,"Manager NodeAt {checking-iNode:"+iNode.ToString()+"}");
 		//		iNode=0;
 		//	}
 		//	return iNode;
@@ -1267,11 +1267,11 @@ namespace ExpertMultimedia {
 			bool bGood=true;
 			for (int i=0; i<iAnims; i++) {
 				if (!CollapseAnimEffects(i)) {
-					Base.ShowErr("Error collapsing anim index# "+i.ToString()+".","CollapseAnimEffects");
+					RReporting.ShowErr("Error collapsing anim index# "+i.ToString()+".","CollapseAnimEffects");
 					bGood=true;
 				}
 			}
-			Base.ShowErr("NYI","CollapseAnimEffects()");
+			RReporting.ShowErr("NYI","CollapseAnimEffects()");
 			bGood=false;
 			return bGood;
 		}
@@ -1288,7 +1288,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"Manager GetMask","accessing source or destination mask");
+				RReporting.ShowExn(exn,"Manager GetMask","accessing source or destination mask");
 			}
 			return bGood;
 		}
@@ -1297,10 +1297,10 @@ namespace ExpertMultimedia {
 			bool bGood=false;
 			try {
 				bGood=Byter.CopyFast(ref byarrToSet,ref gbSelectedMask.byarrData,0,0,gbSelectedMask.iBytesTotal);
-				if (!bGood) Base.ShowErr("Error copying mask data","Manager GetMask");
+				if (!bGood) RReporting.ShowErr("Error copying mask data","Manager GetMask");
 			}
 			catch (Exception exn) {
-				Base.ShowErr(exn,"Manager GetMask","accessing source or destination mask");
+				RReporting.ShowErr(exn,"Manager GetMask","accessing source or destination mask");
 			}
 			return bGood;
 		}
@@ -1313,7 +1313,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"Manager GetSelected","accessing source or destination");
+				RReporting.ShowExn(exn,"Manager GetSelected","accessing source or destination");
 			}
 			return bGood;
 		}
@@ -1322,10 +1322,10 @@ namespace ExpertMultimedia {
 			bool bGood=false;
 			try {
 				bGood=Byter.CopyFast(ref byarrToSet,ref gbSelected.byarrData,0,0,gbSelected.iBytesTotal);
-				if (!bGood) Base.ShowErr("Error copying mask","Manager GetSelected");
+				if (!bGood) RReporting.ShowErr("Error copying mask","Manager GetSelected");
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Manager GetSelected","accessing source or destination mask");
+				RReporting.ShowExn(exn,"Manager GetSelected","accessing source or destination mask");
 			}
 			return bGood;
 		}
@@ -1333,7 +1333,7 @@ namespace ExpertMultimedia {
 		
 		public bool SetMaskFromValueOfSelected() {
 			bool bGood=false;
-			Base.ShowErr("NYI","SetMaskFromValueOfSelected");
+			RReporting.ShowErr("NYI","SetMaskFromValueOfSelected");
 			return bGood;
 		}
 		public bool SetSelectedFrom(int iAnim) {
@@ -1342,7 +1342,7 @@ namespace ExpertMultimedia {
 				gbSelected=animarr[iAnim].gbFrame;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Manager SetSelectedFrom","selecting the animation");
+				RReporting.ShowExn(exn,"Manager SetSelectedFrom","selecting the animation");
 				bGood=false;
 			}
 			if (bGood) {
@@ -1351,7 +1351,7 @@ namespace ExpertMultimedia {
 					gbSelected.DumpStyle();
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"Manager SetSelectedFrom","accessing the animation data");
+					RReporting.ShowExn(exn,"Manager SetSelectedFrom","accessing the animation data");
 					bGood=false;
 				}
 			}
@@ -1363,7 +1363,7 @@ namespace ExpertMultimedia {
 				gbSelected=gbScreen;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Manager SetSelectedFromScreen","selecting the screen buffer");
+				RReporting.ShowExn(exn,"Manager SetSelectedFromScreen","selecting the screen buffer");
 				bGood=false;
 			}
 			if (bGood) {
@@ -1372,7 +1372,7 @@ namespace ExpertMultimedia {
 				}
 				catch (Exception exn) {
 					bGood=false;
-					Base.ShowExn(exn,"Manager SetSelectedFromScreen","accessing screen buffer");
+					RReporting.ShowExn(exn,"Manager SetSelectedFromScreen","accessing screen buffer");
 				}
 			}
 			return bGood;
@@ -1391,11 +1391,11 @@ namespace ExpertMultimedia {
 								by3dSrcDestAlpha=null;
 							}
 						}
-						else Base.Writeline("About to generate "+sSettingsFolderSlash+"/data-alphalook.raw");
+						else RReporting.Writeline("About to generate "+sSettingsFolderSlash+"/data-alphalook.raw");
 					}
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"InitAlphaLookupTable","loading data-alphalook.raw");
+					RReporting.ShowExn(exn,"InitAlphaLookupTable","loading data-alphalook.raw");
 					by3dSrcDestAlpha=null;
 				}
 				if (by3dSrcDestAlpha==null) {
@@ -1411,16 +1411,16 @@ namespace ExpertMultimedia {
 						Byter byterX=new Byter(256*256*256);
 						byterX.Poke(ref by3dSrcDestAlpha, 256,256,256);
 						if (!byterX.Save(sSettingsFolderSlash+"data-alphalook.raw")) {
-							Base.ShowErr("Failed to save data-alphalook.raw");
+							RReporting.ShowErr("Failed to save data-alphalook.raw");
 						}
 					}
 					catch (Exception exn) {
-						Base.ShowExn(exn,"InitAlphaLookupTable","saving data-alphalook.raw");
+						RReporting.ShowExn(exn,"InitAlphaLookupTable","saving data-alphalook.raw");
 					}
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"InitAlphaLookupTable");
+				RReporting.ShowExn(exn,"InitAlphaLookupTable");
 				return false;
 			}
 			return false;
@@ -1486,8 +1486,8 @@ namespace ExpertMultimedia {
 				
 				GBuffer.SetBrushRgba(64,64,64,255);//(0,64,64,255);//(212,208,200,255);
 				gbScreen.DrawRectFilled(0,0,gbScreen.iWidth,gbScreen.iHeight,"Manager");//clear screen (draw background color)
-				//pInfiniteScroll.X+=Base.IRound(pInfiniteScrollMomentum.X);
-				//pInfiniteScroll.Y+=Base.IRound(pInfiniteScrollMomentum.Y);
+				//pInfiniteScroll.X+=RMath.IRound(pInfiniteScrollMomentum.X);
+				//pInfiniteScroll.Y+=RMath.IRound(pInfiniteScrollMomentum.Y);
 				//if (dFrameTicksPassed>0) {
 					//pInfiniteScrollMomentum.X*=(double)(1.0M/(dFrameTicksPassed));
 					//pInfiniteScrollMomentum.Y*=(double)(1.0M/(dFrameTicksPassed));
@@ -1512,10 +1512,10 @@ namespace ExpertMultimedia {
 					WriteLine(sKeys);
 					WriteLine(sFPS);
 					WriteLine(Wave.CompressionTypeToString(Wave.CompressITU_G711ulaw));//should show a 'mew'!
-					WriteLine("DivideRound(17,6,max)="+Base.SafeDivideRound(17,6,int.MaxValue).ToString()+"  "
-								+"DivideRound(10,6,max)="+Base.SafeDivideRound(10,6,int.MaxValue).ToString());
-					WriteLine("DivideRound(17,3,max)="+Base.SafeDivideRound(17,3,int.MaxValue).ToString()+"  "
-								+"DivideRound(19,3,max)="+Base.SafeDivideRound(19,3,int.MaxValue).ToString());
+					WriteLine("DivideRound(17,6,max)="+RMath.SafeDivideRound(17,6,int.MaxValue).ToString()+"  "
+								+"DivideRound(10,6,max)="+RMath.SafeDivideRound(10,6,int.MaxValue).ToString());
+					WriteLine("DivideRound(17,3,max)="+RMath.SafeDivideRound(17,3,int.MaxValue).ToString()+"  "
+								+"DivideRound(19,3,max)="+RMath.SafeDivideRound(19,3,int.MaxValue).ToString());
 					if (line1==null) {
 						line1=new ILine(gbScreen.Width/4,gbScreen.Height/4,(int)(gbScreen.Width/4)*3,(int)(gbScreen.Height/4)*3);
 					}
@@ -1531,16 +1531,16 @@ namespace ExpertMultimedia {
 					gbScreen.DrawVectorArc((gbScreen.Width/4)*3, gbScreen.Height/4, gbScreen.Width/8, 1.0f, 0.0f, 0.0f, 360.0f, pixelColor2, 1.0f, 0.0f);//circle near top right
 					gbScreen.DrawVectorArc(gbScreen.Width/4, gbScreen.Height/4, gbScreen.Width/8, 1.5f, 45.0f, 0.0f, 1080.0f, pixelColor, .4f, -5.0f);//gbScreen.DrawVectorArc(xCenter, yCenter, fRadius, fWidthMultiplier, fRotate, fDegStart, fDegEnd, pixelColor, fPrecisionIncrement, fPushSpiralPixPerRotation);
 					int xInter,yInter;
-					int iIntersect=Base.Intersection(out xInter, out yInter, line1, line2);
-					if (iIntersect==Base.IntersectionYes) {
+					int iIntersect=RMath.Intersection(out xInter, out yInter, line1, line2);
+					if (iIntersect==RMath.IntersectionYes) {
 						GBuffer.SetBrushRgb(255,255,192);
 						gbScreen.DrawRectCropped(xInter,yInter,3,3);
 					}
-					else if (iIntersect==Base.IntersectionBeyondSegment) {
+					else if (iIntersect==RMath.IntersectionBeyondSegment) {
 						GBuffer.SetBrushRgb(255,0,0);
 						gbScreen.DrawRectCropped(xInter,yInter,3,3);
 					}
-					else WriteLine(Base.IntersectionToString(iIntersect));
+					else WriteLine(RMath.IntersectionToString(iIntersect));
 					//WriteLine(sEventNote); was in RetroEngine--a string-ification of the sdl event.
 					string sMsg="This is a long test sequence to test writing text over the edge of the screen.  It just keeps getting so much longer and so much more meaningless and so much more redundant as it spans on and on continuously for no reason.  There seems to be no limit, nor rhyme, nor reason to its baffling continuance of long, meaningless, and ever so confusingly redundant verbage.  It simply flies in the face of all common sense, logic, and all unspoken standards of succinctness.";
 					//WebClient wc = new WebClient ();
@@ -1549,12 +1549,12 @@ namespace ExpertMultimedia {
 					//int iStart=145;
 					//int iResults=149;
 					//for (int iNow=iStart; iNow<iResults; iNow++) {
-					//	sMsg=Base.DownloadToString("http://mamma13.mamma.com/Mamma_pictures?query=70s+lamp&lang=en&start="+iNow.ToString()+"&anim=no&color=yes&size=1p&aui=1");
+					//	sMsg=RString.DownloadToString("http://mamma13.mamma.com/Mamma_pictures?query=70s+lamp&lang=en&start="+iNow.ToString()+"&anim=no&color=yes&size=1p&aui=1");
 					//	WriteLine(sMsg);
 					//	//Thread.Sleep(600);
 					//}
 					if (!bDebuggedDownload) {
-						sDebugDownload=Base.FileToString(RForms.sHomeFolderSlash+"index.html");//sDebugDownload=Base.DownloadToString("http://www.expertmultimedia.com");
+						sDebugDownload=RString.FileToString(RForms.sHomeFolderSlash+"index.html");//sDebugDownload=RString.DownloadToString("http://www.expertmultimedia.com");
 						bDebuggedDownload=true;
 					}
 					WriteLine(sDebugDownload);
@@ -1631,10 +1631,10 @@ namespace ExpertMultimedia {
 					
 					GBuffer.SetBrushRgb(0,0,0);
 					  gbScreen.DrawRectFilled(0,0,gbScreen.Width,32,"Manager");//temporary background for modebar
-					iFractalsDrawn=Base.SafeAddWrappedTowardZero(iFractalsDrawn, 1);
+					iFractalsDrawn=RMath.SafeAddWrappedTowardZero(iFractalsDrawn, 1);
 					string sZoom=rZoomFractalPixelsPerUnit.ToString();
 					if (sZoom.IndexOf(".")>=0) {
-						sZoom=Base.SafeSubstring(sZoom,0,sZoom.IndexOf(".")+3);
+						sZoom=RString.SafeSubstring(sZoom,0,sZoom.IndexOf(".")+3);
 					}
 					WriteLine("Frames Drawn: "+fracNow.FramesRendered.ToString());
 					WriteLine("scroll ("+rforms.XInfiniteScroll+","+rforms.YInfiniteScroll+")");
@@ -1651,7 +1651,7 @@ namespace ExpertMultimedia {
 				//TODO: finish this: fix italic glyph (??)
 				string sNow=dFrameRate.ToString();
 				int iLoc=sNow.IndexOf(".");
-				sFPS=(Base.SafeSubstring(sNow,0,(iLoc>0)?iLoc+2:sNow.Length)+"fps");//gfontDefault.Render(ref gbScreen, ref ipTemp, Base.SafeSubstring(sNow,0,(iLoc>0)?iLoc+2:sNow.Length)+"fps", GFont.GlyphTypeNormal);
+				sFPS=(RString.SafeSubstring(sNow,0,(iLoc>0)?iLoc+2:sNow.Length)+"fps");//gfontDefault.Render(ref gbScreen, ref ipTemp, RString.SafeSubstring(sNow,0,(iLoc>0)?iLoc+2:sNow.Length)+"fps", GFont.GlyphTypeNormal);
 				/*
 				if (iDebugdeleteme<(gbScreen.iHeight-32)) {
 				//TESTING RECT
@@ -1683,10 +1683,10 @@ namespace ExpertMultimedia {
 				}
 				catch (Exception exn2) {
 					if (!bSavedFrameError) {
-						Base.ShowExn(exn2,"Manager DrawFrame");
+						RReporting.ShowExn(exn2,"Manager DrawFrame");
 						bSavedFrameError=true;
 					}
-					else Base.IgnoreExn(exn,"Manager DrawFrame");
+					else RReporting.IgnoreExn(exn,"Manager DrawFrame");
 				}
 			}
 			return bGood;

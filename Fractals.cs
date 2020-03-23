@@ -162,7 +162,7 @@ namespace ExpertMultimedia {
 		private int PassToPixelsPerChunk(int Pass) {
 			//if (Pass>1) return gbFractal.iHeight/Pass;//i.e. there are 600 pixels per chunk (the whole screen height) on the first pass
 			//else return gbFractal.iHeight;
-			if (Pass>1) return gbFractal.iHeight/Base.IRound(Math.Pow(2,Pass));//i.e. there are 600 pixels per chunk (the whole screen height) on the first pass
+			if (Pass>1) return gbFractal.iHeight/RMath.IRound(Math.Pow(2,Pass));//i.e. there are 600 pixels per chunk (the whole screen height) on the first pass
 			else return gbFractal.iHeight;
 		}
 		private FRACTALREAL XPixelToUnitLocation(int iPixel) {	
@@ -172,7 +172,7 @@ namespace ExpertMultimedia {
 			return ( ((FRACTALREAL)iPixel-yCenterAtPixel)/rPixelsPerUnit );
 		}
 		public Fractal() {
-			Base.Warning("Default fractal constructor should not be used.");
+			RReporting.Warning("Default fractal constructor should not be used.");
 			Init(800,600);
 		}
 		public Fractal(int iPixelsWide, int iPixelsHigh) {
@@ -222,8 +222,8 @@ namespace ExpertMultimedia {
 							//TODO: finish this--use rSeed
 							//double rFractalness=(double)(ResultMandelbrot((double)xSrc,(double)ySrc)%255)/255.0;
 							
-							//if (Base.Dist(Base.IRound(gbFractal.Width/2),Base.IRound(gbFractal.Height/2),xDest,yDest)<iDetailRadius) {
-							if (iPass==1||Base.Dist((double)(gbFractal.Width/2.0),(double)(gbFractal.Height/2.0),(double)xDest,(double)yDest)<(double)iDetailRadius) {
+							//if (RMath.Dist(RMath.IRound(gbFractal.Width/2),RMath.IRound(gbFractal.Height/2),xDest,yDest)<iDetailRadius) {
+							if (iPass==1||RMath.Dist((double)(gbFractal.Width/2.0),(double)(gbFractal.Height/2.0),(double)xDest,(double)yDest)<(double)iDetailRadius) {
 								FRACTALREAL rFractalness=(FRACTALREAL)(ResultMandelbrot((FRACTALREAL)xSrc,(FRACTALREAL)ySrc)%255)/fr255;
 								if (iPassPixelsPerChunk>1) {
 									GBuffer.SetBrushHsva(rFractalness,1.0,rFractalness,1.0);
@@ -250,12 +250,12 @@ namespace ExpertMultimedia {
 				//gbFractal.SetPixelArgb(400,300, 255,0,255,0);//debug only
 				if (!gbDest.Draw(rectDest,gbFractal)) {
 					bGood=false;
-					Base.Warning("Couldn't draw Fractal buffer to destination.","{gbFractal:"+GBuffer.VariableMessage(gbFractal)+"; gbDest:"+GBuffer.VariableMessage(gbDest)+"; rectDest:"+rectDest.Description()+"}");
+					RReporting.Warning("Couldn't draw Fractal buffer to destination.","{gbFractal:"+GBuffer.VariableMessage(gbFractal)+"; gbDest:"+GBuffer.VariableMessage(gbDest)+"; rectDest:"+rectDest.Description()+"}");
 				}
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"Fractal RenderIncrement","rendering fractal increment");
+				RReporting.ShowExn(exn,"Fractal RenderIncrement","rendering fractal increment");
 			}
 			return bGood;
 		}//end RenderIncrement
@@ -312,8 +312,8 @@ namespace ExpertMultimedia {
 				yDest=rectDest.Y;
 				//int zone_Right=rectCropFractal.Right;
 				//int zone_Bottom=rectCropFractal.Bottom;
-				//int iBlobSize=(int)Base.Dist((double)iHalfW,(double)iHalfH,(double)xDest,(double)yDest)/iBlobIncrement;
-				//int iBlobSize=(int)(  (1.0-(Base.Dist((double)iHalfW,(double)iHalfH,(double)xDest,(double)yDest)/(double)iHalfW)) * (double)iBlobIncrement  );
+				//int iBlobSize=(int)RMath.Dist((double)iHalfW,(double)iHalfH,(double)xDest,(double)yDest)/iBlobIncrement;
+				//int iBlobSize=(int)(  (1.0-(RMath.Dist((double)iHalfW,(double)iHalfH,(double)xDest,(double)yDest)/(double)iHalfW)) * (double)iBlobIncrement  );
 				//iBlobSize=8;//debug only
 				for (yDest=rectDest.Y; yDest<yEnder; yDest++) {
 					xSrc=xSrcStart;
@@ -322,14 +322,14 @@ namespace ExpertMultimedia {
 					//yBlobPrev=yBlob;
 					for (xDest=rectDest.X; xDest<xEnder; xDest++) {
 						///NOTE: Hsv is NOT H<360 it is H<1.0
-						//iBlobSize=(int)(  (1.0-(Base.Dist((double)iHalfW,(double)iHalfH,(double)xDest,(double)yDest)/(double)iHalfW)) * (double)iBlobIncrement  );
+						//iBlobSize=(int)(  (1.0-(RMath.Dist((double)iHalfW,(double)iHalfH,(double)xDest,(double)yDest)/(double)iHalfW)) * (double)iBlobIncrement  );
 						//iBlobSize=8;//debug only
 						//if (iBlobSize<1) iBlobSize=1;
 						//xBlob=xDest/iBlobSize;
 						//bBlobStartX=xBlobPrev!=xBlob;//&&yBlobPrev!=yBlob;
 						//xBlobPrev=xBlob;
-						//this.SetPixelHsva(xDest,yDest,Base.SafeAngle360(Base.THETAOFXY_RAD(xSrc,ySrc))/360.0f,1.0,1.0,1.0);
-						//double rFractalness=Base.SafeAngle360(
+						//this.SetPixelHsva(xDest,yDest,RMath.SafeAngle360(RMath.THETAOFXY_RAD(xSrc,ySrc))/360.0f,1.0,1.0,1.0);
+						//double rFractalness=RMath.SafeAngle360(
 						//	(double)FractalResultMandelbrot(xSrc,ySrc,rSeed) 
 						//	);
 						//int iFractalResult=FractalResultMandelbrot((float)xSrc,(float)ySrc);//TODO: use rSeed
@@ -351,11 +351,11 @@ namespace ExpertMultimedia {
 							//		if (xDest>=0&&yDest>=0&&xDest+iBlobSize<=gbFractal.Width&&yDest+iBlobSize<=gbFractal.Height) {
 							//			GBuffer.SetBrushHsva(rFractalness,1.0,rFractalness,1.0);
 							//			if (!gbFractal.DrawRectFilledSafe(xDest,yDest,iBlobSize,iBlobSize)) {
-							//				Base.Warning("Skipped fractal blob.","{location:"+IPoint.Description(xDest,yDest)+"; size:"+IPoint.Description(iBlobSize,iBlobSize)+"}");
+							//				RReporting.Warning("Skipped fractal blob.","{location:"+IPoint.Description(xDest,yDest)+"; size:"+IPoint.Description(iBlobSize,iBlobSize)+"}");
 							//			}
 							//		}
 							//	}
-							//	catch {Base.Warning("Failed to render fractal blob.","{location:"+IPoint.Description(xDest,yDest)+"}");}
+							//	catch {RReporting.Warning("Failed to render fractal blob.","{location:"+IPoint.Description(xDest,yDest)+"}");}
 							//}
 							//else {
 								gbFractal.SetPixelHsva(xDest,yDest,rFractalness,1.0,rFractalness,1.0);
@@ -374,7 +374,7 @@ namespace ExpertMultimedia {
 				if (bGood) iFramesRendered++;
 			}
 			catch (Exception exn) {	
-				Base.ShowExn(exn,"Fractal Render");
+				RReporting.ShowExn(exn,"Fractal Render");
 			}
 			return bGood;
 		}//end Render
@@ -398,8 +398,8 @@ namespace ExpertMultimedia {
 					xSrc=xSrcStart;
 					for (int xDest=rectDest.X; xDest<xEnder; xDest++) {
 						//rSpeed=;
-						//this.SetPixelHSVA(xDest,yDest,Base.SafeAngle360(Base.THETAOFXY_RAD(xSrc,ySrc))/360.0f,1.0,1.0,1.0);
-						double rFractalness=(double)(ResultMandelbrot(xSrc,ySrc,(double)rSeed)%256)/255.0; //Base.SafeAngle360(ResultMandelbrot(xSrc,ySrc,(double)rSeed))/360.0;
+						//this.SetPixelHSVA(xDest,yDest,RMath.SafeAngle360(RMath.THETAOFXY_RAD(xSrc,ySrc))/360.0f,1.0,1.0,1.0);
+						double rFractalness=(double)(ResultMandelbrot(xSrc,ySrc,(double)rSeed)%256)/255.0; //RMath.SafeAngle360(ResultMandelbrot(xSrc,ySrc,(double)rSeed))/360.0;
 						gbDest.SetPixelHsva(xDest,yDest,rFractalness,1.0,rFractalness,1.0);
 						xSrc+=rUnitsPerPixel;
 					}
@@ -409,7 +409,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {	
 				bGood=false;
-				Base.ShowExn(exn,"Fractal RenderAll");
+				RReporting.ShowExn(exn,"Fractal RenderAll");
 			}
 			if (bGood) iFramesRendered++;
 			return bGood;
@@ -456,7 +456,7 @@ namespace ExpertMultimedia {
 			ySrc=ySrcStart;
 		}
 		private void OnStartPass() {
-			iDetailRadius=Base.IRound((double)iDetailRadius*.5);//Base.IRound((double)iDetailRadius*.75);
+			iDetailRadius=RMath.IRound((double)iDetailRadius*.5);//RMath.IRound((double)iDetailRadius*.75);
 			if (iDetailRadius<20) iDetailRadius=20;
 			rPassUnitsPerChunk=PassToUnitsPerChunk(iPass);
 			rUnitsPerPixel=PassToUnitsPerChunk(1);// 1.0/PassToUnitsPerChunk(1); //rPixelsPerUnit;
@@ -473,7 +473,7 @@ namespace ExpertMultimedia {
 				return (yDest>=gbFractal.Height);//only check yDest, since xDest can still be zero!
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Fractal FinishedRenderingFrame","checking whether fractal is finished rendering frame");
+				RReporting.ShowExn(exn,"Fractal FinishedRenderingFrame","checking whether fractal is finished rendering frame");
 				return true;
 			}
 		}
@@ -482,7 +482,7 @@ namespace ExpertMultimedia {
 				return iPass>1&&(PassToPixelsPerChunk(iPass-1)==1);//>gbFractal.iHeight;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Fractal FinishedRenderingAll","checking whether fractal is finished rendering");
+				RReporting.ShowExn(exn,"Fractal FinishedRenderingAll","checking whether fractal is finished rendering");
 				return true;
 			}
 		}
@@ -495,7 +495,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Fractal SetGraphics");
+				RReporting.ShowExn(exn,"Fractal SetGraphics");
 			}
 		}
 		public void Pause() {

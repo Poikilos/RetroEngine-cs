@@ -7,7 +7,7 @@ using System.Runtime.CompilerServices;
 // associated with an assembly.
 //
 [assembly: AssemblyTitle("Expert Multimedia RetroEngine Base")]
-[assembly: AssemblyDescription("Contains algorithms, internal graphic buffer methods, imaging, etc. for ExpertMultimedia RetroEngine.  Builds to target ExpertMultimedia.Base.dll")]
+[assembly: AssemblyDescription("Contains algorithms, internal graphic buffer methods, imaging, etc. for ExpertMultimedia RetroEngine.")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("ExpertMultimedia")]
 [assembly: AssemblyProduct("RetroEngine")]

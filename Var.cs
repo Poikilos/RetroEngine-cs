@@ -98,7 +98,7 @@ namespace ExpertMultimedia {
 		public const int TypeArray = 9; //has varrAssoc and IF not an associative array then uses sType
 		private int iType=Var.TypeNULL;
 		/// <summary>
-		/// Optional custom section name (option for TypeArray)
+		/// Optional custom class name (option for TypeArray)
 		/// </summary>
 		private string sType="";
 		
@@ -460,7 +460,7 @@ namespace ExpertMultimedia {
 				//RReporting.Debug("Done Var init.");
 			}
 			catch (Exception exn) {//do not report this
-				RReporting.Debug(exn,"","initializing utilities section");
+				RReporting.Debug(exn,"","initializing utilities class");
 			}
 		}
 		#endregion constructors
@@ -3148,7 +3148,7 @@ namespace ExpertMultimedia {
 			RString.ReplaceNewLinesWithSpaces(ref sVal);
 			return sVal;
 		}
-		public static int SafeLength(Var[] arrNow) {
+		public static int SafeLength(Var[] arrNow) { //also used in RForm
 			int iReturn=0;
 			try {
 				if (arrNow!=null) iReturn=arrNow.Length;
@@ -3160,7 +3160,7 @@ namespace ExpertMultimedia {
 		/// <summary>
 		/// Sets size, preserving data
 		/// </summary>
-		public static bool Redim(ref Var[] arrNow, int iSetSize) {
+		public static bool Redim(ref Var[] arrNow, int iSetSize) { //also used in RForm
 			bool bGood=false;
 			if (iSetSize!=SafeLength(arrNow)) {
 				if (iSetSize<=0) { arrNow=null; bGood=true; }
@@ -3174,21 +3174,26 @@ namespace ExpertMultimedia {
 						}
 						arrNow=arrNew;
 						//bGood=true;
-						//if (!bGood) RReporting.ShowErr("No vars were found while trying to set MaximumSeq!");
+						//if (!bGood) RReporting.ShowErr("No var found while trying to redimension array!");
 						bGood=true;
 					}
 					catch (Exception exn) {
 						bGood=false;
 						string sStackFrames=RReporting.StackTraceToLatinCallStack(new System.Diagnostics.StackTrace());
-						RReporting.ShowExn(exn,"setting var maximum","Var Redim("+Var.ArrayDebugStyle("array",arrNow,false)+", size:"+iSetSize.ToString()+","+RReporting.DebugStyle("sender",sStackFrames,true,false)+")");
+						RReporting.ShowExn(exn,"changing a var array size","Var Redim("+Var.ArrayDebugStyle("array",arrNow,false)+", size:"+iSetSize.ToString()+","+RReporting.DebugStyle("sender",sStackFrames,true,false)+")");
 					}
 				}//end else size >0
 			}//end if length is different
 			else bGood=true;
 			return bGood;
 		}//end Redim
-		public static string ArrayDebugStyle(string sName, Var[] arrX, bool bAppendSemicolonAndSpace) {
+		public static string ArrayDebugStyle(string sName, Var[] arrX, bool bAppendSemicolonAndSpace) { //also used in RForm
 			return RString.SafeString(sName) + ((arrX!=null)?(".Length:"+arrX.Length.ToString()):":null") + (bAppendSemicolonAndSpace?"; ":"");
 		}
-	}//end section Var
+	}//end class Var
 }//end namespace
+
+
+
+
+

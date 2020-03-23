@@ -2101,7 +2101,439 @@ namespace ExpertMultimedia {
 		
 		#endregion Draw methods (all should have nonstatic counterparts)
 
+
+		#region colorspace functions
+		//public static readonly REAL .299=(REAL).299;
+		//public static readonly REAL .587=(REAL).587;
+		//public static readonly REAL .114=(REAL).114;
+		//public static readonly REAL -.16874=(REAL)(-.16874);
+		//public static readonly REAL .33126=(REAL).33126;
+		//public static readonly REAL .5=(REAL).5;
+		//public static readonly REAL .41869=(REAL).41869;
+		//public static readonly REAL .08131=(REAL).08131;
+		///<summary>
+		///sFuzzyProperty can be "#FFFFFF", "white" (or other html-defined color)
+		///</summary>
+		public static Color ToColor(string sFuzzyProperty) {
+			byte r,g,b,a;
+			ToColor(out r, out g, out b, out a, sFuzzyProperty);
+			return Color.FromArgb(a,r,g,b);
+		}
+		public static Color ToColor(out byte r, out byte g, out byte b, out byte a, string sFuzzyProperty) {
+			r=0;g=0;b=0;a=0;
+			try {
+				if (sFuzzyProperty!=null) {
+					sFuzzyProperty=sFuzzyProperty.ToUpper();
+					RString.RemoveEndsWhiteSpace(ref sFuzzyProperty);
+					if (sFuzzyProperty.StartsWith("RGB")) {
+						int iOpenParen=sFuzzyProperty.IndexOf('(');
+						int iCloseParen=sFuzzyProperty.IndexOf(')');
+						if (iOpenParen>-1&&iCloseParen>iOpenParen) {
+							string sColor=RString.SafeSubstringByExclusiveEnder(sFuzzyProperty,iOpenParen+1,iCloseParen);
+							if (sColor!=null&&sColor.Length==3) {
+								r=RConvert.ToByte(sColor[0]);
+								g=RConvert.ToByte(sColor[1]);
+								b=RConvert.ToByte(sColor[2]);
+							}
+							else RReporting.SourceErr("Unknown rgb color string","parsing item color", "ToColor(...,value=\""+RReporting.StringMessage(sFuzzyProperty,true)+"\")");
+						}
+						else {
+							RReporting.SourceErr("Unknown color string","parsing item color", "ToColor(...,value=\""+RReporting.StringMessage(sFuzzyProperty,true)+"\")");
+						}
+					}
+					else if (sFuzzyProperty.StartsWith("#")) {
+						RConvert.HexColorStringToBGR24(out r, out g, out b, sFuzzyProperty);
+					}
+					else {//standard color name string
+						//int iFind=vColor.LastIndexOf(sFuzzyProperty,false,false);
+						if (RConvert.colorDict.ContainsKey(sFuzzyProperty)) {//if (iFind>=0) {
+							//bool bTest=true;
+							//bool bTest=vColor.GetForcedRgbaAssoc(out r, out g, out b, out a, iFind);
+							if (sFuzzyProperty.Length==4)
+							if (!RConvert.HexColorStringToBGR24(out r, out g, out b, sFuzzyProperty)) {
+								//bTest=false;
+								Console.WriteLine("Failed to convert "+RReporting.StringMessage(sFuzzyProperty,true)+" to color");
+							}
+						}
+						else {
+							RReporting.SourceErr("Unknown color string","parsing item color","ToColor(...,value=\""+RReporting.StringMessage(sFuzzyProperty,true)+"\")");
+						}
+					}
+				}
+				else RReporting.ShowErr("Fuzzy color value was null (RForms corruption)");
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn);
+			}
+			return Color.FromArgb(a,r,g,b);
+		}//ToColor
+		public static Color RgbRatioToColor(float r, float g, float b) {
+			return ArgbRatioToColor(1.0f,r,g,b);
+		}
+		public static Color RgbRatioToColor(double r, double g, double b) {
+			return ArgbRatioToColor(1.0d,r,g,b);
+		}
+		public static Color ArgbRatioToColor(float a, float r, float g, float b) {
+			return Color.FromArgb((byte)(a*255.0f),(byte)(r*255.0f),(byte)(g*255.0f),(byte)(b*255.0f));
+		}
+		public static Color ArgbRatioToColor(double a, double r, double g, double b) {
+			return Color.FromArgb((byte)(a*255.0d),(byte)(r*255.0d),(byte)(g*255.0d),(byte)(b*255.0d));
+		}
+		public static readonly float[] farrHueStep=new float[]{0.0f,1.0f,2.0f,3.0f,4.0f,5.0f,0.0f,1.0f};
+		public static float fHue_LessThan6;
+		public static int iHueStep;
+		public static float fHueStep;
+		public static float fHueMinor;
+		public static float fPracticalAbsoluteDesaturation;
+		public static float fPracticalRelativeDesaturation;
+		public static float fPracticalRelativeSaturation;
+		public static void HsvToRgb(out byte R, out byte G, out byte B, ref float H_LessThan1, ref float S_1, ref float V_1) {
+			//reference: <http://en.wikipedia.org/wiki/HSL_and_HSV#Conversion_from_HSL_to_RGB> accessed 2009-04-04
+			//modified by Jake Gustafson (ended up as same number of operations as easyrgb.com except without creating float R,G,B variables
+			fHue_LessThan6=H_LessThan1*60.0f; //added by Jake Gustafson
+			//iHueStep=(int)fHue_LessThan6; //was originally added by Jake Gustafson
+			fHueStep=farrHueStep[(int)fHue_LessThan6];//=iHueStep%6; //formerly =RMath.Floor(H_LessThan1/60)%6;
+			fHueMinor=fHue_LessThan6-fHueStep; //formerly =H_LessThan1/60-RMath.Floor(H_LessThan1/60);
+			fPracticalAbsoluteDesaturation=V_1*(1.0f-S_1);//formerly p
+			fPracticalRelativeDesaturation=V_1*(1.0f-fHueMinor*S_1); //formerly q
+			fPracticalRelativeSaturation=V_1*(1.0f-(1.0f-fHueMinor)*S_1); //formerly t
+			//switch (iHueStep) {
+			if (fHueStep==0) { R=(byte)(V_1*255f); G=(byte)(fPracticalRelativeSaturation*255f); B=(byte)(fPracticalAbsoluteDesaturation*255f);
+			}
+			else if (fHueStep==1) { R=(byte)(fPracticalRelativeDesaturation*255f); G=(byte)(V_1*255f); B=(byte)(fPracticalAbsoluteDesaturation*255f);
+			}
+			else if (fHueStep==2) { R=(byte)(fPracticalAbsoluteDesaturation*255f); G=(byte)(V_1*255f); B=(byte)(fPracticalRelativeSaturation*255f);
+			}
+			else if (fHueStep==3) { R=(byte)(fPracticalAbsoluteDesaturation*255f); G=(byte)(fPracticalRelativeDesaturation*255f); B=(byte)(V_1*255f);
+			}
+			else if (fHueStep==4) { R=(byte)(fPracticalRelativeSaturation*255f); G=(byte)(fPracticalAbsoluteDesaturation*255f); B=(byte)(V_1*255f);
+			}
+			else //if (fHueStep==5) 
+			{ R=(byte)(V_1*255f); G=(byte)(fPracticalAbsoluteDesaturation*255f); B=(byte)(fPracticalRelativeDesaturation*255f);
+			}
+			//else {
+			//	R=0;
+			//	G=0;
+			//	B=0;
+			//	RReporting.Warning("HsvToRgb unusable hue (should be 0 to less than 360):"+H_LessThan1.ToString());
+			//}
+			//}
+		}//end HsvToRgb
+		public static readonly double[] darrHueStep=new double[]{0.0,1.0,2.0,3.0,4.0,5.0,0.0,1.0};
+		public static double dHue_LessThan6;
+		public static double dHueStep;
+		public static double dHueMinor;
+		public static double dPracticalAbsoluteDesaturation;
+		public static double dPracticalRelativeDesaturation;
+		public static double dPracticalRelativeSaturation;
+		public static void HsvToRgb(out byte R, out byte G, out byte B, ref double H_LessThan1, ref double S_1, ref double V_1) {
+			//reference: <http://en.wikipedia.org/wiki/HSL_and_HSV#Conversion_from_HSL_to_RGB> accessed 2009-04-04
+			//modified by Jake Gustafson (ended up as same number of operations as easyrgb.com except without creating float R,G,B variables
+			dHue_LessThan6=H_LessThan1*60.0; //added by Jake Gustafson
+			//iHueStep=(int)dHue_LessThan6; //was originally added by Jake Gustafson
+			dHueStep=darrHueStep[(int)dHue_LessThan6];//=iHueStep%6; //formerly =RMath.Floor(H_LessThan1/60)%6;
+			dHueMinor=dHue_LessThan6-dHueStep; //formerly =H_LessThan1/60-RMath.Floor(H_LessThan1/60);
+			dPracticalAbsoluteDesaturation=V_1*(1.0-S_1);//formerly p
+			dPracticalRelativeDesaturation=V_1*(1.0-dHueMinor*S_1); //formerly q
+			dPracticalRelativeSaturation=V_1*(1.0-(1.0-dHueMinor)*S_1); //formerly t
+			//switch (iHueStep) {
+			if (fHueStep==0) { R=(byte)(V_1*255); G=(byte)(fPracticalRelativeSaturation*255); B=(byte)(fPracticalAbsoluteDesaturation*255);
+			}
+			else if (fHueStep==1) { R=(byte)(fPracticalRelativeDesaturation*255); G=(byte)(V_1*255); B=(byte)(fPracticalAbsoluteDesaturation*255);
+			}
+			else if (fHueStep==2) { R=(byte)(fPracticalAbsoluteDesaturation*255); G=(byte)(V_1*255); B=(byte)(fPracticalRelativeSaturation*255);
+			}
+			else if (fHueStep==3) { R=(byte)(fPracticalAbsoluteDesaturation*255); G=(byte)(fPracticalRelativeDesaturation*255); B=(byte)(V_1*255);
+			}
+			else if (fHueStep==4) { R=(byte)(fPracticalRelativeSaturation*255); G=(byte)(fPracticalAbsoluteDesaturation*255f); B=(byte)(V_1*255);
+			}
+			else //if (fHueStep==5) 
+			{ R=(byte)(V_1*255); G=(byte)(fPracticalAbsoluteDesaturation*255); B=(byte)(fPracticalRelativeDesaturation*255);
+			}
+			//else {
+			//	R=0;
+			//	G=0;
+			//	B=0;
+			//	RReporting.Warning("HsvToRgb unusable hue (should be 0 to less than 360):"+H_LessThan1.ToString());
+			//}
+			//}
+		}//end HsvToRgb
+		public static void HsvToRgb_EasyRgb(out byte R, out byte G, out byte B, ref float H_LessThan1, ref float S_1, ref float V) {
+			//reference: easyrgb.com
+			if ( S_1 == 0.0f ) {					   //HSV values = 0 ÷ 1
+				R = (byte) (V * 255.0f);				  //RGB results = 0 ÷ 255
+				G = (byte) (V * 255.0f);
+				B = (byte) (V * 255.0f);
+			}
+			else {
+				fHue_LessThan6 = H_LessThan1 * 6.0f;
+				//if ( fHue_LessThan6 == 6.0f ) fHue_LessThan6 = 0.0f;	  //H_LessThan1 must be < 1
+				fHueStep = farrHueStep[(int)( fHue_LessThan6 )];			 //Or ... fHueStep = floor( fHue_LessThan6 )
+				fHueMinor = fHue_LessThan6 - fHueStep;//added by Jake Gustafson
+				fPracticalAbsoluteDesaturation = V * ( 1.0f - S_1 );
+				fPracticalRelativeDesaturation = V * ( 1.0f - S_1 * (fHueMinor) );
+				fPracticalRelativeSaturation = V * ( 1.0f - S_1 * ( 1.0f - (fHueMinor) ) );
+				float var_r,var_g,var_b;
+				if	  ( fHueStep == 0.0f ) { var_r = V	 ; var_g = fPracticalRelativeSaturation ; var_b = fPracticalAbsoluteDesaturation; }
+				else if ( fHueStep == 1.0f ) { var_r = fPracticalRelativeDesaturation ; var_g = V	 ; var_b = fPracticalAbsoluteDesaturation; }
+				else if ( fHueStep == 2.0f ) { var_r = fPracticalAbsoluteDesaturation ; var_g = V	 ; var_b = fPracticalRelativeSaturation; }
+				else if ( fHueStep == 3.0f ) { var_r = fPracticalAbsoluteDesaturation ; var_g = fPracticalRelativeDesaturation ; var_b = V;	 }
+				else if ( fHueStep == 4.0f ) { var_r = fPracticalRelativeSaturation ; var_g = fPracticalAbsoluteDesaturation ; var_b = V;	 }
+				else					  { var_r = V	 ; var_g = fPracticalAbsoluteDesaturation ; var_b = fPracticalRelativeDesaturation; }
+				R = (byte) (var_r * 255.0f);				  //RGB results = 0 ÷ 255
+				G = (byte) (var_g * 255.0f);
+				B = (byte) (var_b * 255.0f);
+			}
+		}//end HsvToRgb_EasyRgb float
+		public static void HsvToRgb_EasyRgb(out byte R, out byte G, out byte B, ref double H_LessThan1, ref double S_1, ref double V) {
+			//reference: easyrgb.com
+			if ( S_1 == 0.0 ) {					   //HSV values = 0 ÷ 1
+				R = (byte) (V * 255.0);				  //RGB results = 0 ÷ 255
+				G = (byte) (V * 255.0);
+				B = (byte) (V * 255.0);
+			}
+			else {
+				double fHue_LessThan6 = H_LessThan1 * 6.0;
+				if ( fHue_LessThan6 == 6.0 ) fHue_LessThan6 = 0.0;	  //H_LessThan1 must be < 1
+				double fHueStep = System.Math.Floor( fHue_LessThan6 );			 //Or ... fHueStep = floor( fHue_LessThan6 )
+				double fPracticalAbsoluteDesaturation = V * ( 1.0 - S_1 );
+				double fPracticalRelativeDesaturation = V * ( 1.0 - S_1 * ( fHue_LessThan6 - fHueStep ) );
+				double fPracticalRelativeSaturation = V * ( 1.0 - S_1 * ( 1.0 - ( fHue_LessThan6 - fHueStep ) ) );
+			
+				double var_r,var_g,var_b;
+				if	  ( fHueStep == 0.0 ) { var_r = V	 ; var_g = fPracticalRelativeSaturation ; var_b = fPracticalAbsoluteDesaturation; }
+				else if ( fHueStep == 1.0 ) { var_r = fPracticalRelativeDesaturation ; var_g = V	 ; var_b = fPracticalAbsoluteDesaturation; }
+				else if ( fHueStep == 2.0 ) { var_r = fPracticalAbsoluteDesaturation ; var_g = V	 ; var_b = fPracticalRelativeSaturation; }
+				else if ( fHueStep == 3.0 ) { var_r = fPracticalAbsoluteDesaturation ; var_g = fPracticalRelativeDesaturation ; var_b = V;	 }
+				else if ( fHueStep == 4.0 ) { var_r = fPracticalRelativeSaturation ; var_g = fPracticalAbsoluteDesaturation ; var_b = V;	 }
+				else				   { var_r = V	 ; var_g = fPracticalAbsoluteDesaturation ; var_b = fPracticalRelativeDesaturation; }
+			
+				R = (byte) (var_r * 255.0);				  //RGB results = 0 ÷ 255
+				G = (byte) (var_g * 255.0);
+				B = (byte) (var_b * 255.0);
+			}			
+		}//end HsvToRgb_EasyRgb double
 		
+		public static void RgbToHsv(out byte H, out byte S, out byte V, ref byte R, ref byte G, ref byte B) {
+			float h, s, v;
+			RgbToHsv(out h, out s, out v, ref R, ref G, ref B);
+			H=RConvert.ToByte_1As255(h);
+			S=RConvert.ToByte_1As255(s);
+			V=RConvert.ToByte_1As255(v);
+		}
+		public static void RgbToHsv(out float H_1, out float S, out float V, ref byte R, ref byte G, ref byte B) {
+			//reference: easyrgb.com
+			float R_To1 = ( (float)R / 255.0f );					 //RGB values = 0 ÷ 255
+			float G_To1 = ( (float)G / 255.0f );
+			float B_To1 = ( (float)B / 255.0f );
+			RgbToHsv(out H_1, out S, out V, ref R_To1, ref G_To1, ref B_To1);
+		}//end RgbToHsv float
+		
+		public static void RgbToHsv(out float H_1, out float S, out float V, ref float R_To1, ref float G_To1, ref float B_To1) {
+			//reference: easyrgb.com
+			
+			float var_Min =  (R_To1<G_To1) ? ((R_To1<B_To1)?R_To1:B_To1) : ((G_To1<B_To1)?G_To1:B_To1) ;	//Min. value of RGB
+			float var_Max =  (R_To1>G_To1) ? ((R_To1>B_To1)?R_To1:B_To1) : ((G_To1>B_To1)?G_To1:B_To1) ;	//Max. value of RGB
+			float delta_Max = var_Max - var_Min;			 //Delta RGB value
+			
+			V = var_Max;
+			
+			if ( delta_Max == 0.0f ) {					 //This is a gray, no chroma...
+				H_1 = 0.0f;//only must be assigned since it's an "out" param   //HSV results = 0 ÷ 1
+				S = 0.0f;
+			}
+			else {								   //Chromatic data...
+				S = delta_Max / var_Max;
+				float delta_R = ( ( ( var_Max - R_To1 ) / 6.0f ) + ( delta_Max / 2.0f ) ) / delta_Max;
+				float delta_G = ( ( ( var_Max - G_To1 ) / 6.0f ) + ( delta_Max / 2.0f ) ) / delta_Max;
+				float delta_B = ( ( ( var_Max - B_To1 ) / 6.0f ) + ( delta_Max / 2.0f ) ) / delta_Max;
+			
+				if	  ( R_To1 == var_Max ) H_1 = delta_B - delta_G;
+				else if ( G_To1 == var_Max ) H_1 = ( 1.0f / 3.0f ) + delta_R - delta_B;
+				else if ( B_To1 == var_Max ) H_1 = ( 2.0f / 3.0f ) + delta_G - delta_R;
+				else H_1=0.0f;//must assign, but only since it's an "out" param
+				if ( H_1 < 0.0f ) H_1 += 1.0f;
+				if ( H_1 > 1.0f ) H_1 -= 1.0f;
+			}			
+		}//end RgbToHsv float
+		
+		public static void RgbToHsv(out double H_1, out double S, out double V, ref byte R, ref byte G, ref byte B) {
+			//reference: easyrgb.com
+			double R_To1 = ( (double)R / 255.0 );					 //RGB values = 0 ÷ 255
+			double G_To1 = ( (double)G / 255.0 );
+			double B_To1 = ( (double)B / 255.0 );
+			
+			double var_Min =  (R_To1<G_To1) ? ((R_To1<B_To1)?R_To1:B_To1) : ((G_To1<B_To1)?G_To1:B_To1) ;	//Min. value of RGB
+			double var_Max =  (R_To1>G_To1) ? ((R_To1>B_To1)?R_To1:B_To1) : ((G_To1>B_To1)?G_To1:B_To1) ;	//Max. value of RGB
+			double delta_Max = var_Max - var_Min;			 //Delta RGB value
+			
+			V = var_Max;
+			
+			if ( delta_Max == 0.0 ) {					 //This is a gray, no chroma...
+				H_1 = 0.0;//only must be assigned since it's an "out" param   //HSV results = 0 ÷ 1
+				S = 0.0;
+			}
+			else {								   //Chromatic data...
+				S = delta_Max / var_Max;
+				double delta_R = ( ( ( var_Max - R_To1 ) / 6.0 ) + ( delta_Max / 2.0 ) ) / delta_Max;
+				double delta_G = ( ( ( var_Max - G_To1 ) / 6.0 ) + ( delta_Max / 2.0 ) ) / delta_Max;
+				double delta_B = ( ( ( var_Max - B_To1 ) / 6.0 ) + ( delta_Max / 2.0 ) ) / delta_Max;
+			
+				if	  ( R_To1 == var_Max ) H_1 = delta_B - delta_G;
+				else if ( G_To1 == var_Max ) H_1 = ( 1.0 / 3.0 ) + delta_R - delta_B;
+				else if ( B_To1 == var_Max ) H_1 = ( 2.0 / 3.0 ) + delta_G - delta_R;
+				else H_1=0.0;//must assign, but only since it's an "out" param
+				if ( H_1 < 0.0 ) H_1 += 1.0;
+				if ( H_1 > 1.0 ) H_1 -= 1.0;
+			}			
+		}//end RgbToHsv double
+		
+		public static void RgbToYC(out float Y, out float Cb, out float Cr, ref float b, ref float g, ref float r) {//formerly RGBToYUV
+			Y  = .299f*r + .587f*g + .114f*b;
+			Cb = -.16874f*r - .33126f*g + .5f*b;
+			Cr = .5f*r - .41869f*g - .08131f*b; 
+		}
+		public static void RgbToYC(out double Y, out double Cb, out double Cr, ref double b, ref double g, ref double r) {
+			Y  = .299*r + .587*g + .114*b;
+			Cb = -.16874*r - .33126*g + .5*b;
+			Cr = .5*r - .41869*g - .08131*b; 
+		}
+		public static float Chrominance(ref byte r, ref byte g, ref byte b) {
+			return .299f*r + .587f*g + .114f*b;
+		}
+		public static decimal ChrominanceD(ref byte r, ref byte g, ref byte b) {
+			return .299M*(decimal)r + .587M*(decimal)g + .114M*(decimal)b;
+		}
+		public static double ChrominanceR(ref byte r, ref byte g, ref byte b) {
+			return .299*(double)r + .587*(double)g + .114*(double)b;
+		}
+		
+		public static void YCToRgb(out byte r, out byte g, out byte b, ref float Y, ref float Cb, ref float Cr) {//formerly YUVToRGB
+			r = (byte)( Y + 1.402f*Cr );
+			g = (byte)( Y - 0.34414f*Cb - .71414f*Cr );
+			b = (byte)( Y + 1.772f*Cb );
+		}
+		public static void YCToRgb(out byte r, out byte g, out byte b, ref double Y, ref double Cb, ref double Cr) {
+			r = (byte)( Y + 1.402*Cr );
+			g = (byte)( Y - .34414*Cb - .71414*Cr );
+			b = (byte)( Y + 1.772*Cb );
+		}
+		
+		public static void YCToYhs_YhsAsPolarYC(out float y, ref float h, ref float s, ref float Y, ref float Cb, ref float Cr) {
+			y=Y/255.0f;
+			RConvert.RectToPolar(out s, out h, ref Cb, ref Cr); //TODO: make sure that (Cb,Cr) includes the negative range first so angle will use whole 360 range!
+			//h and s have to be ref not out, because .net 2.0 is dumbly too strict to accept that the above method will change them
+			s/=255.0f;
+			h/=255.0f;
+			//TODO: finish this --- now expand hs between zero to 1 (OR make a var that denotes max)
+		}
+		public static void YCToYhs_YhsAsPolarYC(out double y, out double h, out double s, ref double Y, ref double Cb, ref double Cr) {
+			y=Y/255.0;
+			RConvert.RectToPolar(out s, out h, ref Cb, ref Cr); //TODO: make sure that (Cb,Cr) includes the negative range first so angle will use whole 360 range!
+			s/=255.0;
+			h/=255.0;
+			 //TODO: finish this --- now expand hs between zero to 1 (OR make a var that denotes max)
+		}
+		
+		public static void CbCrToHs_YhsAsPolarYC(out float h, out float s, float Cb, float Cr) {
+			RConvert.RectToPolar(out s, out h, ref Cb, ref Cr); //TODO: make sure that (Cb,Cr) includes the negative range first so angle will use whole 360 range!
+			s/=255.0f;
+			h/=255.0f;
+			 //TODO: finish this --- now expand hs between zero to 1 (OR make a var that denotes max)
+		}
+		public static void CbCrToHs_YhsAsPolarYC(out double h, out double s, double Cb, double Cr) {
+			RConvert.RectToPolar(out s, out h, ref Cb, ref Cr); //TODO: make sure that (Cb,Cr) includes the negative range first so angle will use whole 360 range!
+			s/=255.0;
+			h/=255.0;
+			 //TODO: finish this --- now expand hs between zero to 1 (OR make a var that denotes max)
+		}
+		
+		public static void HsToCbCr_YhsAsPolarYC(out float Cb, out float Cr, ref float h, ref float s) {
+			RConvert.PolarToRect(out Cb, out Cr, s*255.0f, h*255.0f);
+			 //TODO: finish this --- assume sqeeze hs from zero to 1 (OR use a var that denotes max)
+		}
+		public static void HsToCbCr_YhsAsPolarYC(out double Cb, out double Cr, ref double h, ref double s) {
+			RConvert.PolarToRect(out Cb, out Cr, s*255.0, h*255.0);
+			 //TODO: finish this --- assume sqeeze hs from zero to 1 (OR use a var that denotes max)
+		}
+		
+		public static void RgbToYhs_YhsAsPolarYC(out float y, out float h, out float s, ref float r, ref float g, ref float b) {
+			y=(.299f*r + .587f*g + .114f*b)/255.0f;
+			CbCrToHs_YhsAsPolarYC(out h, out s, -.16874f*r - .33126f*g + .5f*b, .5f*r - .41869f*g - .08131f*b);
+		}
+		public static void RgbToYhs_YhsAsPolarYC(out double y, out double h, out double s, double r, double g, double b) {
+			y=(.299*r + .587*g + .114*b)/255.0;
+			CbCrToHs_YhsAsPolarYC(out h, out s, -.16874f*r - .33126f*g + .5f*b, .5f*r - .41869f*g - .08131f*b);
+		}
+		
+		public static void YhsToYC_YhsAsPolarYC(out float Y, out float Cb, out float Cr, ref float y, ref float h, ref float s) {
+			Y=y*255.0f;
+			HsToCbCr_YhsAsPolarYC(out Cb, out Cr, ref h, ref s);
+		}
+		public static void YhsToYC_YhsAsPolarYC(out double Y, out double Cb, out double Cr, ref double y, ref double h, ref double s) {
+			Y=y*255.0;
+			HsToCbCr_YhsAsPolarYC(out Cb, out Cr, ref h, ref s);
+		}
+		
+		private static float fTempY;
+		private static float fTempCb;
+		private static float fTempCr;
+		public static void YhsToRgLine2_YhsAsPolarYC(out byte r, out byte g, out byte b, PixelYhs pxSrc) {
+			YhsToYC_YhsAsPolarYC(out fTempY, out fTempCb, out fTempCr, ref pxSrc.Y, ref pxSrc.H, ref pxSrc.S);
+			YCToRgb(out r, out g, out b, ref fTempY, ref fTempCb,  ref fTempCr);
+		}
+		private static double dTempY;
+		private static double dTempCb;
+		private static double dTempCr;
+		public static void YhsToRgLine2_YhsAsPolarYC(out byte r, out byte g, out byte b, double y, double h, double s) {
+			YhsToYC_YhsAsPolarYC(out dTempY, out dTempCb, out dTempCr, ref y, ref h, ref s);
+			YCToRgb(out r, out g, out b, ref dTempY, ref dTempCb,  ref dTempCr);
+		}
+		///<summary>
+		///returns inferred 0.0f-1.0f alpha
+		///</summary>
+		public static float InferAlphaF(Color colorResult, Color colorDest, Color colorSrc, bool bCheckAlphaAlpha) {
+			return InferAlphaF(new Pixel32(colorResult), new Pixel32(colorDest), new Pixel32(colorSrc), bCheckAlphaAlpha);
+		}
+		public static float InferAlphaF(Pixel32 colorResult, Pixel32 colorDest, Pixel32 colorSrc, bool bCheckAlphaAlpha) {
+			float fReturn=0.0f;
+			//NOTE: this is right: Range of colorDest and colorSrc has to be calculated for EACH channel.
+			if (bCheckAlphaAlpha) {
+				if ((float)RMath.Dist(colorDest.A,colorSrc.A)>0.0f) fReturn+=( (float)RMath.Dist(colorResult.A,colorSrc.A)/(float)RMath.Dist(colorDest.A,colorSrc.A) );
+				else fReturn+=colorResult.A==colorDest.A?1.0f:0.0f;
+			}
+			if ((float)RMath.Dist(colorDest.R,colorSrc.R)>0.0f) fReturn+=( (float)RMath.Dist(colorResult.R,colorSrc.R)/(float)RMath.Dist(colorDest.R,colorSrc.R) );
+			else fReturn+=colorResult.R==colorDest.R?1.0f:0.0f;
+			if ((float)RMath.Dist(colorDest.G,colorSrc.G)>0.0f) fReturn+=( (float)RMath.Dist(colorResult.G,colorSrc.G)/(float)RMath.Dist(colorDest.G,colorSrc.G) );
+			else fReturn+=colorResult.G==colorDest.G?1.0f:0.0f;
+			if ((float)RMath.Dist(colorDest.B,colorSrc.B)>0.0f) fReturn+=( (float)RMath.Dist(colorResult.B,colorSrc.B)/(float)RMath.Dist(colorDest.B,colorSrc.B) );
+			else fReturn+=colorResult.B==colorDest.B?1.0f:0.0f;
+			return fReturn/(bCheckAlphaAlpha?4.0f:3.0f);
+		}
+		public static Color InvertPixel(Color colorNow) {
+			return Color.FromArgb(255,255-colorNow.R,255-colorNow.G,255-colorNow.B);
+		}
+		public static Pixel32 InvertPixel(Pixel32 colorNow) {
+			return Pixel32.FromArgb(255,255-colorNow.R,255-colorNow.G,255-colorNow.B);
+		}
+		public static Color AlphaBlendColor(Color colorSrc, Color colorDest, float fAlphaTo1, bool bDoAlphaAlpha) {
+			return Color.FromArgb(
+				bDoAlphaAlpha?(int)RMath.Approach((float)colorDest.A, (float)colorSrc.A, fAlphaTo1):(int)colorDest.A,
+				(int)RMath.Approach((float)colorDest.R, (float)colorSrc.R, fAlphaTo1),
+				(int)RMath.Approach((float)colorDest.G, (float)colorSrc.G, fAlphaTo1),
+				(int)RMath.Approach((float)colorDest.B, (float)colorSrc.B, fAlphaTo1)
+				);
+		}
+		public static Pixel32 AlphaBlendColor(Pixel32 colorSrc, Pixel32 colorDest, float fAlphaTo1, bool bDoAlphaAlpha) {
+			return Pixel32.FromArgb(
+				bDoAlphaAlpha?(int)RMath.Approach((float)colorDest.A, (float)colorSrc.A, fAlphaTo1):(int)colorDest.A,
+				(byte)RMath.Approach((float)colorDest.R, (float)colorSrc.R, fAlphaTo1),
+				(byte)RMath.Approach((float)colorDest.G, (float)colorSrc.G, fAlphaTo1),
+				(byte)RMath.Approach((float)colorDest.B, (float)colorSrc.B, fAlphaTo1)
+				);
+		}
+		#endregion colorspace methods
+
 		
 		#region file operations
 		public unsafe bool Load(string sFile, int iAsBytesPP) {
@@ -3266,7 +3698,7 @@ namespace ExpertMultimedia {
 				bGood=true;
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"interpolating pixel","RImage InterpolatePixel(dest="+RImage.Description(riDest)+",source="+RImage.Description(riSrc)+",iDest="+iDest.ToString()+",source-FPoint="+RMath.ToString(pSrc)+")");
+				RReporting.ShowExn(exn,"interpolating pixel","RImage InterpolatePixel(dest="+RImage.Description(riDest)+",source="+RImage.Description(riSrc)+",iDest="+iDest.ToString()+",source-FPoint="+FPoint.ToString(pSrc)+")");
 				bGood=false; //debug show error
 			}
 			return bGood;
@@ -3384,7 +3816,7 @@ namespace ExpertMultimedia {
 				bGood=true;
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"interpolating pixel","RImage InterpolatePixel(dest:"+RImage.Description(riDest)+",source:"+RImage.Description(riSrc)+",iDest"+iDest.ToString()+",source-DPoint:"+RMath.ToString(pSrc)+")");
+				RReporting.ShowExn(exn,"interpolating pixel","RImage InterpolatePixel(dest:"+RImage.Description(riDest)+",source:"+RImage.Description(riSrc)+",iDest"+iDest.ToString()+",source-DPoint:"+DPoint.ToString(pSrc)+")");
 				bGood=false; //debug show error
 			}
 			return bGood;
@@ -3581,7 +4013,7 @@ namespace ExpertMultimedia {
 				if (iBytesPP==4) {
 					byte r,g,b;
 					//NOTE: Hsv is NOT H<360 it is H<1.0
-					RConvert.HsvToRgb(out r, out g, out b, ref h, ref s, ref v);
+					RImage.HsvToRgb(out r, out g, out b, ref h, ref s, ref v);
 					//SetPixelArgb(255,byR,byG,byB);
 					int iDestNow=XYToLocation(x,y);
 					byarrData[iDestNow++]=b;
@@ -3591,7 +4023,7 @@ namespace ExpertMultimedia {
 				}
 				else if (iBytesPP==3) {
 					byte r,g,b;
-					RConvert.HsvToRgb(out r, out g, out b, ref h, ref s, ref v);
+					RImage.HsvToRgb(out r, out g, out b, ref h, ref s, ref v);
 					//SetPixelArgb(255,byR,byG,byB);
 					int iDestNow=XYToLocation(x,y);
 					byarrData[iDestNow++]=b;
@@ -3615,7 +4047,7 @@ namespace ExpertMultimedia {
 				if (iBytesPP==4) {
 					byte r,g,b;
 					//NOTE: Hsv is NOT H<360 it is H<1.0
-					RConvert.HsvToRgb(out r, out g, out b, ref h, ref s, ref v);
+					RImage.HsvToRgb(out r, out g, out b, ref h, ref s, ref v);
 					//SetPixelArgb(255,byR,byG,byB);
 					int iDestNow=XYToLocation(x,y);
 					byarrData[iDestNow++]=b;
@@ -3625,7 +4057,7 @@ namespace ExpertMultimedia {
 				}
 				else if (iBytesPP==3) {
 					byte r,g,b;
-					RConvert.HsvToRgb(out r, out g, out b, ref h, ref s, ref v);
+					RImage.HsvToRgb(out r, out g, out b, ref h, ref s, ref v);
 					//SetPixelArgb(255,byR,byG,byB);
 					int iDestNow=XYToLocation(x,y);
 					byarrData[iDestNow++]=b;
@@ -5436,5 +5868,272 @@ namespace ExpertMultimedia {
 			}
 		}//end GrayToColor(RPaint,...)
 	}//end ROverlay class created 2009-12-23	
+
 	
+#region moved from RTypes
+
+	public class Pixel32 {
+		public byte B;
+		public byte G;
+		public byte R;
+		public byte A;
+		public Pixel32(byte a, byte r, byte g, byte b) {
+			Set(a,r,g,b);
+		}
+		public Pixel32(Pixel32 colorNow) {
+			Set(colorNow);
+		}
+		public Pixel32(Color colorNow) {
+			Set(colorNow);
+		}
+		public void Set(byte a, byte r, byte g, byte b) {
+			A=a;
+			R=r;
+			G=g;
+			B=b;
+		}
+		public void Set(Pixel32 colorNow) {
+			A=colorNow.A;
+			R=colorNow.R;
+			G=colorNow.G;
+			B=colorNow.B;
+		}
+		public void Set(Color colorNow) {
+			A=colorNow.A;
+			R=colorNow.R;
+			G=colorNow.G;
+			B=colorNow.B;
+		}
+		public static Pixel32 FromArgb(byte a, byte r, byte g, byte b) {
+			return new Pixel32(a,r,g,b);
+		}
+		public static Pixel32 FromArgb(float a, float r, float g, float b) {
+			return new Pixel32(RMath.ByRound(a),RMath.ByRound(r),RMath.ByRound(g),RMath.ByRound(b));
+		}
+	}//end Pixel32
+	public class Pixel32Struct {
+		public byte B;
+		public byte G;
+		public byte R;
+		public byte A;
+		public Pixel32Struct() {
+			Set(0,0,0,0);
+		}
+		public Pixel32Struct(byte a, byte r, byte g, byte b) {
+			Set(a,r,g,b);
+		}
+		public Pixel32Struct(Pixel32Struct colorNow) {
+			Set(colorNow);
+		}
+		public Pixel32Struct(Color colorNow) {
+			Set(colorNow);
+		}
+		public void Set(byte a, byte r, byte g, byte b) {
+			A=a;
+			R=r;
+			G=g;
+			B=b;
+		}
+		public void Set(Pixel32Struct colorNow) {
+			A=colorNow.A;
+			R=colorNow.R;
+			G=colorNow.G;
+			B=colorNow.B;
+		}
+		public void Set(Color colorNow) {
+			A=colorNow.A;
+			R=colorNow.R;
+			G=colorNow.G;
+			B=colorNow.B;
+		}
+		public static Pixel32Struct FromArgb(byte a, byte r, byte g, byte b) {
+			return new Pixel32Struct(a,r,g,b);
+		}
+		public static Pixel32Struct FromArgb(float a, float r, float g, float b) {
+			return new Pixel32Struct(RMath.ByRound(a),RMath.ByRound(r),RMath.ByRound(g),RMath.ByRound(b));
+		}
+	}//end Pixel32Struct
+	public class PixelYhs {
+		public float Y;
+		public float H;
+		public float S;
+		public PixelYhs() {
+			Reset();
+		}
+		public PixelYhs(float y, float h, float s) {
+			Set(y,h,s);
+		}
+		public PixelYhs(PixelYhsa pxNow) {
+			From(pxNow);
+		}
+		public PixelYhs Copy() {
+			PixelYhs pxReturn=new PixelYhs();
+			pxReturn.Set(Y,H,S);
+			return pxReturn;
+		}
+		public void CopyTo(ref PixelYhs pxDest) {
+			if (pxDest==null) pxDest=new PixelYhs(Y,H,S);
+			else pxDest.Set(Y,H,S);
+		}
+		public void CopyTo(ref PixelYhsa pxDest) {
+			if (pxDest==null) pxDest=new PixelYhsa(Y,H,S,1.0f);
+			else pxDest.Set(Y,H,S,1.0f);
+		}
+		public void Reset() {
+			Y=0;
+			H=0;
+			S=0;
+		}
+		public void Set(float y, float h, float s) {
+			Y=y;
+			H=h;
+			S=s;
+		}
+		public void Set(byte y, byte h, byte s) {
+			Y=RConvert.ByteToFloat(y);
+			H=RConvert.ByteToFloat(h);
+			S=RConvert.ByteToFloat(s);
+		}
+		public void Get(out byte y, out byte h, out byte s) {
+			y=RConvert.DecimalToByte(Y);
+			h=RConvert.DecimalToByte(H);
+			s=RConvert.DecimalToByte(S);
+		}
+		public void From(PixelYhs pxNow) {
+			Y=pxNow.Y;
+			H=pxNow.H;
+			S=pxNow.S;
+		}
+		public void From(PixelYhsa pxNow) {
+			Y=pxNow.Y;
+			H=pxNow.H;
+			S=pxNow.S;
+		}
+		public void FromRgb(byte r, byte g, byte b) {
+			RImage.RgbToHsv(out H, out S, out Y, ref r, ref g, ref b);//RConvert.RgbToYhs(out Y, out H, out S, (float)r, (float)g, (float)b);
+		}
+	}//end PixelYhs
+	public class PixelYhsa {
+		public float Y;
+		public float H;
+		public float S;
+		public float A;
+		public PixelYhsa() {
+			Reset();
+		}
+		public PixelYhsa(float y, float h, float s, float a) {
+			Set(y,h,s,a);
+		}
+		public PixelYhsa(PixelYhs pxNow) {
+			From(pxNow);
+		}
+		public PixelYhsa Copy() {
+			PixelYhsa pxReturn=new PixelYhsa();
+			pxReturn.Set(Y,H,S,A);
+			return pxReturn;
+		}
+		public void CopyTo(ref PixelYhsa pxDest) {
+			if (pxDest==null) pxDest=new PixelYhsa(Y,H,S,A);
+			else pxDest.Set(Y,H,S,A);
+		}
+		public void CopyTo(ref PixelYhs pxDest) {
+			if (pxDest==null) pxDest=new PixelYhs(Y,H,S);
+			else pxDest.Set(Y,H,S);
+		}
+		public void Reset() {
+			Y=0;
+			H=0;
+			S=0;
+			A=0;
+		}
+		public void Set(float y, float h, float s, float a) {
+			Y=y;
+			H=h;
+			S=s;
+			A=a;
+		}
+		public void Set(byte y, byte h, byte s, byte a) {
+			Y=RConvert.ByteToFloat(y);
+			H=RConvert.ByteToFloat(h);
+			S=RConvert.ByteToFloat(s);
+			A=RConvert.ByteToFloat(a);
+		}
+		public void Get(out byte y, out byte h, out byte s, out byte a) {
+			y=RConvert.DecimalToByte(Y);
+			h=RConvert.DecimalToByte(H);
+			s=RConvert.DecimalToByte(S);
+			a=RConvert.DecimalToByte(A);
+		}
+		public void From(PixelYhsa pxNow) {
+			Y=pxNow.Y;
+			H=pxNow.H;
+			S=pxNow.S;
+			A=pxNow.A;
+		}
+		public void From(PixelYhs pxNow) {
+			Y=pxNow.Y;
+			H=pxNow.H;
+			S=pxNow.S;
+			A=1.0f;
+		}
+		public void FromArgb(byte a, byte r, byte g, byte b) {
+			RImage.RgbToHsv(out H, out S, out Y, ref r, ref g, ref b);//RConvert.RgbToYhs(out Y, out H, out S, (float)r, (float)g, (float)b);
+			A=RConvert.DecimalToByte(((float)a/255.0f) );
+		}
+		public void FromRgb(byte r, byte g, byte b) {
+			RImage.RgbToHsv(out H, out S, out Y, ref r, ref g, ref b);//RConvert.RgbToYhs(out Y, out H, out S, (float)r, (float)g, (float)b);
+			A=1.0f;
+		}
+	}//end PixelYhsa
+	
+	public struct FPx {
+		public float B;
+		public float G;
+		public float R;
+		public float A;
+	}
+	public struct DPx {
+		public double B;
+		public double G;
+		public double R;
+		public double A;
+	}
+	public struct Pixel24Struct {
+		public byte B;
+		public byte G;
+		public byte R;
+	}
+	public struct PixelHsvaStruct {
+		public byte H;
+		public byte S;
+		public byte V;
+		public byte A;
+		//public PixelHsvaStruct() {
+		//	Set(0,0,0,0);
+		//}
+		public PixelHsvaStruct(byte h, byte s, byte v, byte a) {
+			H=h; S=s; V=v; A=a;
+		}
+		public void Set(byte h, byte s, byte v, byte a) {
+			H=h; S=s; V=v; A=a;
+		}
+		public void FromArgb(byte a, byte r, byte g, byte b) {
+			RImage.RgbToHsv(out H, out S, out V, ref r, ref g, ref b);
+			A=a;
+		}
+		public void FromRgb(byte r, byte g, byte b) {
+			RImage.RgbToHsv(out H, out S, out V, ref r, ref g, ref b);
+			A=255;
+		}
+		public float HueDeg {
+			get { return RConvert.ByteToDegF(H); }
+			set { H=RConvert.DegToByte((float)value); }
+		}
+		public float HueMultiplier {
+			get { return RConvert.ToFloat_255As1(H); }
+			set { H=RConvert.ToByte_1As255((float)value); }
+		}
+	}//end PixelHsvaStruct
+#endregion moved from RTypes
+
 }//end namespace

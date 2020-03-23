@@ -140,8 +140,8 @@ namespace ExpertMultimedia {
 			try {
 				if (val!=null) return val.Length;
 			}
-			catch (Exception exn) {
-				RReporting.Debug(exn,"","Base SafeLength(string[])");
+			catch (Exception e) {
+				RReporting.Debug(e,"","Base SafeLength(string[])");
 			}
 			return 0;
 		}
@@ -149,8 +149,8 @@ namespace ExpertMultimedia {
 			try {
 				if (val!=null) return val.Length;
 			}
-			catch (Exception exn) {
-				RReporting.Debug(exn,"","Base SafeLength(int[])");
+			catch (Exception e) {
+				RReporting.Debug(e,"","Base SafeLength(int[])");
 			}
 			return 0;
 		}
@@ -158,8 +158,8 @@ namespace ExpertMultimedia {
 			try {
 				if (val!=null) return val.Length;
 			}
-			catch (Exception exn) {
-				RReporting.Debug(exn,"","Base SafeLength(PictureBox[])");
+			catch (Exception e) {
+				RReporting.Debug(e,"","Base SafeLength(PictureBox[])");
 			}
 			return 0;
 		}
@@ -175,15 +175,6 @@ namespace ExpertMultimedia {
 		}
 		public static string ArrayMessage(char[] val) {
 			return ( val==null ? "null" : ("("+val.Length+"-length array)") );
-		}
-		public static string ParticipleToAdverbClause(string sParticiple) {
-			return ParticipleToAdverbClause(sParticiple,false);
-		}
-		public static string ParticipleToAdverbClause(string sParticiple, bool bBlankStringTypeIfBlank) {
-			return (sParticiple!=null&&sParticiple.Length>0)  ?  " while "+sParticiple  :  ( bBlankStringTypeIfBlank ? ((sParticiple!=null)?" [0-length participle]":" [null participle]") : "")  ; //notes in brackets are for debug only and should normally be ""
-		}
-		public static string NounToPreposition(string sNoun) {
-			return (sNoun!=null&&sNoun.Length>0) ? " in "+sNoun : "";
 		}
 		public static bool IsBlank(string sNow) {
 			return !IsNotBlank(sNow);
@@ -263,41 +254,50 @@ namespace ExpertMultimedia {
 			}
 			return false;
 		}
-		public static void ShowExn(Exception exn, string sParticiple, string sFuncName) {
-			ShowExn(exn,sParticiple,sFuncName,false);
+		public static string NounToPreposition(string sNoun) {
+			return (sNoun!=null&&sNoun.Length>0) ? " in "+sNoun : "";
 		}
-		public static void ShowExn(Exception exn, string sParticiple, string sFuncName, bool bShowBlankParticipleMessageIfBlank) {
-			ShowExn("Could not finish" + ParticipleToAdverbClause(sParticiple,bShowBlankParticipleMessageIfBlank) + NounToPreposition(sFuncName),exn);
+		public static string ParticipleToAdverbClause(string sParticiple) {
+			return ParticipleToAdverbClause(sParticiple,false);
+		}
+		public static string ParticipleToAdverbClause(string sParticiple, bool bBlankStringTypeIfBlank) {
+			return (sParticiple!=null&&sParticiple.Length>0)  ?  " while "+sParticiple  :  ( bBlankStringTypeIfBlank ? ((sParticiple!=null)?" [0-length participle]":" [null participle]") : "")  ; //notes in brackets are for debug only and should normally be ""
+		}
+		public static void ShowExn(Exception e, string sParticiple, string sFuncName) {
+			ShowExn(e,sParticiple,sFuncName,false);
+		}
+		public static void ShowExn(Exception e, string sParticiple, string sFuncName, bool bShowBlankParticipleMessageIfBlank) {
+			ShowExn("Could not finish" + ParticipleToAdverbClause(sParticiple,bShowBlankParticipleMessageIfBlank) + NounToPreposition(sFuncName),e);
 			iExceptions++;
 		}
-		public static void ShowExn(Exception exn, string sParticiple) {
+		public static void ShowExn(Exception e, string sParticiple) {
 			StackTrace stacktraceNow = new System.Diagnostics.StackTrace();
-			ShowExn(exn,sParticiple,stacktraceNow.GetFrame(1).GetMethod().Name,true);
+			ShowExn(e,sParticiple,stacktraceNow.GetFrame(1).GetMethod().Name,true);
 		}
-		public static void ShowExn(Exception exn) {
+		public static void ShowExn(Exception e) {
 			StackTrace stacktraceNow = new StackTrace();
-			ShowExn(exn,"",stacktraceNow.GetFrame(1).GetMethod().Name);
+			ShowExn(e,"",stacktraceNow.GetFrame(1).GetMethod().Name);
 		}
 		/// <summary>
 		/// Shows exception with the pretext "Could not finish x" where x is the value assigned to sParticiple
 		/// </summary>
 		/// <param name="sMsg"></param>
-		/// <param name="exn"></param>
+		/// <param name="e"></param>
 		/// <param name="sParticiple"></param>
-		public static void ShowExn(string sMsg, Exception exn, string sParticiple) {
+		public static void ShowExn(string sMsg, Exception e, string sParticiple) {
 			sMsg=sMsg+sParticiple; //;ParticipleToAdverbClause(sParticiple);
-			ShowExn(sMsg,exn);
+			ShowExn(sMsg,e);
 		}
 		/// <summary>
 		/// Primary ShowExn method: takes everything literally (Shows sMsg then exception)
 		/// </summary>
 		/// <param name="sMsg"></param>
-		/// <param name="exn"></param>
-		public static void ShowExn(string sMsg, Exception exn) {
+		/// <param name="e"></param>
+		public static void ShowExn(string sMsg, Exception e) {
 			Error_WriteDateIfFirstLine();
 			if (sMsg.EndsWith(":")) sMsg.Substring(0,sMsg.Length-1);
-			Console.Error.WriteLine(sMsg+" -- "+ToOneLine(exn)+" in "+exn.Source);
-			//sErrNow=sMsg+": "+ToOneLine(exn);
+			Console.Error.WriteLine(sMsg+" -- "+ToOneLine(e)+" in "+e.Source);
+			//sErrNow=sMsg+": "+ToOneLine(e);
 		}
 		public static void ShowErr(string sMsg) {
 			StackTrace stacktraceNow = new StackTrace();
@@ -325,15 +325,15 @@ namespace ExpertMultimedia {
 		
 		public static string sDebugPrefix=" [Comment]";
 		public static string sDebugBuffer="";
-		public static void Debug(Exception exn) {
+		public static void Debug(Exception e) {
 			if (bDebug) {
 				StackTrace stacktraceNow = new System.Diagnostics.StackTrace();
-				ShowExn(exn,"ignoring exception",stacktraceNow.GetFrame(1).GetMethod().Name);
+				ShowExn(e,"ignoring exception",stacktraceNow.GetFrame(1).GetMethod().Name);
 			}
 		}
-		public static void Debug(Exception exn, string sParticiple, string sFunction) {
+		public static void Debug(Exception e, string sParticiple, string sFunction) {
 			if (bDebug) {
-				ShowExn(exn,"ignoring exception while "+sParticiple,sFunction);
+				ShowExn(e,"ignoring exception while "+sParticiple,sFunction);
 			}
 		}
 		public static void Debug(string sMsg, string sParticiple, string sFunction) {
@@ -389,8 +389,8 @@ namespace ExpertMultimedia {
 		
 		
 		
-		public static string ToOneLine(Exception exn) {
-			return ToOneLine(exn.ToString());
+		public static string ToOneLine(Exception e) {
+			return ToOneLine(e.ToString());
 		}
 		public static string ToOneLine(string sLineX) {
 			sLineX=sLineX.Replace("\n"," ");
@@ -601,5 +601,5 @@ namespace ExpertMultimedia {
 
 
 		#endregion strings
-	}//end RReporting section
+	}//end RReporting class
 }//end namespace

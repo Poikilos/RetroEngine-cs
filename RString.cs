@@ -15,7 +15,7 @@ namespace ExpertMultimedia {
 		public static readonly string sCSVEDBQUOTE="&exmquo;";
 		public static string sDirSep=char.ToString(Path.DirectorySeparatorChar);//{ get {return char.ToString(Path.DirectorySeparatorChar);}	}
 		public static int DefaultMaxCapacity=1024;
-		public static bool bGoodString=true;
+		//public static bool bGoodString=true;
 		//public static DefaultOffset=0;
 		private char[] carrData=null;
 		private int iStart=0;
@@ -174,8 +174,8 @@ namespace ExpertMultimedia {
 						Console.Error.WriteLine("Warning: set Capacity to "+value.ToString()+" (null)");
 					}
 				}
-				catch (Exception exn) {
-					RReporting.ShowExn(exn,"setting RString capacity","rstring set MaxCapacity");
+				catch (Exception e) {
+					RReporting.ShowExn(e,"setting RString capacity","rstring set MaxCapacity");
 				}
 			}//end set
 		}//end MaxCapacity get,set
@@ -267,8 +267,8 @@ namespace ExpertMultimedia {
 					return true;
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 			}
 			return false;
 		}
@@ -283,8 +283,8 @@ namespace ExpertMultimedia {
 					return true;
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 			}
 			return false;
 		}
@@ -299,8 +299,8 @@ namespace ExpertMultimedia {
 					return true;
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 			}
 			return false;
 		}//end StartsWith
@@ -332,8 +332,8 @@ namespace ExpertMultimedia {
 				else RReporting.ShowErr(  "Blank string search was skipped", "", 
 				  String.Format("CountInstances({0},{1})", RReporting.DebugStyle("in",Haystack ,false,false),RReporting.DebugStyle("search-for",Needle ,false,false))  );
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 			}
 			return iCount;
 		} //end CountInstances(string,string,iStart,iEndEx)
@@ -358,8 +358,8 @@ namespace ExpertMultimedia {
 				else RReporting.ShowErr(  "Blank string search was skipped", "", 
 				  		String.Format("CountInstances({0},{1})", RReporting.DebugStyle("in",Haystack ,false,false),RReporting.DebugStyle("search-for",Needle ,false,false))  );
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 			}
 			return iCount;
 		} //end CountInstancesI_AssumingNeedleIsLower(string,string,iStart,iEndEx)
@@ -384,8 +384,8 @@ namespace ExpertMultimedia {
 				else RReporting.ShowErr(  "Blank string search was skipped", "", 
 				  String.Format("CountInstances({0},{1})", RReporting.DebugStyle("in",Haystack ,false,false),RReporting.DebugStyle("search-for",Needle ,false,false))  );
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 			}
 			return iCount;
 		} //end CountInstancesI(string,string,iStart,iEndEx)
@@ -410,8 +410,8 @@ namespace ExpertMultimedia {
 				}
 				else RReporting.ShowErr("Tried to count matching characters in blank string!","","CountInstances(string,char)");
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 			}
 			return iCount;
 		}//end CountInstances(string,char,iStart,iEndEx)
@@ -501,14 +501,14 @@ namespace ExpertMultimedia {
 				}
 				else Console.Error.WriteLine("Error in RString Insert("+location.ToString()+",null): Tried to insert null string into RString");
 			}
-			catch (Exception exn) {
+			catch (Exception e) {
 				Console.Error.WriteLine("Error in RString Insert(\""+sNow+"\") {"
 					+"iStart:"+iStart.ToString()+";"
 					+"iEnder:"+iEnder.ToString()+";"
 					+"Length:"+Length.ToString()+";"
 					+"MaxCapacity:"+MaxCapacity.ToString()+";"
 					+"}");
-				Console.Error.WriteLine(exn.ToString());
+				Console.Error.WriteLine(e.ToString());
 				Console.Error.WriteLine();
 			}
 			return this;
@@ -544,14 +544,14 @@ namespace ExpertMultimedia {
 						+"MaxCapacity:"+MaxCapacity.ToString()+";"
 						+"}");
 			}
-			catch (Exception exn) {
+			catch (Exception e) {
 				Console.Error.WriteLine("Error in RString Insert('"+char.ToString(cNow)+"') {"
 					+"iStart:"+iStart.ToString()+";"
 					+"iEnder:"+iEnder.ToString()+";"
 					+"Length:"+Length.ToString()+";"
 					+"MaxCapacity:"+MaxCapacity.ToString()+";"
 					+"}");
-				Console.Error.WriteLine(exn.ToString());
+				Console.Error.WriteLine(e.ToString());
 				Console.Error.WriteLine();
 			}
 			return this;
@@ -564,7 +564,7 @@ namespace ExpertMultimedia {
 				if (length>0) {
 					if (location==0) { //if at beginning
 						iStart+=length;
-						//that's all since RString section is based on ender
+						//that's all since RString class is based on ender
 					}
 					if (location+length==Length) { //if at end
 						iEnder-=length;
@@ -606,10 +606,10 @@ namespace ExpertMultimedia {
 					bGood=true;
 				}
 			}
-			catch (Exception exn) {
+			catch (Exception e) {
 				bGood=false;
 				Console.Error.WriteLine("RString MoveInternalStringToZero error:");
-				Console.Error.WriteLine(exn.ToString());
+				Console.Error.WriteLine(e.ToString());
 				Console.Error.WriteLine();
 			}
 			return bGood;
@@ -642,8 +642,8 @@ namespace ExpertMultimedia {
 				return (rstr1!=null&&rstr2!=null&&rstr1.Length>iRel1&&rstr2.Length>iRel2
 					&&rstr1.carrData[rstr1.iStart+iRel1]==rstr2.carrData[rstr2.iStart+iRel2]);
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"comparing character in RStrings (RString corruption)");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"comparing character in RStrings (RString corruption)");
 			}
 			return false;
 		}//end CompareAt(RString,int,RString,int)
@@ -692,8 +692,8 @@ namespace ExpertMultimedia {
 				}
 				else RReporting.Warning("Received null string","looking for string",String.Format("CompareAt({0},{1},{2},{3})",RReporting.StringMessage(Haystack,false),RReporting.StringMessage(Needle,false),iAtHaystack,iStopBeforeInHaystack) );
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"checking for string in string","CompareAt {"
+			catch (Exception e) {
+				RReporting.ShowExn(e,"checking for string in string","CompareAt {"
 				                   +"Haystack.Length:"+RReporting.SafeLength(Haystack)
 				                   +"; Needle:"+RReporting.StringMessage(Needle,true)
 				                   +"; iAtHaystack:"+iAtHaystack.ToString()
@@ -776,8 +776,8 @@ namespace ExpertMultimedia {
 				}
 				else RReporting.Warning("Sent null string to CompareAtI","looking for string",String.Format("CompareAtI_AssumingNeedleIsLower({0},{1},{2},{3})",RReporting.StringMessage(Haystack,false),RReporting.StringMessage(Needle,false),iAtHaystack,iStopBeforeInHaystack) );
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 			}
 			return false;
 		}//end CompareAtI
@@ -802,8 +802,8 @@ namespace ExpertMultimedia {
 		//		}
 		//		//}
 		//	}
-		//	catch (Exception exn) {
-		//		RReporting.ShowExn(exn,"comparing text substring");
+		//	catch (Exception e) {
+		//		RReporting.ShowExn(e,"comparing text substring");
 		//		bReturn=false;
 		//	}
 		//	return bReturn;
@@ -819,8 +819,8 @@ namespace ExpertMultimedia {
 // 					return true;
 // 				}
 // 			}
-// 			catch (Exeption exn) {
-// 				RReporting.ShowExn(exn,"comparing RStrings (RString corruption)","");
+// 			catch (Exeption e) {
+// 				RReporting.ShowExn(e,"comparing RStrings (RString corruption)","");
 // 			}
 // 			return false;
 // 		}
@@ -842,8 +842,8 @@ namespace ExpertMultimedia {
 				}
 				//}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"comparing text substring");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"comparing text substring");
 				bReturn=false;
 			}
 			return bReturn;
@@ -887,8 +887,8 @@ namespace ExpertMultimedia {
 // 				}
 // 				else iHash=-1;
 // 			}
-// 			catch (Exception exn) {
-// 				RReporting.ShowExn(exn);
+// 			catch (Exception e) {
+// 				RReporting.ShowExn(e);
 // 				if (iHash==<1) iHash=-1;
 // 				else iHash*=-1;
 // 			}
@@ -959,13 +959,13 @@ namespace ExpertMultimedia {
 					return "";
 				}
 			}
-			catch (Exception exn) {
-				RReporting.Debug(exn);
+			catch (Exception e) {
+				RReporting.Debug(e);
 				return "";
 			}
 		}//end SafeSubstring(string,int,int)
 		public static string SafeSubstring(string sValue, int start) {
-			bGoodString=false;
+			bool bGoodString=false;
 			if (sValue==null) return "";
 			if (start<0) return ""; 
 			try {
@@ -979,8 +979,8 @@ namespace ExpertMultimedia {
 					return "";
 				}
 			}
-			catch (Exception exn) {
-				RReporting.Debug(exn);
+			catch (Exception e) {
+				RReporting.Debug(e);
 				return "";
 			}
 		}//end SafeSubstring(string,int,int)
@@ -1020,8 +1020,8 @@ namespace ExpertMultimedia {
 			try {
 				return RString.IndexOf(Haystack,Needle) >= 0;//Haystack.IndexOf(Needle) >= 0;
 			}
-			catch (Exception exn) {
-				RReporting.Debug(exn,"","Contains("+RReporting.StringMessage(Haystack,false)+","+RReporting.StringMessage(Needle,true)+")");
+			catch (Exception e) {
+				RReporting.Debug(e,"","Contains("+RReporting.StringMessage(Haystack,false)+","+RReporting.StringMessage(Needle,true)+")");
 			}
 			return false;
 		}
@@ -1029,8 +1029,8 @@ namespace ExpertMultimedia {
 			try {
 				return IndexOf(Haystack,Needle,0) >= 0;
 			}
-			catch (Exception exn) {
-				RReporting.Debug(exn,"","Contains(string,char)");
+			catch (Exception e) {
+				RReporting.Debug(e,"","Contains(string,char)");
 				return false;
 			}
 		}
@@ -1038,8 +1038,8 @@ namespace ExpertMultimedia {
 			try {
 				return CharIndexInNeedleToFind>=0 && CharIndexInNeedleToFind<Needle.Length && RString.SafeLength(Needle)>0 && IndexOf(Haystack,Needle[CharIndexInNeedleToFind]) >= 0;
 			}
-			catch (Exception exn) {
-				RReporting.Debug(exn,"","Contains(string,string,IndexOfCharacterInNeedleToFind)");
+			catch (Exception e) {
+				RReporting.Debug(e,"","Contains(string,string,IndexOfCharacterInNeedleToFind)");
 				return false;
 			}
 		}
@@ -1084,8 +1084,8 @@ namespace ExpertMultimedia {
 		//		if (val==' ') bYes=true;
 		//		else if (val=='\t') bYes=true;
 		//	}
-		//	catch (Exception exn) {
-		//		RReporting.ShowExn(exn,"checking for spacing","IsSpacingExceptNewLine");
+		//	catch (Exception e) {
+		//		RReporting.ShowExn(e,"checking for spacing","IsSpacingExceptNewLine");
 		//	}
 		//	return bYes;
 		//}
@@ -1097,8 +1097,8 @@ namespace ExpertMultimedia {
 		//		else if (val=='\n') bYes=true;
 		//		else if (Contains(Environment.NewLine,val)) bYes=true;
 		//	}
-		//	catch (Exception exn) {
-		//		RReporting.ShowExn(exn,"checking for newline","IsNewLine");
+		//	catch (Exception e) {
+		//		RReporting.ShowExn(e,"checking for newline","IsNewLine");
 		//	}
 		//	return bYes;
 		//}
@@ -1116,8 +1116,8 @@ namespace ExpertMultimedia {
 			try {
 				return Regex.IsMatch(input, pattern, regexoptions);
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 				return false;
 			}
 		}
@@ -1128,8 +1128,8 @@ namespace ExpertMultimedia {
 		//			bFound=true;
 		//		}
 		//	}
-		//	catch (Exception exn) {
-		//		RReporting.Debug(exn);
+		//	catch (Exception e) {
+		//		RReporting.Debug(e);
 		//		bFound=false;
 		//	}
 		//	return bFound;
@@ -1213,10 +1213,10 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
+			catch (Exception e) {
 				if (iReturn>0) iReturn*=-1;
 				else iReturn=int.MinValue;
-				RReporting.ShowExn(exn,"replacing & counting all string instances");
+				RReporting.ShowExn(e,"replacing & counting all string instances");
 				//still return # of replacements that worked
 			}
 			return iReturn;
@@ -1237,10 +1237,10 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
+			catch (Exception e) {
 				if (iReturn>0) iReturn*=-1;
 				else iReturn=int.MinValue;
-				RReporting.ShowExn(exn,"replacing & counting all string instances in all strings in string array");
+				RReporting.ShowExn(e,"replacing & counting all string instances in all strings in string array");
 			}
 			return iReturn;
 		}
@@ -1266,10 +1266,10 @@ namespace ExpertMultimedia {
 				}
 				RReporting.Debug("Done with "+iFoundTotal.ToString()+" total spacing before newlines removed.");
 			}
-			catch (Exception exn) {
+			catch (Exception e) {
 				if (iFoundTotal>0) iFoundTotal*=-1;
 				else iFoundTotal=int.MinValue;
-				RReporting.ShowExn(exn);
+				RReporting.ShowExn(e);
 			}
 			return iFoundTotal;
 		}//end RemoveSpacingBeforeNewLines
@@ -1312,10 +1312,10 @@ namespace ExpertMultimedia {
 				}
 				RReporting.Debug("Done with "+iTotal.ToString()+" total blank lines removed.");
 			}
-			catch (Exception exn) {
+			catch (Exception e) {
 				if (iTotal>0) iTotal*=-1;
 				else iTotal=int.MinValue;
-				RReporting.ShowExn(exn);
+				RReporting.ShowExn(e);
 			}
 			return iTotal;
 		}//end RemoveBlankLines
@@ -1507,8 +1507,8 @@ namespace ExpertMultimedia {
 					sarrNew[0]=sField;
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 				sarrNew=new string[1];
 				sarrNew[0]=sField;
 			}
@@ -1545,9 +1545,9 @@ namespace ExpertMultimedia {
 					bGood=true;
 				}
 			}
-			catch (Exception exn) {
+			catch (Exception e) {
 				bGood=false;
-				RReporting.ShowExn(exn,"selecting text",
+				RReporting.ShowExn(e,"selecting text",
 					String.Format("SelectTo(iSelLen:{0}, sAllText:{1}, iFirstChar:{2}, iLastCharInclusive:{3}) ",
 							iSelLen,RReporting.StringMessage(sAllText,false),iFirstChar,iLastCharInclusive )
 				);
@@ -1567,9 +1567,9 @@ namespace ExpertMultimedia {
 				}
 				if (iMoveMe>=iEOF) Console.Error.WriteLine("Reached end of page (MoveToOrStayAtSpacingOrString).");
 			}
-			catch (Exception exn) {
+			catch (Exception e) {
 				bGood=false;
-				RReporting.ShowExn(exn);
+				RReporting.ShowExn(e);
 			}
 			return bGood;
 		} //MoveToOrStayAtSpacingOrString(ref int iMoveMe, string sData, string sFindIfBeforeSpacing) {
@@ -1607,8 +1607,8 @@ namespace ExpertMultimedia {
 					RReporting.ShowErr("Reached beginning of string.","MoveBackToOrStayAt sFind");
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 				bGood=false;
 			}
 			return bGood;
@@ -1628,8 +1628,8 @@ namespace ExpertMultimedia {
 					RReporting.Warning("Reached end of page (MoveBackToOrStayAt).");
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"searching for text","MoveToOrStayAt(cursor,data,string)");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"searching for text","MoveToOrStayAt(cursor,data,string)");
 				bGood=false;
 			}
 			return bGood;
@@ -1647,8 +1647,8 @@ namespace ExpertMultimedia {
 				}
 				if (iMoveMe>=iEOF) RReporting.Warning("Reached end of string (MoveToOrStayAtSpacing).");
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"searching for text","MoveToOrStayAtSpacing");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"searching for text","MoveToOrStayAtSpacing");
 			}
 			return bGood;
 		}
@@ -1671,9 +1671,9 @@ namespace ExpertMultimedia {
 					iReturnBreaker_ElseNeg1--;
 				}
 			}
-			catch (Exception exn) {	
+			catch (Exception e) {	
 				bGood=false;
-				RReporting.ShowExn(exn,"looking for previous non-newline break",
+				RReporting.ShowExn(e,"looking for previous non-newline break",
 					String.Format("PreviousWordBreakerExceptNewLine(sText:{0},iReturnBreaker_ElseNeg1:{1})",
 					RReporting.StringMessage(sText,false),iReturnBreaker_ElseNeg1)
 				);
@@ -1763,8 +1763,8 @@ namespace ExpertMultimedia {
 		//		}
 		//		else sarrReturn[0]=val;
 		//	}
-		//	catch (Exception exn) {
-		//		RReporting.ShowExn(exn,"dividing string into array","Explode");
+		//	catch (Exception e) {
+		//		RReporting.ShowExn(e,"dividing string into array","Explode");
 		//	}
 		//	return sarrReturn;
 		//}//end Explode
@@ -1852,8 +1852,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
-				RReporting.Debug(exn,"","SafeCompare(sarrMatchAny...)");//do not report this, just say "no"
+			catch (Exception e) {
+				RReporting.Debug(e,"","SafeCompare(sarrMatchAny...)");//do not report this, just say "no"
 				bFound=false;
 			}
 			return bFound;
@@ -1861,23 +1861,7 @@ namespace ExpertMultimedia {
 		//public static bool SafeCompare(string Haystack, string Needle, int AtHaystackIndex) {
 		//	return AtHaystackIndex>=0 && Haystack!=null && Haystack.Length>0 && Needle.Length>0 && AtHaystackIndex+Needle.Length<=Haystack.Length && CompareAt(Haystack, Needle, AtHaystackIndex);
 		//}
-		public static bool MoveToOrStayAtAttrib(ref int indexToGet, uint[] dwarrAttribToSearch, uint bitsToFindAnyOfThem) {
-			bool bFound=false;
-			try {
-				while (indexToGet<dwarrAttribToSearch.Length) {
-					if ((dwarrAttribToSearch[indexToGet]&bitsToFindAnyOfThem)!=0) {
-						bFound=true;
-						break;
-					}
-					indexToGet++;
-				}
-			}
-			catch (Exception exn) {
-				bFound=false;
-				RReporting.ShowExn(exn);
-			}
-			return bFound;
-		}//end MoveToOrStayAtAttrib
+		//MoveToOrStayAtAttrib: moved to RMemory
 		public static string PrecedeByIfNotBlank(string sStringToPrecedeValue_IfValueNotBlank, string sValue) {
 			if (sValue!=null&&sValue!="") return sStringToPrecedeValue_IfValueNotBlank+sValue;
 			else return "";
@@ -1923,8 +1907,8 @@ namespace ExpertMultimedia {
 				if (val.Length>iLength) return ElipsisIfOver(val,iLength);
 				else return Repeat(sFillerChar,iLength-val.Length)+val;
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"setting fixed width string",
+			catch (Exception e) {
+				RReporting.ShowExn(e,"setting fixed width string",
 					String.Format("FixedWidth(val:{0},iLength:{1},sFillerChar{2})",
 						RReporting.StringMessage(val,false),iLength,RReporting.StringMessage(sFillerChar,false)
 					)
@@ -1942,8 +1926,8 @@ namespace ExpertMultimedia {
 				swX.Close();
 				bGood=true;
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"saving text string to file",
+			catch (Exception e) {
+				RReporting.ShowExn(e,"saving text string to file",
 						String.Format("StringToFile({0},{1})",
 						RReporting.StringMessage(sFile,true),RReporting.StringMessage(sAllDataX,false) )
 				);
@@ -1973,9 +1957,9 @@ namespace ExpertMultimedia {
 				//	swNow.Close();
 				//}
 			}//end AppendForeverWrite(sFile,sMsg)
-			catch (Exception exn) {
+			catch (Exception e) {
 				try {
-					RReporting.Debug(exn,"Base AppendForeverWrite","trying to append output text file");
+					RReporting.Debug(e,"Base AppendForeverWrite","trying to append output text file");
 					if (!File.Exists(sFileNow)) {
 						swNow=File.CreateText(sFileNow);
 						swNow.Write(sMsg);
@@ -2031,8 +2015,8 @@ namespace ExpertMultimedia {
 				if (iBy>=sToTruncate.Length) sToTruncate="";
 				else sToTruncate=sToTruncate.Substring(0,sToTruncate.Length-iBy);
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 				sToTruncate="";
 			}
 		}
@@ -2071,8 +2055,8 @@ namespace ExpertMultimedia {
 				//}
 				bGood=true;
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 			}
 			return bGood;
 		}//end ShrinkToInsideQuotes
@@ -2173,8 +2157,8 @@ namespace ExpertMultimedia {
 				if (sSyntaxErr!=null) RReporting.ShowErr(sSyntaxErr,"parsing code","SplitScopes");
 			}//end if not blank
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"splitting scopes in internal or external script statement","SplitScopes");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"splitting scopes in internal or external script statement","SplitScopes");
 			}
 			return iCount;
 		}//end SplitScopes
@@ -2265,8 +2249,8 @@ namespace ExpertMultimedia {
 					iReturnLen=iAbs-iStartNow;//iLen=iLenNow;//iLenNow=iAbs-iStartNow;
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 			}
 			if (!bFound) {
 				iReturnStart=iStartNow;
@@ -2312,8 +2296,8 @@ namespace ExpertMultimedia {
 					iAbs++;
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 			}
 			return iFound;
 		}//end Base SubSections
@@ -2335,8 +2319,8 @@ namespace ExpertMultimedia {
 				if (dtX.Day<10) sReturn+="0";
 				sReturn+=dtX.Day.ToString();
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"getting current");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"getting current");
 				sReturn="UnknownDate";
 			}
 			return sReturn;
@@ -2367,8 +2351,8 @@ namespace ExpertMultimedia {
 					sReturn+=iMilNow.ToString()+"ms";
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"getting current date & time");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"getting current date & time");
 				sReturn="UnknownTime";
 			}
 			return sReturn;
@@ -2403,8 +2387,8 @@ namespace ExpertMultimedia {
 					sReturn+=iMilNow.ToString()+"ms";
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"getting current date & time");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"getting current date & time");
 				sReturn="UnknownTime";
 			}
 			return sReturn;
@@ -2499,16 +2483,16 @@ namespace ExpertMultimedia {
 					streamNow.Close();
 					//wcNow.Close();
 				}
-				catch (Exception exn) {
-					RReporting.ShowExn(exn,"downloading text string from web","DownloadToString("+RReporting.StringMessage(sUrl,true)+",...)");
+				catch (Exception e) {
+					RReporting.ShowExn(e,"downloading text string from web","DownloadToString("+RReporting.StringMessage(sUrl,true)+",...)");
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"accessing site","DownloadToString("+RReporting.StringMessage(sUrl,true)+",...)");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"accessing site","DownloadToString("+RReporting.StringMessage(sUrl,true)+",...)");
 			}
 			//}
-			//catch (Exception exn) {
-			//	RReporting.ShowExn(exn,"reading site","DownloadToString("+RReporting.StringMessage(sUrl,true)+",...)");
+			//catch (Exception e) {
+			//	RReporting.ShowExn(e,"reading site","DownloadToString("+RReporting.StringMessage(sUrl,true)+",...)");
 			//}
 			return sReturn;
 		}
@@ -2523,8 +2507,8 @@ namespace ExpertMultimedia {
 				
 				byarrData=brIn.R
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"converting file to string");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"converting file to string");
 			}
 			return FileToString(sFile, Environment.NewLine);
 			*/
@@ -2564,8 +2548,8 @@ namespace ExpertMultimedia {
 				//	sDataX=sDataX.Substring(0,sDataX.Length-(Environment.NewLine.Length));
 				//bFirst=false;
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 				sDataX="";
 			}
 			return sDataX;
@@ -2591,8 +2575,8 @@ namespace ExpertMultimedia {
 				//RReporting.Debug("Base Read line ["+iStart.ToString()+"]toExcludingChar["+iMoveMe.ToString()+"]:"+sReturn);
 				if (iNewLineLenNow>0) iMoveMe+=iNewLineLenNow;
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 				sReturn=null;
 			}
 			return sReturn;//HasALine;
@@ -2646,8 +2630,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 			}
 			return iReturn;
 		}//end IndexOf(string[],string);
@@ -2765,8 +2749,8 @@ namespace ExpertMultimedia {
 				ASCIIEncoding asciiencoding = new ASCIIEncoding();
 				sReturn=asciiencoding.GetString(byarrReturn);
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,RReporting.sParticiple,"FileToHash");
+			catch (Exception e) {
+				RReporting.ShowExn(e,RReporting.sParticiple,"FileToHash");
 			}
 			return sReturn;
 		}//end FileToHash
@@ -2924,8 +2908,8 @@ namespace ExpertMultimedia {
 				ArrayToRedim[ArrayToRedim.Length-1]=NewElement;
 				bGood=true;
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"pushing string to array","RString Push");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"pushing string to array","RString Push");
 			}
 			return bGood;
 		}
@@ -3135,8 +3119,8 @@ namespace ExpertMultimedia {
 				while (iLength>0&&(val[iEnder]=='\t'||val[iEnder]==' ')) {iEnder--;iLength--;}
 				if (iLength!=val.Length) val=SafeSubstring(val,iStart,iLength);
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 				return false;
 			}
 			return true;
@@ -3147,8 +3131,8 @@ namespace ExpertMultimedia {
 // 				while (val.Length>0&&val.StartsWith("\t")) val=val.Substring(0,val.Length-1);
 // 				while (val.Length>0&&val.EndsWith("\t")) val=val.Substring(0,val.Length-1);
 // 			}
-// 			catch (Exception exn) {
-// 				RReporting.ShowExn(exn);
+// 			catch (Exception e) {
+// 				RReporting.ShowExn(e);
 // 				return false;
 // 			}
 // 			return true;
@@ -3166,8 +3150,8 @@ namespace ExpertMultimedia {
 				while (iLength>0&&(val[iEnder]=='\n'||val[iEnder]=='\r')) {iEnder--;iLength--;}
 				if (iLength!=val.Length) val=SafeSubstring(val,iStart,iLength);
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 				return false;
 			}
 			return true;
@@ -3187,8 +3171,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"replacing characters");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"replacing characters");
 			}
 		}
 		public static string ReplaceAny(string sSrc, char[] sOld, char cNew) {
@@ -3199,8 +3183,8 @@ namespace ExpertMultimedia {
 					ReplaceAny(ref carrOrig, sOld, cNew);
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"replacing characters");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"replacing characters");
 			}
 			return carrOrig!=null?new string(carrOrig):null;
 		}//end ReplaceAny(string, char[], char)
@@ -3219,8 +3203,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"replacing characters");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"replacing characters");
 			}
 			return sSrc;
 		}//end ReplaceAny(string, char[], char)
@@ -3239,8 +3223,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"replacing string characters");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"replacing string characters");
 			}
 			return sSrc;
 		}//end ReplaceAny(string,string,string)
@@ -3291,8 +3275,8 @@ namespace ExpertMultimedia {
 					Console.Error.WriteLine("Warning: no data to search (looking for data after \""+sOpener+"\")");
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,sVerb,"FindBetweenI (scraping value)");
+			catch (Exception e) {
+				RReporting.ShowExn(e,sVerb,"FindBetweenI (scraping value)");
 			}
 			return sReturn;
 		}//end FindBetweenI
@@ -3502,9 +3486,9 @@ namespace ExpertMultimedia {
 					RReporting.Debug("GetMultipleAssignmentLocations...no statements and null return!");
 				}
 			}
-			catch (Exception exn) {
+			catch (Exception e) {
 				if (ValuesReturn!=null&&iCount*2<ValuesReturn.Length) ValuesReturn[iCount*2]=-1;
-				RReporting.ShowExn(exn);
+				RReporting.ShowExn(e);
 			}
 			if (RReporting.bUltraDebug) RReporting.sParticiple="finished parsing assignments";
 			//if (iCount<=0) RReporting.Debug("There were no statements in the assignment list (GetMultipleAssignmentValueLocations)");
@@ -3606,9 +3590,9 @@ namespace ExpertMultimedia {
 				}//end if any instances
 				else if (ValuesReturn!=null) ValuesReturn[0]=-1;
 			}
-			catch (Exception exn) {
+			catch (Exception e) {
 				if (ValuesReturn!=null&&iCount*2<ValuesReturn.Length) ValuesReturn[iCount*2]=-1;
-				RReporting.ShowExn(exn);
+				RReporting.ShowExn(e);
 			}
 			//if (iCount<=0) RReporting.Debug("There were no statements in the assignment list (GetMultipleAssignmentValueLocations)");
 			return iCount;//qReturn.GetInternalArray();
@@ -3625,17 +3609,6 @@ namespace ExpertMultimedia {
 		//public static int SplitCParamAssignments(ref string[] sarrName, ref string[] sarrValue, string sStatements) {
 			
 		//}
-		/// <summary>
-		/// Shows a singular or plural depending on whether iCount is 1.
-		/// </summary>
-		/// <param name="sSingular">Example: platypus</param>
-		/// <param name="sPlural">Example: platypi</param>
-		/// <param name="iCount">If 1 then causes return to be singular string, else plural</param>
-		/// <param name="bShowCount">If true then show count.  Example: if true then "1 platypus" if false then "platypus"</param>
-		/// <returns>(if bShowCount shows iCount then space then) sSingular or sPlural depending on iCount</returns>
-		public static string SingularPlural(string sSingular, string sPlural, int iCount, bool bShowCount) {
-			return (bShowCount?(iCount.ToString()+" "):"") + ((iCount==1)?sSingular:sPlural);
-		}
 		public static int SplitAssignments(ref string[] sarrName, ref string[] sarrValue, string sStatements, char cAssignmentOperator, char cStatementDelimiter, bool bTreatEscapedQuotesAsLiterals) {//formerly StyleSplit
 			return SplitAssignments(ref sarrName, ref sarrValue, sStatements, cAssignmentOperator, cStatementDelimiter, bTreatEscapedQuotesAsLiterals, 0, RString.SafeLength(sStatements));
 		}
@@ -3727,8 +3700,8 @@ namespace ExpertMultimedia {
 					bGood=false;
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","SplitAssignements");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"","SplitAssignements");
 				bGood=false;
 			}
 			//if (!bGood) iFound=-1;
@@ -3746,8 +3719,8 @@ namespace ExpertMultimedia {
 			try {
 				if (sValue!=null&&sValue!="") return sValue.Length;
 			}
-			catch (Exception exn) {
-				RReporting.Debug(exn,"","Base SafeLength(string)");
+			catch (Exception e) {
+				RReporting.Debug(e,"","Base SafeLength(string)");
 			}
 			return 0;
 		}
@@ -3761,8 +3734,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 			}
 			return carrReturn;
 		}
@@ -4129,8 +4102,8 @@ namespace ExpertMultimedia {
 				}//end if sData!=null
 				else RReporting.ShowErr("Tried to split CDecl but text data was null.","parsing declaration","CDeclSplit(...)");
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 			}
 		}//end CDeclSplit
 		public static string CSDeclTypeSubstring(string sCSharp_Declaration) {
@@ -4224,8 +4197,8 @@ namespace ExpertMultimedia {
 			try {
 				carr=new char[iSetMax];
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn( exn,"creating character stack",String.Format("Init({0})",iSetMax) );
+			catch (Exception e) {
+				RReporting.ShowExn( e,"creating character stack",String.Format("Init({0})",iSetMax) );
 			}
 		}
 		public bool Push(char valAdd) {
@@ -4240,8 +4213,8 @@ namespace ExpertMultimedia {
 					bGood=true;
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn( exn,"adding to character stack",String.Format("Push({0}){{iUsed:{1}; Capacity:{2}}}",valAdd,iUsed,Capacity) );
+			catch (Exception e) {
+				RReporting.ShowExn( e,"adding to character stack",String.Format("Push({0}){{iUsed:{1}; Capacity:{2}}}",valAdd,iUsed,Capacity) );
 			}
 			return bGood;
 		}//end Push
@@ -4254,8 +4227,8 @@ namespace ExpertMultimedia {
 					return carr[--iUsed];
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn( exn,"getting character from stack",String.Format("Pop(){{iUsed:{0}; Capacity:{1}}}",iUsed,Capacity) );
+			catch (Exception e) {
+				RReporting.ShowExn( e,"getting character from stack",String.Format("Pop(){{iUsed:{0}; Capacity:{1}}}",iUsed,Capacity) );
 			}
 			return Nothing;
 		}
@@ -4266,8 +4239,8 @@ namespace ExpertMultimedia {
 			try {
 				return carr[iAt];
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn( exn,"viewing character in stack",String.Format("Peek({0}){{iUsed:{1}; Capacity:{2}; iAt:{3}}}",iAt,iUsed,Capacity,iAt) );
+			catch (Exception e) {
+				RReporting.ShowExn( e,"viewing character in stack",String.Format("Peek({0}){{iUsed:{1}; Capacity:{2}; iAt:{3}}}",iAt,iUsed,Capacity,iAt) );
 			}
 			return Nothing;
 		}

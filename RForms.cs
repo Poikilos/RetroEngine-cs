@@ -32,7 +32,7 @@ namespace ExpertMultimedia {
 	/// RApplicaition.Framework* event handlers.
 	/// </summary>
 	public class RForms {
-		#region static variables
+		#region static variables (for all tabs)
 		public const int SectionUndefined=-1;
 		public const int SectionOpener=1; //"<..."
 		public const int SectionContent=2; //data (text or subtags) after ("<...>") opening tag; root node's content is set to any data before first tag in file
@@ -78,11 +78,11 @@ namespace ExpertMultimedia {
 		public static readonly string[] SelfClosingTagwords=new string[] {"br","img","input","meta","link"};
 		public static readonly string[] NonSelfNestingTagwords=new string[] {"li","p"};
 		public static Color colorBackgroundDefault=Color.White;
-		#endregion static variables
+		#endregion static variables (for all tabs)
 
 		
-		public string sTitle="RetroEngine Alpha"; //debug NYI change to current app upon entering html page
-		private int iLastCreatedNode=-1;
+		public string sTitle="RetroEngine"; //debug NYI change to current app upon entering html page
+		private RForm rformLastCreated=null;//private int iLastCreatedNode=-1;
 		public static int iTextCursorWidth=2;
 		public static int DefaultMaxNodes=77;//TODO: GetOrCreate a default in settings
 		
@@ -98,19 +98,22 @@ namespace ExpertMultimedia {
 		/// <summary>
 		/// This should only be read or modified internally (see RApplication)!
 		/// </summary>
-		public int iActiveNode=0;
+		public RForm rformActive=null;//public int iActiveNode=0;
 		public RForm ActiveNode {
 			get {
 				RForm rformReturn=null;
-				rformReturn=Node(iActiveNode);//Node DOES output error if does not exist
+				rformReturn=rformActive;
 				if (rformReturn==null) {
 					RReporting.ShowErr("ActiveNode is null!","getting active node","RForms get ActiveNode");
 				}
 				return rformReturn;
 			}
-		}
+			set {
+				rformActive=value;
+			}
+		}//end ActiveNode
 		//public RApplication RApplication=null;
-		private RForm[] rformarr=null;//RForm rformRoot;//RForms rformsRoot//RForms[] panearr; //this is where ALL INTERACTIONS are processed
+		private RForm rformRoot=null; //private RForm[] rformarr=null;//RForm rformRoot;//RForms rformsRoot//RForms[] panearr; //this is where ALL INTERACTIONS are processed
 		//public StringQ sqScript=null;//instead of using this, pass unprocessable actions to RApplication
 		//public static Pixel32 pixelBorder=null;//private RImage riSphere=null;
 		/// <summary>
@@ -123,128 +126,44 @@ namespace ExpertMultimedia {
 
 		private int iDefaultNode=0;
 		public bool bStrictXhtml=false;//TODO: set this
-		public int DefaultNodeIndex { get { return iDefaultNode; }  }
-		public int LastCreatedNodeIndex { get { return iLastCreatedNode; } }
 		public string sLastFile="[nofile]";//TODO: set this
 		public int iParsingLine=-1;//TODO: set this
 		public RForm RootNode { 
 			get { 
-				RForm rformReturn=Node(0);
-				if (rformReturn==null) {
-					if (rformarr!=null&&rformarr[0]!=null) RReporting.ShowErr("RootNode is non-null but could not be retrieved!","getting root node","RForms get RootNode {rformarr"+((rformarr!=null)?(".Length:"+rformarr.Length.ToString()):":null")+"}");
-					else RReporting.ShowErr("RootNode is null!","getting root node","RForms get RootNode {rformarr"+((rformarr!=null)?(".Length:"+rformarr.Length.ToString()):":null")+"}");
-				}
-				return rformReturn; 
+				return rformRoot;
 			}
 			//set { if (rformarr!=null) rformarr[0]=value;
 			//		else RReporting.ShowErr("Root node is not available (rforms corruption).", "creating root node", "rforms set root node value {rformarr:null}"); }
 		} //Node DOES output error if does not exist
 		public RForm LastCreatedNode {//formerly nodeLastCreated
 			get {
-				if (iLastCreatedNode>-1) {
-					RForm rformReturn=Node(iLastCreatedNode);//Node shows !exist
-					if (rformReturn==null) {
-						RReporting.ShowErr("LastCreatedNode is null!","getting last created node","RForms get LastCreatedNode");
-					}
-					return rformReturn;
-				}
-				else return null;
+				return rformLastCreated;
 			}
 		}
 		public RForm DefaultNode {//formerly nodeLastCreated
-			get {	if (iDefaultNode>-1) {
-					RForm rformReturn=Node(iDefaultNode);//Node DOES output !exist error
-					if (rformReturn==null) {
-						RReporting.ShowErr("DefaultNode is null!","getting default node","RForms get DefaultNode");
-					}
-					return rformReturn;
-				}
-					else return null; }
-			set { if (iDefaultNode>-1&&rformarr!=null&&iDefaultNode<rformarr.Length) rformarr[iDefaultNode]=value;
-					else RReporting.ShowErr("iDefaultNode is out of range (rforms corruption).", "creating default node", "rforms set DefaultNode value {iDefaultNode:"+iDefaultNode.ToString()+"}");
-			}
+			get { return rformDefault; }
+			set { rformDefault=value; }
 		}
-		public int Maximum {
-			get {
-				try {
-					if (rformarr==null) return 0;
-					else return rformarr.Length;
-				}
-				catch {}
-				return 0;
-			}
-			set {
-				if (value<=0) {
-					rformarr=null;
-					if (RReporting.bDebug) {
-						RReporting.Warning("Setting rformarr to null","setting array size","set rforms Maximum {"+value.ToString()+"}");
-					}
-				}
-				else {
-					RForm[] rformarrNew=new RForm[value];
-					for (int iNow=0; iNow<value; iNow++) {
-						if (iNow<Maximum) rformarrNew[iNow]=rformarr[iNow];
-						else rformarrNew[iNow]=null;
-					}
-					rformarr=rformarrNew;
-				}
-			}
-		}
+		private RForm rformDefault=null;
 		public int Width {
-			get {
-				if (rformarr!=null&&rformarr[0]!=null) {
-					return rformarr[0].Width;
-				}
-				else return 0;
-			}
+			get { return (rformRoot!=null)?rformRoot.Width:0; }
 			set {
-				if (rformarr!=null&&rformarr[0]!=null) {
-					rformarr[0].Width=value;
-					//TODO: refresh sizes now!
-				}
+				if (rformRoot!=null) rformRoot.Width=value;
+				UpdateAll();//debug performance: update only sizes (?)
 			}
 		}
 		public int Height {
-			get {
-				if (rformarr!=null&&rformarr[0]!=null) {
-					return rformarr[0].Height;
-				}
-				else return 0;
-			}
+			get { return (rformRoot!=null)?rformRoot.Height:0; }
 			set {
-				if (rformarr!=null&&rformarr[0]!=null) {
-					rformarr[0].Height=value;
-					//TODO: refresh sizes now!
-				}
+				if (rformRoot!=null) rformRoot.Height=value;
+				UpdateAll();//debug performance: update only sizes (?)
 			}
 		}
 		public int WidthInner {
-			get {
-				if (rformarr!=null&&rformarr[0]!=null) {
-					return rformarr[0].WidthInner;
-				}
-				else return 0;
-			}
-			//set {
-			//	if (rformarr!=null&&rformarr[0]!=null) {
-					//rformarr[0].WidthInner=value;
-					//TODO: refresh sizes now!
-			//	}
-			//}
+			get { return (rformRoot!=null)?rformRoot.WidthInner:0; }
 		}
 		public int HeightInner {
-			get {
-				if (rformarr!=null&&rformarr[0]!=null) {
-					return rformarr[0].HeightInner;
-				}
-				else return 0;
-			}
-			//set {
-			//	if (rformarr!=null&&rformarr[0]!=null) {
-			//		rformarr[0].HeightInner=value;
-					//TODO: refresh sizes now!
-			//	}
-			//}
+			get { return (rformRoot!=null)?rformRoot.HeightInner:0; }
 		}
 		public RForms() {
 			Init(RApplication.ClientWidth, RApplication.ClientHeight);
@@ -310,25 +229,29 @@ namespace ExpertMultimedia {
 // 			bDoneFromRApplication=true;
 // 			return bGood;
 // 		}//end from RApplication
+		
 		private void CreateRootNode() {
-			if (Maximum==0) Maximum=DefaultMaxNodes;
-			rformarr[0]=new RForm(this,-1,/*RForm.TypeForm,*/"","",0,0,RApplication.Width,RApplication.Height);//The root rform
-			rformarr[0].bScrollable=true;
-			rformarr[0].bTabStop=false;
-			if (iUsedNodes<1) iUsedNodes=1;
-			iLastCreatedNode=0;
+			rformLastCreated=new RForm(null,/*RForm.TypeForm,*/"","",0,0,RApplication.Width,RApplication.Height);//The root rform
+			rformRoot=rformLastCreated;
+			//if (Maximum==0) Maximum=DefaultMaxNodes;
+			//rformarr[0]=rformLastCreated;
+			rformLastCreated.bScrollable=true;//rformarr[0].bScrollable=true;
+			rformLastCreated.bTabStop=false;//rformarr[0].bTabStop=false;
+			//if (iUsedNodes<1) iUsedNodes=1;
+			//iLastCreatedNode=0;
 		}
 		private void Init(int iSetWindowWidth, int iSetWindowHeight) {
 			iActiveNode=0;
-			rformarr=null;
-			Maximum=DefaultMaxNodes;
+			rformDefault.Clear_Nodes(true,false);
+			//rformarr=null;
+			//Maximum=DefaultMaxNodes;
 			try {
 				
 				//iactionq=new InteractionQ();
 				//pixelBorder=new Pixel32(255,128,128,128);
 				//riSphere=new RImage(Manager.sInterfaceFolderSlash+"sphere.png");
 				RReporting.DebugWriteLine();
-				RReporting.DebugWrite("Initializing rforms object {Maximum:"+Maximum+"} "+RString.DateTimePathString(false)+"...");
+				RReporting.DebugWrite("Initializing rforms object "+RString.DateTimePathString(false)+"...");
 				CreateRootNode();
 				RForms.iTextCursorWidth=iSetWindowHeight/300;//using height intentionally, to avoid making it too wide on wide screen displays
 				if (RForms.iTextCursorWidth<1) RForms.iTextCursorWidth=1;
@@ -350,7 +273,7 @@ namespace ExpertMultimedia {
 			//for (int iNode=0; iNode<this.iUsedNodes; iNode++) {
 			//	if (this.rformarr[iNode]!=null) this.rformarr[iNode].bRendered=false;
 			//}
-			int iRootNodes=NodeToHtml_Recursive(ref sReturn, 0, -1, "\t", Environment.NewLine);
+			int iRootNodes=NodeToHtml_Recursive(ref sReturn, 0, "\t", Environment.NewLine);
 			if (RReporting.bDebug&&iRootNodes!=1) RReporting.Warning("There are "+iRootNodes.ToString()+" root nodes.");
 			return sReturn;
 		}
@@ -363,34 +286,8 @@ namespace ExpertMultimedia {
 		/// <param name="sIndentUsing"></param>
 		/// <param name="sNewLine">sNewLine--Set to "" Or null to get html all on one line nullifying indent</param>
 		/// <returns></returns>
-		private int NodeToHtml_Recursive(ref string sAppendTo, int iDepth, int iParentNow, string sIndentUsing, string sNewLine) {
-			int iChildrenFound=0;
-			if (sIndentUsing==null) sIndentUsing="";
-			if (sNewLine==null) sNewLine="";
-			for (int iNode=0; iNode<this.iUsedNodes; iNode++) {
-				if (this.rformarr[iNode]!=null) {
-					if (this.rformarr[iNode].ParentIndex==iParentNow) {
-						iChildrenFound++;
-						string sIndentNow=(sNewLine!="") ? RString.Repeat(sIndentUsing,iDepth) : "";
-						sAppendTo += sIndentNow + rformarr[iNode].sOpener + ( (RReporting.bDebug) ? ("<!--end sOpener {sOpener.Length:"+rformarr[iNode].sOpener.Length.ToString()+"); SafeLength(sOpener):"+RString.SafeLength(rformarr[iNode].sOpener).ToString()+"}-->") : "" ) + sNewLine;
-						if (!RString.IsBlank(rformarr[iNode].sContent))
-							sAppendTo += sIndentNow + rformarr[iNode].sContent + ( (RReporting.bDebug) ? "<!--end sContent-->" : "" ) + sNewLine;
-						int Node_ChildCount=NodeToHtml_Recursive(ref sAppendTo, iDepth+1, iNode, sIndentUsing, sNewLine);
-						//if (RReporting.bMegaDebug) {
-						//	sAppendTo += sIndentNow + "<!--[COMMENT] {SafeLength(sOpener):"+RString.SafeLength(rformarr[iNode].sOpener).ToString()+"}-->" + sNewLine;
-						//}
-						sAppendTo += sIndentNow
-							+ ( (!RString.CompareAt(rformarr[iNode].sOpener,"/>",rformarr[iNode].sOpener.Length-2)) 
-							   ? rformarr[iNode].sCloser
-							   : "" )
-							+ ( (RReporting.bDebug) ? "<!--end sCloser-->" : "" )
-							+ (RString.SafeString(rformarr[iNode].sPostText))
-							+ ( (RReporting.bDebug) ? ("<!--end sPostText-->"+sNewLine) : "" );
-						//do NOT break, since many children can have same parent
-					}
-				}
-			}			
-			return iChildrenFound;
+		private int NodeToHtml_Recursive(ref string sAppendTo, int iDepth, /*int iParentNow, */string sIndentUsing, string sNewLine) {
+			return (rformRoot!=null)?rformRoot.NodeToHtml_Recursive(ref sAppendTo, iDepth, sIndentUsing, sNewLine):-1;
 		}//end NodeToHtml_Recursive
 		private static void CalculateThemeVariables() {
 			try {
@@ -437,39 +334,23 @@ namespace ExpertMultimedia {
 			}
 			return bFound;
 		}
-		public bool SetDefaultNode(int iNodeX) {
+		public bool SetDefaultNode(RForm SetDefaultNode_MustBeInThisTab) {//int iNodeX) {
 			bool bGood=false;
-			if (IsUsedNode(iNodeX)) {
-				iDefaultNode=iNodeX;
+			if (SetDefaultNode_MustBeInThisTab!=null) {
+				rformDefault=SetDefaultNode_MustBeInThisTab;
 				bGood=true;
 			}
+			//if (IsUsedNode(iNodeX)) {
+			//	iDefaultNode=iNodeX;
+			//	bGood=true;
+			//}
 			return bGood;
 		}
-		public bool SetDefaultNode(string Name) {
-			int index=IndexOfNodeByName(Name);
-			if (index>-1) iDefaultNode=index;
-			return DefaultNode!=null&&DefaultNode.Name==Name;
-		}
-		public int IndexOfNodeByName(string sName) {
-			int iUsedNow=0;
-			int iReturn=-1;
-			try {
-				for (int iNow=0; iNow<rformarr.Length&&iUsedNow<iUsedNodes; iNow++) {
-					if (rformarr[iNow]!=null) {
-						if (rformarr[iNow].Name==sName) {
-							return iNow;
-						}
-						iUsedNow++;
-					}
-				}
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
-			}
-			return iReturn;
-		}//end IndexOfNodeByName
-		public bool IsUsedNode(int iNodeX) {
-			return rformarr!=null&&rformarr.Length>iNodeX&&iUsedNodes>iNodeX&&rformarr[iNodeX]!=null;
+		public bool SetDefaultNode(string NameToFind) {
+			//int index=IndexOfNodeByName(NameToFind);
+			//if (index>-1) iDefaultNode=index;
+			DefaultNode=NodeByName(NameToFind);
+			return DefaultNode!=null&&DefaultNode.Name==NameToFind;
 		}
 		public bool Undo() {
 			bool bGood=false;
@@ -481,35 +362,6 @@ namespace ExpertMultimedia {
 			return bGood;
 		}
 		
-		public bool NodeExists(int iNode) {
-			try {
-				return (iNode>=0 && iNode<Maximum && rformarr[iNode]!=null);
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"looking for RApplication node","RForms NodeExists");
-			}
-			return false;
-		}
-		public RForm Node(int iNodeIndex) {
-			RForm rformReturn=null;
-			try {
-				if (iNodeIndex<0 || iNodeIndex>=iUsedNodes || iNodeIndex>=Maximum) {
-					RReporting.ShowErr("Node index is out of range.","getting node",
-						String.Format("RForms Node(NodeIndex={0}){{ UsedNodes:{1}; Maximum:{2}}}",
-						iNodeIndex,iUsedNodes,Maximum)
-					);
-				}
-				else if (rformarr[iNodeIndex]==null) {
-					RReporting.ShowErr("RApplication node at the given index is null.","getting node",String.Format("RForms Node({0}){{node[{0}]:null}}",iNodeIndex));
-				}
-				else rformReturn=rformarr[iNodeIndex];
-			}
-			catch (Exception exn) {
-				rformReturn=null;
-				RReporting.ShowExn(exn,"getting RApplication node by index","RForms Node");
-			}
-			return rformReturn;
-		}
 		public void SetOrCreate(int iAt, int x, int y, string sName, string sCaption, string sEventAssignmentString) {
 			int parent=0;//TODO: REPLACE WITH A SELFINDEX MEMBER VARIABLE, AND KEEP TRACK OF SELFINDEX!
 			try {
@@ -574,6 +426,8 @@ namespace ExpertMultimedia {
 				DPoint ptCursor=new DPoint(0,0);
 				string[] sarrRectNow=new string[4];
 				double[] darrRectNow=new double[4];
+				
+				//TODO: cascade HTML properties AND CSS attributes into vsCascadedFuzzyAttributes
 				
 				///TODO: draw 3d scene HERE
 				///-RootNode.rectAbs is client area
@@ -847,28 +701,8 @@ namespace ExpertMultimedia {
 		//Gets a node by the "name" html property, else returns null.
 		/// </summary>
 		public bool NodeByName(out RForm nodeResult, string sExactNamePropertyValueToFind) {
-			bool bFound=false;
 			nodeResult=null;
-			try {
-				int iUsedFound=0;
-				int iNow=0;
-				while (iUsedFound<iUsedNodes&&iNow<Maximum) {
-					if (rformarr[iNow]!=null) {
-						iUsedFound++;
-						if (rformarr[iNow].GetProperty("name")==sExactNamePropertyValueToFind) {
-							nodeResult=rformarr[iNow];
-							bFound=true;
-							break;
-						}
-					}
-					iNow++;
-				}
-			}
-			catch (Exception exn) {
-				bFound=false;
-				RReporting.ShowExn(exn,"","NodeByName");
-			}
-			return bFound;
+			return (rformRoot!=null)?rformRoot.NodeByName(out nodeResult,sExactNamePropertyValueToFind):false;
 		}//end NodeByName
 		/// <summary>
 		//Gets a node by the "name" html property, else returns null.
@@ -876,7 +710,7 @@ namespace ExpertMultimedia {
 		public RForm NodeByName(string sExactNamePropertyValueToFind) {
 			RForm rformReturn;
 			bool bGood=NodeByName(out rformReturn, sExactNamePropertyValueToFind);
-			return rformReturn;
+			return rformReturn; //return (rformRoot!=null)?rformRoot.NodeByName(sName):null;
 		}//end NodeByName
 		
 		//public bool MouseButtonDown(int iToNode, int xAt, int yAt) {
@@ -1849,29 +1683,27 @@ namespace ExpertMultimedia {
 		///<summary>
 		///Returns the nearest name ancestor.
 		///</summary>
-		public int GetNearestAncestor(int iOfNode, string AncestorName) {//formerly GetParentForm
+		public int GetNearestAncestor(RForm child, string AncestorName) {//formerly GetParentForm
 			try {
-				RForm selfNow=Node(iOfNode);
-				if (selfNow==null) {
+				if (child==null) {
 					RReporting.ShowErr("Source node is null!","getting current node","RForms GetNearestAncestor(iOfNode="+iOfNode.ToString()+",AncestorName="+RReporting.StringMessage(AncestorName,true)+")");
 				}
-				else if (iOfNode==0) {
-					RReporting.ShowErr("Tried to get ancestor of the root node (0)!");
+				else if (child.Parent==null) {
+					RReporting.ShowErr("Tried to get ancestor of the root node (self.Parent==null)!");
 				}
-				else if (selfNow.ParentIndex!=0) {
-					RReporting.ShowErr("Tried to get ancestor of node whose parent is the root node (0)!");
+				else if (child.Parent!=null && child.Parent.Parent==null) {
+					RReporting.ShowErr("Tried to get ancestor of node whose parent is the root node (self.Parent.Parent==null)!");
 				}
-				else {
-					RForm parentNow=selfNow.Parent;
-					if (parentNow!=null&&parentNow.TagwordEquals(AncestorName)) {
-						return selfNow.ParentIndex;
+				else {//everything is ok
+					if (child.Parent!=null&&child.Parent.TagwordEquals(AncestorName)) {
+						return child.Parent;
 					}
 				}
 			}
 			catch (Exception exn) {
 				RReporting.ShowExn(exn);
 			}
-			return 0;
+			return null;
 		}
 		public int CountByParent(int ParentIndex) {
 			int iUsedNow=0;

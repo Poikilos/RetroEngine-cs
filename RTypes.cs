@@ -3,42 +3,7 @@ using System.Drawing;
 //using REAL = System.Single; //System.Double
 
 namespace ExpertMultimedia {
-	public struct Pixel24Struct {
-		public byte B;
-		public byte G;
-		public byte R;
-	}
-	public struct PixelHsvaStruct {
-		public byte H;
-		public byte S;
-		public byte V;
-		public byte A;
-		//public PixelHsvaStruct() {
-		//	Set(0,0,0,0);
-		//}
-		public PixelHsvaStruct(byte h, byte s, byte v, byte a) {
-			H=h; S=s; V=v; A=a;
-		}
-		public void Set(byte h, byte s, byte v, byte a) {
-			H=h; S=s; V=v; A=a;
-		}
-		public void FromArgb(byte a, byte r, byte g, byte b) {
-			RConvert.RgbToHsv(out H, out S, out V, ref r, ref g, ref b);
-			A=a;
-		}
-		public void FromRgb(byte r, byte g, byte b) {
-			RConvert.RgbToHsv(out H, out S, out V, ref r, ref g, ref b);
-			A=255;
-		}
-		public float HueDeg {
-			get { return RConvert.ByteToDegF(H); }
-			set { H=RConvert.DegToByte((float)value); }
-		}
-		public float HueMultiplier {
-			get { return RConvert.ToFloat_255As1(H); }
-			set { H=RConvert.ToByte_1As255((float)value); }
-		}
-	}//end PixelHsvaStruct
+
 	public struct Percent {
 		//static Percent() {
 		//	SetSignificantDecimalPlaces(2);
@@ -59,7 +24,7 @@ namespace ExpertMultimedia {
 		private const int DecimalPlaces=3;
 		public const int SignificantDecimalPlaces=2;
 		public static readonly int ToWholeDivisor=RMath.SafePow(10,DecimalPlaces);
-		//i.e. Pow(10,3) = 1000 ; causing 100 percent to be stored as 100000 as in percentage section (10,000 is accurate enough for the screen [i.e. still allows subpixels at 6400pixels], but extra digit is needed for rounding during math operations)
+		//i.e. Pow(10,3) = 1000 ; causing 100 percent to be stored as 100000 as in percentage class (10,000 is accurate enough for the screen [i.e. still allows subpixels at 6400pixels], but extra digit is needed for rounding during math operations)
 		public static readonly int Entire=100*ToWholeDivisor;
 		private static readonly double dEntire=100.0*(double)ToWholeDivisor;
 		private static readonly int EntireLength=Entire.ToString().Length;
@@ -160,232 +125,6 @@ namespace ExpertMultimedia {
 		}//end ToString
 	}//end Percent struct
 	
-	public class Pixel32 {
-		public byte B;
-		public byte G;
-		public byte R;
-		public byte A;
-		public Pixel32(byte a, byte r, byte g, byte b) {
-			Set(a,r,g,b);
-		}
-		public Pixel32(Pixel32 colorNow) {
-			Set(colorNow);
-		}
-		public Pixel32(Color colorNow) {
-			Set(colorNow);
-		}
-		public void Set(byte a, byte r, byte g, byte b) {
-			A=a;
-			R=r;
-			G=g;
-			B=b;
-		}
-		public void Set(Pixel32 colorNow) {
-			A=colorNow.A;
-			R=colorNow.R;
-			G=colorNow.G;
-			B=colorNow.B;
-		}
-		public void Set(Color colorNow) {
-			A=colorNow.A;
-			R=colorNow.R;
-			G=colorNow.G;
-			B=colorNow.B;
-		}
-		public static Pixel32 FromArgb(byte a, byte r, byte g, byte b) {
-			return new Pixel32(a,r,g,b);
-		}
-		public static Pixel32 FromArgb(float a, float r, float g, float b) {
-			return new Pixel32(RMath.ByRound(a),RMath.ByRound(r),RMath.ByRound(g),RMath.ByRound(b));
-		}
-	}//end Pixel32
-	public class Pixel32Struct {
-		public byte B;
-		public byte G;
-		public byte R;
-		public byte A;
-		public Pixel32Struct() {
-			Set(0,0,0,0);
-		}
-		public Pixel32Struct(byte a, byte r, byte g, byte b) {
-			Set(a,r,g,b);
-		}
-		public Pixel32Struct(Pixel32Struct colorNow) {
-			Set(colorNow);
-		}
-		public Pixel32Struct(Color colorNow) {
-			Set(colorNow);
-		}
-		public void Set(byte a, byte r, byte g, byte b) {
-			A=a;
-			R=r;
-			G=g;
-			B=b;
-		}
-		public void Set(Pixel32Struct colorNow) {
-			A=colorNow.A;
-			R=colorNow.R;
-			G=colorNow.G;
-			B=colorNow.B;
-		}
-		public void Set(Color colorNow) {
-			A=colorNow.A;
-			R=colorNow.R;
-			G=colorNow.G;
-			B=colorNow.B;
-		}
-		public static Pixel32Struct FromArgb(byte a, byte r, byte g, byte b) {
-			return new Pixel32Struct(a,r,g,b);
-		}
-		public static Pixel32Struct FromArgb(float a, float r, float g, float b) {
-			return new Pixel32Struct(RMath.ByRound(a),RMath.ByRound(r),RMath.ByRound(g),RMath.ByRound(b));
-		}
-	}//end Pixel32Struct
-	public class PixelYhs {
-		public float Y;
-		public float H;
-		public float S;
-		public PixelYhs() {
-			Reset();
-		}
-		public PixelYhs(float y, float h, float s) {
-			Set(y,h,s);
-		}
-		public PixelYhs(PixelYhsa pxNow) {
-			From(pxNow);
-		}
-		public PixelYhs Copy() {
-			PixelYhs pxReturn=new PixelYhs();
-			pxReturn.Set(Y,H,S);
-			return pxReturn;
-		}
-		public void CopyTo(ref PixelYhs pxDest) {
-			if (pxDest==null) pxDest=new PixelYhs(Y,H,S);
-			else pxDest.Set(Y,H,S);
-		}
-		public void CopyTo(ref PixelYhsa pxDest) {
-			if (pxDest==null) pxDest=new PixelYhsa(Y,H,S,1.0f);
-			else pxDest.Set(Y,H,S,1.0f);
-		}
-		public void Reset() {
-			Y=0;
-			H=0;
-			S=0;
-		}
-		public void Set(float y, float h, float s) {
-			Y=y;
-			H=h;
-			S=s;
-		}
-		public void Set(byte y, byte h, byte s) {
-			Y=RConvert.ByteToFloat(y);
-			H=RConvert.ByteToFloat(h);
-			S=RConvert.ByteToFloat(s);
-		}
-		public void Get(out byte y, out byte h, out byte s) {
-			y=RConvert.DecimalToByte(Y);
-			h=RConvert.DecimalToByte(H);
-			s=RConvert.DecimalToByte(S);
-		}
-		public void From(PixelYhs pxNow) {
-			Y=pxNow.Y;
-			H=pxNow.H;
-			S=pxNow.S;
-		}
-		public void From(PixelYhsa pxNow) {
-			Y=pxNow.Y;
-			H=pxNow.H;
-			S=pxNow.S;
-		}
-		public void FromRgb(byte r, byte g, byte b) {
-			RConvert.RgbToHsv(out H, out S, out Y, ref r, ref g, ref b);//RConvert.RgbToYhs(out Y, out H, out S, (float)r, (float)g, (float)b);
-		}
-	}//end PixelYhs
-	public class PixelYhsa {
-		public float Y;
-		public float H;
-		public float S;
-		public float A;
-		public PixelYhsa() {
-			Reset();
-		}
-		public PixelYhsa(float y, float h, float s, float a) {
-			Set(y,h,s,a);
-		}
-		public PixelYhsa(PixelYhs pxNow) {
-			From(pxNow);
-		}
-		public PixelYhsa Copy() {
-			PixelYhsa pxReturn=new PixelYhsa();
-			pxReturn.Set(Y,H,S,A);
-			return pxReturn;
-		}
-		public void CopyTo(ref PixelYhsa pxDest) {
-			if (pxDest==null) pxDest=new PixelYhsa(Y,H,S,A);
-			else pxDest.Set(Y,H,S,A);
-		}
-		public void CopyTo(ref PixelYhs pxDest) {
-			if (pxDest==null) pxDest=new PixelYhs(Y,H,S);
-			else pxDest.Set(Y,H,S);
-		}
-		public void Reset() {
-			Y=0;
-			H=0;
-			S=0;
-			A=0;
-		}
-		public void Set(float y, float h, float s, float a) {
-			Y=y;
-			H=h;
-			S=s;
-			A=a;
-		}
-		public void Set(byte y, byte h, byte s, byte a) {
-			Y=RConvert.ByteToFloat(y);
-			H=RConvert.ByteToFloat(h);
-			S=RConvert.ByteToFloat(s);
-			A=RConvert.ByteToFloat(a);
-		}
-		public void Get(out byte y, out byte h, out byte s, out byte a) {
-			y=RConvert.DecimalToByte(Y);
-			h=RConvert.DecimalToByte(H);
-			s=RConvert.DecimalToByte(S);
-			a=RConvert.DecimalToByte(A);
-		}
-		public void From(PixelYhsa pxNow) {
-			Y=pxNow.Y;
-			H=pxNow.H;
-			S=pxNow.S;
-			A=pxNow.A;
-		}
-		public void From(PixelYhs pxNow) {
-			Y=pxNow.Y;
-			H=pxNow.H;
-			S=pxNow.S;
-			A=1.0f;
-		}
-		public void FromArgb(byte a, byte r, byte g, byte b) {
-			RConvert.RgbToHsv(out H, out S, out Y, ref r, ref g, ref b);//RConvert.RgbToYhs(out Y, out H, out S, (float)r, (float)g, (float)b);
-			A=RConvert.DecimalToByte(((float)a/255.0f) );
-		}
-		public void FromRgb(byte r, byte g, byte b) {
-			RConvert.RgbToHsv(out H, out S, out Y, ref r, ref g, ref b);//RConvert.RgbToYhs(out Y, out H, out S, (float)r, (float)g, (float)b);
-			A=1.0f;
-		}
-	}//end PixelYhsa
-	
-	public struct FPx {
-		public float B;
-		public float G;
-		public float R;
-		public float A;
-	}
-	public struct DPx {
-		public double B;
-		public double G;
-		public double R;
-		public double A;
-	}
 	public struct DPoint {
 		public double X;
 		public double Y;
@@ -484,7 +223,7 @@ namespace ExpertMultimedia {
 				return abs;
 			}
 		}
-	}//end FTrimmedAxis section 
+	}//end FTrimmedAxis class 
 	public class FRange {
 		public float min;
 		public float max;
@@ -537,8 +276,8 @@ namespace ExpertMultimedia {
 				X=ipSet.X;
 				Y=ipSet.Y;
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"constructing/setting point using other point","IPoint Set(IPoint)");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"constructing/setting point using other point","IPoint Set(IPoint)");
 			}
 		}
 		public void Set(int xSet, int ySet) {
@@ -561,8 +300,8 @@ namespace ExpertMultimedia {
 				ipReturn.X=X;
 				ipReturn.Y=Y;
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","IPoint copy");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"","IPoint copy");
 			}
 			return ipReturn;
 		}
@@ -632,8 +371,8 @@ namespace ExpertMultimedia {
 				Width=rectNow.Width;
 				Height=rectNow.Height;
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"accessing source rectangle", "IRect From(Rectangle)");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"accessing source rectangle", "IRect From(Rectangle)");
 			}
 		}
 		public static void Set(Rectangle rectNow, int xSet, int ySet, int iSetW, int iSetH) {
@@ -643,8 +382,8 @@ namespace ExpertMultimedia {
 				rectNow.Width=iSetW;
 				rectNow.Height=iSetH;
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"setting framework rectangle using IRect","IRect set");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"setting framework rectangle using IRect","IRect set");
 			}
 		}
 		public Rectangle ToRectangle() {
@@ -943,8 +682,8 @@ namespace ExpertMultimedia {
 					rectReturn.Height=(yMax-rectReturn.Y)+1;
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"Poly GetBounds(out IRect)");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"Poly GetBounds(out IRect)");
 			}
 			return bGood;
 		}//end GetBounds(IRect)
@@ -987,8 +726,8 @@ namespace ExpertMultimedia {
 				Right=zoneSet.Right;
 				Bottom=zoneSet.Bottom;
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"setting/constructing zone using other zone","IZone Set(IZone)");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"setting/constructing zone using other zone","IZone Set(IZone)");
 			}
 		}
 		public IZone(int iTop, int iLeft, int iRight, int iBottom) {
@@ -1034,8 +773,8 @@ namespace ExpertMultimedia {
 					else RReporting.ShowErr("Source rect width was "+rectFrom.Width.ToString()+" while setting IZone");
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"IZone From(IRect)");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"IZone From(IRect)");
 			}
 		}
 		public Rectangle ToRectangle() {
@@ -1244,7 +983,7 @@ namespace ExpertMultimedia {
 				darrFromSecondDivisor[TimeType_Frame]=dFrameRate;
 				if (sText==null) sText="";
 				if (sText.Length>0) {
-					int iMSTotal=0;
+					//int iMSTotal=0;
 					//string[] sarrNum=new String[sText.Length];
 					//string[] sarrType=new String[sText.Length];
 					//for (int iNow=0; iNow<sText.Length; iNow++) {
@@ -1265,7 +1004,7 @@ namespace ExpertMultimedia {
 						}
 						else sText="";
 					}
-					//int iNums=0;
+					int iNums=0;
 					RReporting.sParticiple="checking DHMSF timecode string";
 					int iDigits=0;
 					int iLastDecimal=-1;
@@ -1370,9 +1109,9 @@ namespace ExpertMultimedia {
 					dReturn=0.0M;
 				}
 			}
-			catch (Exception exn) {
+			catch (Exception e) {
 				bGood=false;
-				RReporting.ShowExn(exn);
+				RReporting.ShowExn(e);
 			}
 			if (!bGood) dReturn=decimal.MinValue;
 			return dReturn;
@@ -1383,8 +1122,8 @@ namespace ExpertMultimedia {
 				rtlTotal.Value+=rtlNow.Value;
 				bGood=true;
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 			}
 			return bGood;
 		}//end AddTo(ref,...)
@@ -1519,5 +1258,5 @@ namespace ExpertMultimedia {
 			}
 			return sReturn;
 		}//end ToString_DHMS
-	}//end section RTimeLength
+	}//end class RTimeLength
 }//end namespace

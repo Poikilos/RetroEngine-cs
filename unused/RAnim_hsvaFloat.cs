@@ -104,11 +104,11 @@ namespace ExpertMultimedia {
 					for (long lNow=0; lNow<lFrames; lNow++) {
 						if (gbarrAnim[lNow]!=null) animReturn.gbarrAnim[lNow]=gbarrAnim[lNow].Copy();
 						else {
-							Base.ShowErr("Trying to copy null frame!","Anim Copy");
+							RReporting.ShowErr("Trying to copy null frame!","Anim Copy");
 						}
 					}
 				}
-				else Base.ShowError("Uncached anim not yet implemented","anim Copy");
+				else RReporting.ShowError("Uncached anim not yet implemented","anim Copy");
 				animReturn.gbFrame=animReturn.gbarrAnim[lFrameNow];
 				if (iEffects>0) {
 					animReturn.effectarr=new Effect[iEffects];
@@ -118,7 +118,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowException(exn,"anim Copy");
+				RReporting.ShowExn(exn,"anim Copy");
 			}
 			return animReturn;
 		}
@@ -165,7 +165,7 @@ namespace ExpertMultimedia {
 						}
 					}
 				}
-				else Base.ShowError("Uncached Anim not yet implemented","anim CopyAsGray");
+				else RReporting.ShowError("Uncached Anim not yet implemented","anim CopyAsGray");
 				animReturn.gbFrame=animReturn.gbarrAnim[lFrameNow];
 				if (iEffects>0) {
 					animReturn.effectarr=new Effect[iEffects];
@@ -175,7 +175,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowException(exn,"anim CopyAsGray");
+				RReporting.ShowExn(exn,"anim CopyAsGray");
 			}
 			return animReturn;
 		}//end CopyAsGray
@@ -184,17 +184,17 @@ namespace ExpertMultimedia {
 			//try { //first write debug file
 			sFileExt=sSetFileExt;
 			sPathFileBaseName=sSetFileBase;
-			//	Base.StringToFile(sSetFileBase+".txt", Base.ToString(true)); }
+			//	RString.StringToFile(sSetFileBase+".txt", RString.ToString(true)); }
 			//catch (Exception exn) {
-			//	Base.ShowException(exn,anim SaveSeq","saving dump"); }
+			//	RReporting.ShowExn(exn,anim SaveSeq","saving dump"); }
 			try {
 				for (long lFrameSave=0; lFrameSave<lFrames; lFrameSave++) {
 					if (!SaveSeqFrame(lFrameSave)) {
 						bGood=false;
-						Base.ShowError("Couldn't Save "+PathFileOfSeqFrame(sSetFileBase, sSetFileExt, lFrameNow, iSeqDigitsMin),"SaveSeq");
+						RReporting.ShowError("Couldn't Save "+PathFileOfSeqFrame(sSetFileBase, sSetFileExt, lFrameNow, iSeqDigitsMin),"SaveSeq");
 					}
 				}
-			} catch (Exception exn) {Base.ShowExn(exn,"SaveSeq");}
+			} catch (Exception exn) {RReporting.ShowExn(exn,"SaveSeq");}
 			return bGood;
 		}//SaveSeq
 		
@@ -227,14 +227,14 @@ namespace ExpertMultimedia {
 								+"; gbFrame.Channels:"+gbFrame.Channels();
 						}
 						catch (Exception exn) {
-							Base.ShowExn(exn,"anim ToString(true)","accessing gbFrame");
+							RReporting.ShowExn(exn,"anim ToString(true)","accessing gbFrame");
 						}
 					}
 					sReturn+=";}";
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"ToString("+bDumpVars.ToString()+")","saving dump info");
+				RReporting.ShowExn(exn,"ToString("+bDumpVars.ToString()+")","saving dump info");
 				sReturn="{Exception error dumping anim vars}";
 			}
 			return sReturn;
@@ -251,7 +251,7 @@ namespace ExpertMultimedia {
 			bool bGood=true;
 			if (!GotoFrame(lFrameSave)) {
 				bGood=false;
-				Base.ShowErr("Failed to goto frame "+lFrameSave.ToString()+" of Anim","SaveSeqFrame");
+				RReporting.ShowErr("Failed to goto frame "+lFrameSave.ToString()+" of Anim","SaveSeqFrame");
 			}
 			else {
 				bGood=CopyFrameToInternalBitmap();
@@ -259,15 +259,15 @@ namespace ExpertMultimedia {
 					sFileExt=sSetFileExt;
 					bGood=SaveInternalBitmap(PathFileOfSeqFrame(sFileBase, sSetFileExt, lFrameSave, iSeqDigitsMin), ImageFormatFromExt());
 					if (!bGood) {
-						Base.ShowErr("Failed to save "+PathFileOfSeqFrame(sFileBase, sSetFileExt, lFrameSave, iSeqDigitsMin),"SaveCurrentSeqFrame");
+						RReporting.ShowErr("Failed to save "+PathFileOfSeqFrame(sFileBase, sSetFileExt, lFrameSave, iSeqDigitsMin),"SaveCurrentSeqFrame");
 					}
 				}
-				else Base.ShowErr("Failed to copy data to frame image","SaveCurrentSeqFrame");
+				else RReporting.ShowErr("Failed to copy data to frame image","SaveCurrentSeqFrame");
 			}
 			return bGood;
 		}
 		public ImageFormat ImageFormatFromExt() {
-			return Base.ImageFormatFromExt(sFileExt);
+			return RImage.ImageFormatFromExt(sFileExt);
 		}
 		public bool ResetBitmapUsingFrameNow() {
 			bool bGood=true;
@@ -278,7 +278,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"ResetBitmapUsingFrameNow","initializing image");
+				RReporting.ShowExn(exn,"ResetBitmapUsingFrameNow","initializing image");
 			}
 			return bGood;
 		}
@@ -290,7 +290,7 @@ namespace ExpertMultimedia {
 			string sVerbNow="resetting internal bitmap using frame type";
 			try {
 				bGood=ResetBitmapUsingFrameNow();
-				if (!bGood) Base.ShowErr("Failed to reset internal frame image","CopyFrameToInternalBitmap");
+				if (!bGood) RReporting.ShowErr("Failed to reset internal frame image","CopyFrameToInternalBitmap");
 				sVerbNow="getting bounds";
 				gunit = GraphicsUnit.Pixel;
 				rectNowF = bmpLoaded.GetBounds(ref gunit);
@@ -299,9 +299,9 @@ namespace ExpertMultimedia {
 				for (int yNow=0; yNow<rectNow.Height; yNow++) {
 					for (int xNow=0; xNow<rectNow.Width; xNow++) {
 						byte aNow,rNow,gNow,bNow;
-						if (gbFrame.rarrData!=null) aNow=Base.DecimalToByte(gbFrame.rarrData[iNow]);
+						if (gbFrame.rarrData!=null) aNow=RConvert.DecimalToByte(gbFrame.rarrData[iNow]);
 						else aNow=255;
-						if (gbFrame.pxarrData!=null) Base.HsvToRgb(out rNow, out gNow, out bNow, ref gbFrame.pxarrData[iNow].H, ref gbFrame.pxarrData[iNow].S, ref gbFrame.pxarrData[iNow].Y); //Base.YhsToRgb(out rNow, out gNow, out bNow, gbFrame.pxarrData[iNow].Y, gbFrame.pxarrData[iNow].H, gbFrame.pxarrData[iNow].S);
+						if (gbFrame.pxarrData!=null) RConvert.HsvToRgb(out rNow, out gNow, out bNow, ref gbFrame.pxarrData[iNow].H, ref gbFrame.pxarrData[iNow].S, ref gbFrame.pxarrData[iNow].Y); //RConvert.YhsToRgb(out rNow, out gNow, out bNow, gbFrame.pxarrData[iNow].Y, gbFrame.pxarrData[iNow].H, gbFrame.pxarrData[iNow].S);
 						else {
 							rNow=aNow;gNow=aNow;bNow=aNow;
 						}
@@ -311,7 +311,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"CopyFrameToInternalBitmap",sVerbNow);
+				RReporting.ShowExn(exn,"CopyFrameToInternalBitmap",sVerbNow);
 				bGood=false;
 			}
 			return bGood;
@@ -322,14 +322,14 @@ namespace ExpertMultimedia {
 				if (bmpLoaded!=null) bmpLoaded.Dispose();
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"LoadInternalBitmap(\""+sFile+"\")","disposing previous frame image");
+				RReporting.ShowExn(exn,"LoadInternalBitmap(\""+sFile+"\")","disposing previous frame image");
 			}
 			try {
 				bmpLoaded=new Bitmap(sFile);
 				bGood=CopyFrameFromInternalBitmap();
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"LoadInternalBitmap(\""+sFile+"\")","working with file type or location");
+				RReporting.ShowExn(exn,"LoadInternalBitmap(\""+sFile+"\")","working with file type or location");
 				bGood=false;
 			}
 			return bGood;
@@ -338,12 +338,12 @@ namespace ExpertMultimedia {
 			bool bGood=true;
 			try {
 				if (bmpLoaded==null) {
-					Base.ShowErr("image not loaded!","CopyFrameFromInternalBitmap");
+					RReporting.ShowErr("image not loaded!","CopyFrameFromInternalBitmap");
 					bGood=false;
 				}
 				else if (gbFrame==null) {
 					bGood=false;
-					Base.ShowErr("No frame is selected, cannot continue with operation.","CopyFrameFromInternalBitmap");
+					RReporting.ShowErr("No frame is selected, cannot continue with operation.","CopyFrameFromInternalBitmap");
 				}
 				else {
 					gunit = GraphicsUnit.Pixel;
@@ -372,14 +372,14 @@ namespace ExpertMultimedia {
 						for (int xNow=0; xNow<rectNow.Width; xNow++) {
 							pxNow=bmpLoaded.GetPixel(xNow,yNow);
 							gbFrame.pxarrData[iNow].FromRgb(pxNow.R,pxNow.G,pxNow.B);
-							gbFrame.rarrData[iNow]=Base.ByteToReal(pxNow.A);
+							gbFrame.rarrData[iNow]=RConvert.ByteToReal(pxNow.A);
 							iNow++;
 						}
 					}
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"CopyFrameFromInternalBitmap");
+				RReporting.ShowExn(exn,"CopyFrameFromInternalBitmap");
 				bGood=false;
 			}
 			return bGood;
@@ -391,7 +391,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"SaveInternalBitmap(\""+sFileName+"\","+imageformat.ToString()+")");
+				RReporting.ShowExn(exn,"SaveInternalBitmap(\""+sFileName+"\","+imageformat.ToString()+")");
 			}
 			return bGood;
 		}
@@ -406,7 +406,7 @@ namespace ExpertMultimedia {
 				bmpLoaded.Save(sFileName);
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"SaveInternalBitmap(\""+sFileName+"\")");
+				RReporting.ShowExn(exn,"SaveInternalBitmap(\""+sFileName+"\")");
 				bGood=false;
 			}
 			return bGood;
@@ -422,13 +422,13 @@ namespace ExpertMultimedia {
 					lFrameNow=lFrameX;
 				}
 				else {//if ((sPathFile!=null) && (sPathFile.Length>0)) {
-					Base.ShowErr("GotoFrame of non-cached sequence is not available in this version");//debug NYI
+					RReporting.ShowErr("GotoFrame of non-cached sequence is not available in this version");//debug NYI
 					//image.SelectActiveFrame(image.FrameDimensionsList[lFrameX], (int)lFrameX);
 					//debug NYI load from file
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GotoFrame");
+				RReporting.ShowExn(exn,"GotoFrame");
 				bGood=false;
 			}
 			return bGood;
@@ -450,7 +450,7 @@ namespace ExpertMultimedia {
 			try {
 				sReturn=sFileBaseName1;
 				if (iDigitsMin>0) {
-					long lDivisor=Base.SafeE10L((int)(iDigitsMin-1));//returns long since implied base is 10L
+					long lDivisor=RMath.SafeE10L((int)(iDigitsMin-1));//returns long since implied base is 10L
 					long lDestruct=lFrameTarget;
 					while (lDivisor>0) {
 						long lResult=lDestruct/lDivisor;
@@ -464,7 +464,7 @@ namespace ExpertMultimedia {
 				sReturn+="."+sSetFileExt;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"PathFileOfSeqFrame");
+				RReporting.ShowExn(exn,"PathFileOfSeqFrame");
 				sReturn="";
 			}
 			return sReturn;
@@ -480,7 +480,7 @@ namespace ExpertMultimedia {
 				sReturn=PathFileOfSeqFrame(sPathFileBaseName, sFileExt, lFrameTarget, iSeqDigitsMin);
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"PathFileOfSeqFrame("+lFrameTarget.ToString()+")");
+				RReporting.ShowExn(exn,"PathFileOfSeqFrame("+lFrameTarget.ToString()+")");
 				sReturn="";
 			}
 			return sReturn;
@@ -495,7 +495,7 @@ namespace ExpertMultimedia {
 				return SplitFromImage32(sFileImage, iCellWidth, iCellHeight, iRows, iColumns, null, null);
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"SplitFromImage32");
+				RReporting.ShowExn(exn,"SplitFromImage32");
 			}
 			return false;
 		}
@@ -505,7 +505,7 @@ namespace ExpertMultimedia {
 			try {
 				gbTemp=new GBuffer(sFile);
 				if (gbTemp.iPixelsTotal==0) {
-					Base.ShowErr("Couldn't load image","SplitFromImage32","loading font table");
+					RReporting.ShowErr("Couldn't load image","SplitFromImage32","loading font table");
 					bGood=false;
 				}
 				else {
@@ -518,7 +518,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"SplitFromImage32");
+				RReporting.ShowExn(exn,"SplitFromImage32");
 				bGood=false;
 			}
 			return bGood;
@@ -594,7 +594,7 @@ namespace ExpertMultimedia {
 				lFramesCached=lFrames;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"SplitFromImage32","splitting ("+((gbSrc==null)?"null":"non-null "+gbSrc.Description())+") image with specified cell sizes ("+sVerbNow+")");
+				RReporting.ShowExn(exn,"SplitFromImage32","splitting ("+((gbSrc==null)?"null":"non-null "+gbSrc.Description())+") image with specified cell sizes ("+sVerbNow+")");
 			}
 			return bGood;
 		}//end SplitFromImage32
@@ -611,7 +611,7 @@ namespace ExpertMultimedia {
 			bool bGood=false;
 			GBuffer[] gbarrNew;
 			string sDebug="starting TranslateFrameOrder"+Environment.NewLine;
-			Base.StringToFile("C:\\DOCUME~1\\OWNER\\MYDOCU~1\\DATABOX\\anim.TranslateFrameOrder debug.txt", sDebug);
+			RString.StringToFile("C:\\DOCUME~1\\OWNER\\MYDOCU~1\\DATABOX\\anim.TranslateFrameOrder debug.txt", sDebug);
 			try {
 				gbarrNew=new GBuffer[(int)lFrames];
 				int iFrames=(int)lFrames;
@@ -621,7 +621,7 @@ namespace ExpertMultimedia {
 					gbarrNew[iFrame]=gbarrAnim[iNew];
 				}
 				gbarrAnim=gbarrNew;
-				Base.StringToFile("C:\\Documents and Settings\\Owner\\My Documents\\Databox\\anim.TranslateFrameOrder debug.txt", sDebug);
+				RString.StringToFile("C:\\Documents and Settings\\Owner\\My Documents\\Databox\\anim.TranslateFrameOrder debug.txt", sDebug);
 				gbFrame=gbarrAnim[this.lFrameNow];
 				bGood=true;
 			}
@@ -631,7 +631,7 @@ namespace ExpertMultimedia {
 			}
 			sDebug+="Finished.";
 			//TODO: in future don't set bGood according to StringToFile
-			bGood=Base.StringToFile("C:\\Documents and Settings\\Owner\\My Documents\\Databox\\anim.TranslateFrameOrder debug.txt", sDebug);
+			bGood=RString.StringToFile("C:\\Documents and Settings\\Owner\\My Documents\\Databox\\anim.TranslateFrameOrder debug.txt", sDebug);
 			return bGood;
 		}//end TranslateFrameOrder
 		
@@ -673,7 +673,7 @@ namespace ExpertMultimedia {
 						iDestOfCellNow=iDestOfCellTopLeft + yCell*iCellOffsetY + xCell*iCellOffsetX;
 						iDest=iDestOfCellNow;
 						GotoFrame(lFrameLoad);
-						//gbFrame.Save("debugToOneImage"+Base.SequenceDigits(lFrameLoad)+".png",ImageFormat.Png);
+						//gbFrame.Save("debugToOneImage"+RString.SequenceDigits(lFrameLoad)+".png",ImageFormat.Png);
 						for (int iLine=0; iLine<iHeight; iLine++) {
 							int iSrcNow=iSrc;
 							int iDestNow=iDest;
@@ -698,7 +698,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"ToOneImage","combining images to specified cell sizes");
+				RReporting.ShowExn(exn,"ToOneImage","combining images to specified cell sizes");
 			}
 			return gbNew;
 		}//end ToOneImage
@@ -750,7 +750,7 @@ namespace ExpertMultimedia {
 				fxReturn.sScript=sScript;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Effect Copy");
+				RReporting.ShowExn(exn,"Effect Copy");
 			}
 			return fxReturn;
 		}//end Copy
@@ -762,7 +762,7 @@ namespace ExpertMultimedia {
 				//varsFX=new Vars(); //TODO: re-implment FX vars
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Effect Init");
+				RReporting.ShowExn(exn,"Effect Init");
 			}
 		}
 		//public bool FromHorzSkew(int iAnim, double dAngle, int iWidthSrc, int iHeightSrc) {

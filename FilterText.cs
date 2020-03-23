@@ -51,7 +51,7 @@ namespace ExpertMultimedia {
 			bitsBlock=Word.bitBlockable | Word_bits;
 		}
 		public static DisableBlocking() {
-			bitsBlock&=(Base.UintMask^bitBlockable);
+			bitsBlock&=(RMemory.dwMask^bitBlockable);
 		}
 		private static AddWord(string sNew, uint Word_bits) {
 		}
@@ -81,7 +81,7 @@ namespace ExpertMultimedia {
 				if (!bBlock) {
 					//TODO: first remove spaces to check sarrIfPartial
 					for (iNow=0; iNow<sarrIfPartial.Length; iNow++) {
-						if (Base.Contains(sWord,sarrIfPartial[iNow])) {
+						if (RString.Contains(sWord,sarrIfPartial[iNow])) {
 							bBlock=true;
 							break;
 						}
@@ -89,7 +89,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"FilterText IsBlockable")
+				RReporting.ShowExn(exn,"FilterText IsBlockable")
 			}
 			return bBlock;
 		}

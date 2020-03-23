@@ -84,177 +84,177 @@ namespace ExpertMultimedia {
 				dwReturn=new uint[sWord.Length];
 				// phase 1 //
 				for (int iNow=0; iNow<sWord.Length; iNow++) {  
-					if (Base.IsVowelLower(sWord,iNow)) dwReturn[iNow]=Base.bitDictSymbolVowel;
+					if (Base.IsVowelLower(sWord,iNow)) dwReturn[iNow]=Language.bitDictSymbolVowel;
 					else dwReturn[iNow]=DictSymbolUndefined;
 					//Latinize all g's otherwise they are zh (change to zh's later where needed)
 					if (sWord.Substring(iNow,1)=="g") dwReturn[iNow]|=bitDictSymbolLatinize;
 					else if (sWord.Substring(iNow,1)=="y") dwReturn[iNow]|=bitDictSymbolLong;
 					else if ( (sWord.Substring(iNow,1)=="g"||sWord.Substring(iNow,1)=="c")
-					         && (Base.SafeCompare("e",sWord,2)||Base.SafeCompare("i",sWord,2)||Base.SafeCompare("y",sWord,2)) ) {
+					         && (RString.CompareAt("e",sWord,2)||RString.CompareAt("i",sWord,2)||RString.CompareAt("y",sWord,2)) ) {
 						if ( !( sWord.Substring(iNow,1)=="g" && iNow==(sWord.Length-4) && Base.EndsWithVowelConsonantComboLower(sWord,"ccvcc") ) ) {
 								//MUST USE STRING OVERLOAD of ComboLower since still checking vowels/consonants!
 							dwReturn[iNow]|=bitDictSymbolSoft;
 						}
 					}
-					else if ( Base.SafeSubstring(iNow,2)=="oi" ) {
-						dwReturn[iNow]|=Base.bitDictSymbolLong;
-						dwReturn[iNow+1]|=Base.bitDictSymbolLatinize; //so "i" in "oi" becomes an "ee" phoneme
+					else if ( RString.SafeSubstring(iNow,2)=="oi" ) {
+						dwReturn[iNow]|=Language.bitDictSymbolLong;
+						dwReturn[iNow+1]|=Language.bitDictSymbolLatinize; //so "i" in "oi" becomes an "ee" phoneme
 					}
-					else if ( Base.SafeSubstring(iNow,2)=="ei" ) {
-						dwReturn[iNow+1]|=Base.bitDictSymbolSilent; //'ei' becomes the phoneme 'eh'
+					else if ( RString.SafeSubstring(iNow,2)=="ei" ) {
+						dwReturn[iNow+1]|=Language.bitDictSymbolSilent; //'ei' becomes the phoneme 'eh'
 						//that is okay, it will just sound a little mid-western (i.e. "Neighbor" becomes "N-eh-br"
 					}
-					else if ( Base.SafeCompare(iNow,1)=="e" 
-					         && Base.SafeCompareVowelConsonantComboLower(sWord,iNow-2,"vcv") ) {
-						if (!Base.SafeCompareVowelConsonantComboLower(sWord,iNow-3,"vvcv")) { //i.e. not "moore"
+					else if ( RString.CompareAt(iNow,1)=="e" 
+					         && RString.CompareAtVowelConsonantComboLower(sWord,iNow-2,"vcv") ) {
+						if (!RString.CompareAtVowelConsonantComboLower(sWord,iNow-3,"vvcv")) { //i.e. not "moore"
 							//chaser, chasers, etc. (NOT vvcv):
-							dwReturn[iNow-2]|=Base.bitDictSymbolLong;//[v]
-							dwReturn[iNow]|=Base.bitDictSymbolSilent;//e
+							dwReturn[iNow-2]|=Language.bitDictSymbolLong;//[v]
+							dwReturn[iNow]|=Language.bitDictSymbolSilent;//e
 						}
-						else if (Base.SafeCompare("s",sWord,iNow-1)) { //[v][v]se i.e. malaise etc., with vocalized 's' ('z' phoneme)
-							dwReturn[iNow-1]|=Base.bitDictSymbolVocalized;//s becomes 'z'
-							dwReturn[iNow]|=Base.bitDictSymbolSilent;//e
+						else if (RString.CompareAt("s",sWord,iNow-1)) { //[v][v]se i.e. malaise etc., with vocalized 's' ('z' phoneme)
+							dwReturn[iNow-1]|=Language.bitDictSymbolVocalized;//s becomes 'z'
+							dwReturn[iNow]|=Language.bitDictSymbolSilent;//e
 						}
-						else if (Base.SafeCompare("eo",sWord,iNow)) {
-							dwReturn[iNow]|=Base.bitDictSymbolLong;
-							dwReturn[iNow+1]|=Base.bitDictSymbolLong;
+						else if (RString.CompareAt("eo",sWord,iNow)) {
+							dwReturn[iNow]|=Language.bitDictSymbolLong;
+							dwReturn[iNow+1]|=Language.bitDictSymbolLong;
 							//now it is ee-oh
 						}
-						else if (Base.SafeCompare("ee",sWord,iNow)) {
-							dwReturn[iNow]|=Base.bitDictSymbolLong;
-							if (!Base.SafeCompare("ee",sWord,iNow+1))//if not triple-e
-								dwReturn[iNow+1]|=Base.bitDictSymbolSilent;
+						else if (RString.CompareAt("ee",sWord,iNow)) {
+							dwReturn[iNow]|=Language.bitDictSymbolLong;
+							if (!RString.CompareAt("ee",sWord,iNow+1))//if not triple-e
+								dwReturn[iNow+1]|=Language.bitDictSymbolSilent;
 						}
 					}
-					else if ( Base.SafeSubstring(iNow,2)=="qu" ) {
+					else if ( RString.SafeSubstring(iNow,2)=="qu" ) {
 						//separate 'qu', which becomes "kw"
 						//	-mark letters such as 'q' AND 'u' as BOTH bitDictSymbolBlendStart AND bitDictSymbolBlendEnd
-						dwReturn[iNow]|=Base.bitDictSymbolBlendStart|Base.bitDictSymbolBlendEnd;
-						dwReturn[iNow+1]|=Base.bitDictSymbolBlendStart|Base.bitDictSymbolBlendEnd;
-						dwReturn[iNow+1]|=Base.bitDictSymbolLatinize; //'ei' becomes the phoneme 'eh'
+						dwReturn[iNow]|=Language.bitDictSymbolBlendStart|Language.bitDictSymbolBlendEnd;
+						dwReturn[iNow+1]|=Language.bitDictSymbolBlendStart|Language.bitDictSymbolBlendEnd;
+						dwReturn[iNow+1]|=Language.bitDictSymbolLatinize; //'ei' becomes the phoneme 'eh'
 						//that is okay, it will just sound a little mid-western (i.e. "Neighbor" becomes "N-eh-br"
 					}
-					else if ( Base.SafeSubstring(iNow,2)=="ou" && !(Base.SafeSubstring(iNow,4)=="ough") ) {
-						dwReturn[iNow+1]|=Base.bitDictSymbolLatinize; //makes it "ah-w"
+					else if ( RString.SafeSubstring(iNow,2)=="ou" && !(RString.SafeSubstring(iNow,4)=="ough") ) {
+						dwReturn[iNow+1]|=Language.bitDictSymbolLatinize; //makes it "ah-w"
 					}
-					else if ( Base.SafeSubstring(iNow,2)=="ph" ) {
-						dwReturn[iNow]|=Base.bitDictSymbolSoft;
-						dwReturn[iNow+1]|=Base.bitDictSymbolSilent;
+					else if ( RString.SafeSubstring(iNow,2)=="ph" ) {
+						dwReturn[iNow]|=Language.bitDictSymbolSoft;
+						dwReturn[iNow+1]|=Language.bitDictSymbolSilent;
 					}
-					else if ( Base.SafeSubstring(sWord,iNow,2)=="ah") {
-						dwReturn[iNow]|=Base.bitDictSymbolLatinize;
+					else if ( RString.SafeSubstring(sWord,iNow,2)=="ah") {
+						dwReturn[iNow]|=Language.bitDictSymbolLatinize;
 						//if not Coho etc.:
-						if (!Base.SafeCompareVowelConsonantComboLower(sWord,iNow+2,"v")) {
+						if (!RString.CompareAtVowelConsonantComboLower(sWord,iNow+2,"v")) {
 								//MUST USE STRING OVERLOAD of ComboLower since still checking vowels/consonants!
 							//if doesn't end at the 'h', then mute the 'h':
 							if (sWord.Length>iNow+2)
-								dwReturn[iNow+1]|=Base.bitDictSymbolSilent;
+								dwReturn[iNow+1]|=Language.bitDictSymbolSilent;
 						}
 					}
-					else if ( Base.SafeSubstring(sWord,iNow,1)=="a" ) {
-						if (iNow>0 || Base.SafeSubstring(sWord,iNow,2)=="ay") {
-							dwReturn[iNow]|=Base.bitDictSymbolSoft;//makes the 'a' a shwa
+					else if ( RString.SafeSubstring(sWord,iNow,1)=="a" ) {
+						if (iNow>0 || RString.SafeSubstring(sWord,iNow,2)=="ay") {
+							dwReturn[iNow]|=Language.bitDictSymbolSoft;//makes the 'a' a shwa
 						}
 						//TODO: 'eo'
-						else if (Base.SafeSubString(sWord,iNow,4)=="aser"
-						        ||Base.SafeSubstring(sWord,iNow-2,2)=="phase") { //i.e. laser, lasers, phase, etc
-							dwReturn[iNow]|=Base.bitDictSymbolLong;//a
-							dwReturn[iNow+1]|=Base.bitDictSymbolVocalized;//s
-							dwReturn[iNow+2]|=Base.bitDictSymbolSilent;//e
+						else if (RString.SafeSubstring(sWord,iNow,4)=="aser"
+						        ||RString.SafeSubstring(sWord,iNow-2,2)=="phase") { //i.e. laser, lasers, phase, etc
+							dwReturn[iNow]|=Language.bitDictSymbolLong;//a
+							dwReturn[iNow+1]|=Language.bitDictSymbolVocalized;//s
+							dwReturn[iNow+2]|=Language.bitDictSymbolSilent;//e
 						}
-						else if (Base.SafeSubstring(sWord,iNow,2)=="ae") {
+						else if (RString.SafeSubstring(sWord,iNow,2)=="ae") {
 							if (iNow==0 //i.e. aerial becomes "ay-ree-uhl"
 							    ||iNow==sWord.Length-2) { //i.e. Mae/antennae
-								dwReturn[iNow]|=Base.bitDictSymbolLong;
-								dwReturn[iNow+1]|=Base.bitDictSymbolSilent;
+								dwReturn[iNow]|=Language.bitDictSymbolLong;
+								dwReturn[iNow+1]|=Language.bitDictSymbolSilent;
 							}
 							else {
-								dwReturn[iNow]|=Base.bitDictSymbolSoft; //shwa
-								dwReturn[iNow+1]|=Base.bitDictSymbolSilent;
+								dwReturn[iNow]|=Language.bitDictSymbolSoft; //shwa
+								dwReturn[iNow+1]|=Language.bitDictSymbolSilent;
 							}
 						}
-						else if (Base.SafeSubstring(sWord,iNow,2)=="ai") {
-							if (iNow+2==sWord.Length || Base.SafeCompare("aiser",sWord,iNow)) {
-								dwReturn[iNow]|=Base.bitDictSymbolLatinize; //i.e. dubai or kaiser
-								dwReturn[iNow+1]|=Base.bitDictSymbolLatinize; //i.e. dubai or kaiser
+						else if (RString.SafeSubstring(sWord,iNow,2)=="ai") {
+							if (iNow+2==sWord.Length || RString.CompareAt("aiser",sWord,iNow)) {
+								dwReturn[iNow]|=Language.bitDictSymbolLatinize; //i.e. dubai or kaiser
+								dwReturn[iNow+1]|=Language.bitDictSymbolLatinize; //i.e. dubai or kaiser
 							}
 							else {
-								dwReturn[iNow]|=Base.bitDictSymbolLong;//i.e. mail (may-ihl) 
-								if () dwReturn[iNow+1]|=Base.bitDictSymbolSilent;//i.e. malaise (mah-layz)
+								dwReturn[iNow]|=Language.bitDictSymbolLong;//i.e. mail (may-ihl) 
+								if () dwReturn[iNow+1]|=Language.bitDictSymbolSilent;//i.e. malaise (mah-layz)
 							}
 						}
 						else {
-							dwReturn[iNow]|=Base.bitDictSymbolSoft; //all other a's are shwa
+							dwReturn[iNow]|=Language.bitDictSymbolSoft; //all other a's are shwa
 						}
 					}
-					else if ( Base.SafeSubstring(sWord,iNow,2)=="cc"
-					         || Base.SafeSubstring(sWord,iNow,2)=="ch"
-					         || Base.SafeSubstring(sWord,iNow,2)=="sh" 
+					else if ( RString.SafeSubstring(sWord,iNow,2)=="cc"
+					         || RString.SafeSubstring(sWord,iNow,2)=="ch"
+					         || RString.SafeSubstring(sWord,iNow,2)=="sh" 
 					          ) {
 						//ending 'gh' is fixed later
-						dwReturn[iNow]|=Base.bitDictSymbolBlendStart;
-						dwReturn[iNow+1]|=Base.bitDictSymbolBlendEnd;
+						dwReturn[iNow]|=Language.bitDictSymbolBlendStart;
+						dwReturn[iNow+1]|=Language.bitDictSymbolBlendEnd;
 					}
-					else if (Base.SafeSubstring(sWord,iNow,2)=="th") {
-						dwReturn[iNow]|=Base.bitDictSymbolBlendStart;
-						dwReturn[iNow+1]|=Base.bitDictSymbolBlendEnd;
-						if (Base.SafeCompareVowelConsonantComboLower(sWord,iNow+2,"v")) {
-							dwReturn[iNow]|=Base.bitDictSymbolVocalized; //soft, i.e. "the" as opposed to "through"
+					else if (RString.SafeSubstring(sWord,iNow,2)=="th") {
+						dwReturn[iNow]|=Language.bitDictSymbolBlendStart;
+						dwReturn[iNow+1]|=Language.bitDictSymbolBlendEnd;
+						if (RString.CompareAtVowelConsonantComboLower(sWord,iNow+2,"v")) {
+							dwReturn[iNow]|=Language.bitDictSymbolVocalized; //soft, i.e. "the" as opposed to "through"
 						}
 					}
-					else if ( Base.SafeCompare("oo",sWord,iNow) ) {
+					else if ( RString.CompareAt("oo",sWord,iNow) ) {
 					//-combine "oo" in "scoop" but separate o's in "cooperation"
-						//if (!Base.SafeCompare("oo",sWord,iNow))
+						//if (!RString.CompareAt("oo",sWord,iNow))
 						//still allows 
-						dwReturn[iNow]|=Base.bitDictSymbolBlendStart;
-						dwReturn[iNow+1]|=Base.bitDictSymbolBlendEnd;
+						dwReturn[iNow]|=Language.bitDictSymbolBlendStart;
+						dwReturn[iNow+1]|=Language.bitDictSymbolBlendEnd;
 						//right now it is a short 'oo' (fixed below)
 					}
-					else if ( Base.SafeCompare("io",sWord,iNow) ) {
-						if (Base.SafeCompare("ione",sWord,iNow)) {
-							dwReturn[iNow]|=Base.bitDictSymbolLatinize;//i
-							dwReturn[iNow+1]|=Base.bitDictSymbolLong;//o
-							if (iNow+3=sWord.Length-1) dwReturn[iNow+3]|=Base.bitDictSymbolSilent;//e
+					else if ( RString.CompareAt("io",sWord,iNow) ) {
+						if (RString.CompareAt("ione",sWord,iNow)) {
+							dwReturn[iNow]|=Language.bitDictSymbolLatinize;//i
+							dwReturn[iNow+1]|=Language.bitDictSymbolLong;//o
+							if (iNow+3=sWord.Length-1) dwReturn[iNow+3]|=Language.bitDictSymbolSilent;//e
 						}
-						else if (Base.SafeCompare("tion",sWord,iNow-1)) {
-							dwReturn[iNow-1]|=Base.bitDictSymbolSoft; //soft 't' ('sh')
-							dwReturn[iNow+1]|=Base.bitDictSymbolSilent;//silent 'o'
+						else if (RString.CompareAt("tion",sWord,iNow-1)) {
+							dwReturn[iNow-1]|=Language.bitDictSymbolSoft; //soft 't' ('sh')
+							dwReturn[iNow+1]|=Language.bitDictSymbolSilent;//silent 'o'
 							//now it sounds like "shihn"
 						}
-						else if (Base.SafeCompare("sion",sWord,iNow-1)) {
-							if ( Base.SafeCompareVowelConsonantComboLower(sWord,iNow-2,"v")
-							    || Base.SafeCompare("r",sWord,iNow-2) ) {
-								dwReturn[iNow-1]|=Base.bitDictSymbolSoft; //soft 's' ('zh')
-								dwReturn[iNow+1]|=Base.bitDictSymbolSilent;//silent 'o'
+						else if (RString.CompareAt("sion",sWord,iNow-1)) {
+							if ( RString.CompareAtVowelConsonantComboLower(sWord,iNow-2,"v")
+							    || RString.CompareAt("r",sWord,iNow-2) ) {
+								dwReturn[iNow-1]|=Language.bitDictSymbolSoft; //soft 's' ('zh')
+								dwReturn[iNow+1]|=Language.bitDictSymbolSilent;//silent 'o'
 								//now it sounds like "zhihn"
 							}
 							else { //i.e. psionic
-								dwReturn[iNow-2]|=Base.bitDictSymbolSilent; //'p' 
-								dwReturn[iNow]|=Base.bitDictSymbolLong; //i
-								dwReturn[iNow+1]&=Base.bitDictSymbolLong^Base.UintMask;//o
+								dwReturn[iNow-2]|=Language.bitDictSymbolSilent; //'p' 
+								dwReturn[iNow]|=Language.bitDictSymbolLong; //i
+								dwReturn[iNow+1]&=Language.bitDictSymbolLong^RMemory.dwMask;//o
 							}
 						}
 						else if (iNow==0) {
-							dwReturn[0]|=Base.bitDictSymbolLong;
-							if (!Base.SafeCompare("n",sWord,3) || !Base.SafeCompare("d",sWord,3)) { //not ion/iodine
-								dwReturn[1]|=Base.bitDictSymbolLong; //i.e. iomega/iocane
+							dwReturn[0]|=Language.bitDictSymbolLong;
+							if (!RString.CompareAt("n",sWord,3) || !RString.CompareAt("d",sWord,3)) { //not ion/iodine
+								dwReturn[1]|=Language.bitDictSymbolLong; //i.e. iomega/iocane
 							}
 							//else will sound like "ion"
 						}
 						else { //i.e. ratio
-							dwReturn[iNow+1]|=Base.bitDictSymbolLatinize;
-							dwReturn[iNow+1]|=Base.bitDictSymbolLong;
+							dwReturn[iNow+1]|=Language.bitDictSymbolLatinize;
+							dwReturn[iNow+1]|=Language.bitDictSymbolLong;
 						}
 					}
-					//else if ( Base.SafeCompareVowelConsonantComboLower(sWord,iNow,"vv") ) {
+					//else if ( RString.CompareAtVowelConsonantComboLower(sWord,iNow,"vv") ) {
 							//MUST USE STRING OVERLOAD of ComboLower since still checking vowels/consonants!
 					//	dwReturn[iNow]|=bitDictSymbolLong; //only ok since already handled 'ou','oo' etc.
 					//}
-					else if ( Base.SafeCompareVowelConsonantComboLower(sWord,iNow,"vcv") 
-					         && Base.SafeSubstring(iNow-1,2)!="oo" ) { //as long as NOT oo
+					else if ( RString.CompareAtVowelConsonantComboLower(sWord,iNow,"vcv") 
+					         && RString.SafeSubstring(iNow-1,2)!="oo" ) { //as long as NOT oo
 							//MUST USE STRING OVERLOAD of ComboLower since still checking vowels/consonants!
-						if (!Base.SafeCompare("x",sWord,iNow+1)) { //as long as not lexus etc, make 1st vowel long
-							// && (Base.SafeSubstring(iNow-1,2)!="ei") )//this is OK TO NOT CHECK since 'i' became silent
+						if (!RString.CompareAt("x",sWord,iNow+1)) { //as long as not lexus etc, make 1st vowel long
+							// && (RString.SafeSubstring(iNow-1,2)!="ei") )//this is OK TO NOT CHECK since 'i' became silent
 							dwReturn[iNow]|=bitDictSymbolLong;
 						}
 						//exceptions such as heroine, and silent ending e's, are handled below					
@@ -278,40 +278,40 @@ namespace ExpertMultimedia {
 				else if (sWord.Contains("rough") ) {
 					int iThrough=sWord.IndexOf("through");
 					if (iThrough>-1) { //throughput, passthrough, etc
-						dwReturn[iThrough+3]|=Base.bitDictSymbolSilent;//o
-						dwReturn[iThrough+4]|=Base.bitDictSymbolLatinize;//u
-						dwReturn[iThrough+5]|=Base.bitDictSymbolSilent;//g
-						dwReturn[iThrough+6]|=Base.bitDictSymbolSilent;//h
+						dwReturn[iThrough+3]|=Language.bitDictSymbolSilent;//o
+						dwReturn[iThrough+4]|=Language.bitDictSymbolLatinize;//u
+						dwReturn[iThrough+5]|=Language.bitDictSymbolSilent;//g
+						dwReturn[iThrough+6]|=Language.bitDictSymbolSilent;//h
 						bDoneLongG=true;
 					}
 					else if (sWord.StartsWith("thorough")) { //includes thoroughfare etc
-						dwReturn[0]&=Base.bitDictSymbolVocalized^Base.UintMask;
-						dwReturn[4]|=Base.bitDictSymbolLong;//o
-						dwReturn[5]|=Base.bitDictSymbolSilent;//u
-						dwReturn[6]|=Base.bitDictSymbolSilent;//g
-						dwReturn[7]|=Base.bitDictSymbolSilent;//h
+						dwReturn[0]&=Language.bitDictSymbolVocalized^RMemory.dwMask;
+						dwReturn[4]|=Language.bitDictSymbolLong;//o
+						dwReturn[5]|=Language.bitDictSymbolSilent;//u
+						dwReturn[6]|=Language.bitDictSymbolSilent;//g
+						dwReturn[7]|=Language.bitDictSymbolSilent;//h
 						bDoneLongG=true;
 					}
 				}
 				if (!bDoneAllButPhonemes) {
 					//unsoften exceptions to soft c/g rule
-					if (Base.SafeCompare(new string[] {"celt","gear","geisha","gelding","gestalt","get","gift","girl","give","tiger"}, sWord, 0) ) {
+					if (RString.CompareAt(new string[] {"celt","gear","geisha","gelding","gestalt","get","gift","girl","give","tiger"}, sWord, 0) ) {
 						if (sWord=="celt") dwReturn[0]&=(bitDictSymbolSoft^UintMask);
 						else dwReturn[sWord.IndexOf("g")]&=(bitDictSymbolSoft^UintMask);
 					}
 					//fix cooperate and its forms
 					if ( sWord.StartsWith("coopera") ) {
-					    //&& ( Base.SafeCompareVowelConsonantComboLower(dwReturn, 2, "v") || sWord.Substring(2,1)=="-" )  ) {
+					    //&& ( RString.CompareAtVowelConsonantComboLower(dwReturn, 2, "v") || sWord.Substring(2,1)=="-" )  ) {
 						dwReturn[1]|=bitDictSymbolLong;
-						dwReturn[1]|=Base.bitDictSymbolBlendStart|Base.bitDictSymbolBlendEnd;
-						dwReturn[2]|=Base.bitDictSymbolBlendStart|Base.bitDictSymbolBlendEnd;
-						dwReturn[2]|=Base.bitDictSymbolLouder;
-						dwReturn[6]|=Base.bitDictSymbolLoud;
+						dwReturn[1]|=Language.bitDictSymbolBlendStart|Language.bitDictSymbolBlendEnd;
+						dwReturn[2]|=Language.bitDictSymbolBlendStart|Language.bitDictSymbolBlendEnd;
+						dwReturn[2]|=Language.bitDictSymbolLouder;
+						dwReturn[6]|=Language.bitDictSymbolLoud;
 					}
 					//fix leading "sep"
 					int iTemp=sWord.IndexOf("sep");
 					if (iTemp>-1) {
-						dwReturn[iTemp+1]&=Base.bitDictSymbolLong^Base.UintMask;
+						dwReturn[iTemp+1]&=Language.bitDictSymbolLong^RMemory.dwMask;
 					}
 					//fix weird y's
 					iTemp=sWord.IndexOf("y");
@@ -334,24 +334,24 @@ namespace ExpertMultimedia {
 						//long y's:
 						iTemp=sWord.StartsWith("psy"); //phychology but NOT tipsy
 						if (iTemp>-1) {
-							dwReturn[iTemp]|=Base.bitDictSymbolSilent;//p
-							dwReturn[iTemp+2]|=Base.bitDictSymbolLatinize;//y
+							dwReturn[iTemp]|=Language.bitDictSymbolSilent;//p
+							dwReturn[iTemp+2]|=Language.bitDictSymbolLatinize;//y
 						}
 					}
 					//fix ending "or"/"er"
 					if ( (sWord.EndsWith("or")||sWord.EndsWith("er"))
 					    && !sWord.EndsWith("oor") ) {
-						dwReturn[sWord.Length-2]|=Base.bitDictSymbolSilent;
+						dwReturn[sWord.Length-2]|=Language.bitDictSymbolSilent;
 					}
 					//fix aye
 					if (sWord=="aye") {
-						dwReturn[0]|=Base.bitDictSymbolLatinize;
-						dwReturn[2]|=Base.bitDictSymbolSilent;
+						dwReturn[0]|=Language.bitDictSymbolLatinize;
+						dwReturn[2]|=Language.bitDictSymbolSilent;
 					}
 					//fix pyro, gyroscope, bylaws, etc:
-					if (Base.SafeSubstring(sWord,1,1)=="y"
-					    && Base.SafeCompareVowelConsonantComboLower(dwReturn,0,"c")) {
-						dwReturn[1]|=Base.bitDictSymbolLatinize;
+					if (RString.SafeSubstring(sWord,1,1)=="y"
+					    && RString.CompareAtVowelConsonantComboLower(dwReturn,0,"c")) {
+						dwReturn[1]|=Language.bitDictSymbolLatinize;
 					}
 					//fix silent e and other vowel ending combinations
 					if (sWord.EndsWith("oore")) { //silent but not long
@@ -362,34 +362,34 @@ namespace ExpertMultimedia {
 						dwReturn[sWord.Length-1]|=bitDictSymbolSilent;
 						//fix 'i' in heroine and anything else ending with [v]i[c]e:
 						if ( (SafeSubstring(sWord,sWord.Length-3)=="i")
-						    && Base.SafeCompareVowelConsonantComboLower(dwReturn,sWord.Length-4,"v") ) {
-							dwReturn[sWord.Length-4]|=Base.bitDictSymbolLong; //o:uh-w
-							dwReturn[sWord.Length-3]&=(Base.bitDictSymbolLong^Base.UintMask); //i:ih
+						    && RString.CompareAtVowelConsonantComboLower(dwReturn,sWord.Length-4,"v") ) {
+							dwReturn[sWord.Length-4]|=Language.bitDictSymbolLong; //o:uh-w
+							dwReturn[sWord.Length-3]&=(Language.bitDictSymbolLong^RMemory.dwMask); //i:ih
 						}
 					}
 					else if (sWord.EndsWith("gh") && !bDoneLongG) {
 						//make f sound since word with silent gh was not found (!bDoneLongG)
-						dwReturn[sWord.Length-2]|=Base.bitDictSymbolLong|Base.bitDictSymbolBlendStart; //long makes it 'f'
-						dwReturn[sWord.Length-1]|=Base.bitDictSymbolBlendEnd;
+						dwReturn[sWord.Length-2]|=Language.bitDictSymbolLong|Language.bitDictSymbolBlendStart; //long makes it 'f'
+						dwReturn[sWord.Length-1]|=Language.bitDictSymbolBlendEnd;
 						
 					}
 					else if (sWord.EndsWith("a")) {
-						dwReturn[sWord.Length-1]|=Base.bitDictSymbolSoft; //soft makes 'a' a shwa ('uh')
-						if (Base.SafeSubstring(sWord.Length-3,1)=="i" && Base.EndsWithVowelConsonantComboLower(dwReturn,"cv")) {
+						dwReturn[sWord.Length-1]|=Language.bitDictSymbolSoft; //soft makes 'a' a shwa ('uh')
+						if (RString.SafeSubstring(sWord.Length-3,1)=="i" && Base.EndsWithVowelConsonantComboLower(dwReturn,"cv")) {
 							dwReturn[sWord.Length-3]|=bitDictSymbolLatinize; //i.e. shiva, etc
 						}
 					}
 					else if (sWord.EndsWith("ii")) {
-						dwReturn[sWord.Length-2]|=Base.bitDictSymbolLatinize;
-						dwReturn[sWord.Length-1]|=Base.bitDictSymbolLong;
+						dwReturn[sWord.Length-2]|=Language.bitDictSymbolLatinize;
+						dwReturn[sWord.Length-1]|=Language.bitDictSymbolLong;
 					}
 					else if (Base.EndsWithVowelConsonantComboLower(dwReturn,"cv")) {
 						//note: y is already ok since its default is non-latinized long (the phoneme 'ee').
 						if (sWord.EndsWith("i")) {
-							dwReturn[sWord.Length-1]|=Base.bitDictSymbolLatinize;
+							dwReturn[sWord.Length-1]|=Language.bitDictSymbolLatinize;
 						}
-						else dwReturn[sWord.Length-1]|=Base.bitDictSymbolLong;
-						if (Base.SafeSubstring(sWord.Length-3,1)=="i") {
+						else dwReturn[sWord.Length-1]|=Language.bitDictSymbolLong;
+						if (RString.SafeSubstring(sWord.Length-3,1)=="i") {
 							dwReturn[sWord.Length-3]|=bitDictSymbolLatinize; //i.e. tivo, etc
 						}
 					}
@@ -836,13 +836,13 @@ namespace ExpertMultimedia {
 			//TODO: finish this: modify phenome's float loudness multiplier based on letter loudness attributes
 			//debug performance: optimize based on statistical occurance (even have a switch on the server to keep track of statistics, in order to keep up with new lingo etc!)
 			if (sPhoneticBlend=="a") {
-				if (dwarrLetterAttribs[iStartLetter]&Base.bitDictSymbolSoft) {
+				if (dwarrLetterAttribs[iStartLetter]&Language.bitDictSymbolSoft) {
 					pharrReturn=new Phoneme[] {FindPhonemeNonNullCopy("uh")};//soft(shwa)
 				}
-				else if (dwarrLetterAttribs[iStartLetter]&Base.bitDictSymbolLatinize) {
+				else if (dwarrLetterAttribs[iStartLetter]&Language.bitDictSymbolLatinize) {
 					pharrReturn=new Phoneme[] {FindPhonemeNonNullCopy("ah")};
 				}
-				else if (dwarrLetterAttribs[iStartLetter]&Base.bitDictSymbolLong) {
+				else if (dwarrLetterAttribs[iStartLetter]&Language.bitDictSymbolLong) {
 					pharrReturn=new Phoneme[] {FindPhonemeNonNullCopy("eh"), FindPhonemeNonNullCopy("ee")};
 					pharrReturn[1].bDipthongWithPrev=true;
 				}
@@ -854,7 +854,7 @@ namespace ExpertMultimedia {
 				pharrReturn=new Phoneme[] {FindPhonemeNonNullCopy("b")};
 			}
 			else if (sPhoneticBlend=="c") {
-				if (dwarrLetterAttribs[iStartLetter]&Base.bitDictSymbolSoft) 
+				if (dwarrLetterAttribs[iStartLetter]&Language.bitDictSymbolSoft) 
 					pharrReturn=new Phoneme[] {FindPhonemeNonNullCopy("s")};
 				else pharrReturn=new Phoneme[] {FindPhonemeNonNullCopy("k")};
 			}
@@ -865,13 +865,13 @@ namespace ExpertMultimedia {
 				//TODO: finish this and all others up to z
 			}
 			else if (sPhoneticBlend=="g") {
-				if (dwarrLetterAttribs[iStartLetter]&Base.bitDictSymbolLatinize) {
+				if (dwarrLetterAttribs[iStartLetter]&Language.bitDictSymbolLatinize) {
 					pharrReturn=new Phoneme[] {FindPhonemeNonNullCopy("zh")};
 				}
-				else if (dwarrLetterAttribs[iStartLetter]&Base.bitDictSymbolLong) {
+				else if (dwarrLetterAttribs[iStartLetter]&Language.bitDictSymbolLong) {
 					pharrReturn=new Phoneme[] {FindPhonemeNonNullCopy("f")};
 				}
-				else if (dwarrLetterAttribs[iStartLetter]&Base.bitDictSymbolSoft) {
+				else if (dwarrLetterAttribs[iStartLetter]&Language.bitDictSymbolSoft) {
 					pharrReturn=new Phoneme[] {FindPhonemeNonNullCopy("j")};
 				}
 				else { //hard
@@ -879,25 +879,25 @@ namespace ExpertMultimedia {
 				}
 			}
 			else if (sPhoneticBlend=="p") {
-				if (dwarrLetterAttribs[iStartLetter]&Base.bitDictSymbolSoft) {
+				if (dwarrLetterAttribs[iStartLetter]&Language.bitDictSymbolSoft) {
 					pharrReturn=new Phoneme[] {FindPhonemeNonNullCopy("f")};
 				}
 				else pharrReturn=new Phoneme[] {FindPhonemeNonNullCopy("p")};
 			}
 			else if (sPhoneticBlend=="s") {
-				if (dwarrLetterAttribs[iStartLetter]&Base.bitDictSymbolSoft) {
+				if (dwarrLetterAttribs[iStartLetter]&Language.bitDictSymbolSoft) {
 					pharrReturn=new Phoneme[] {FindPhonemeNonNullCopy("zh")};
 				}
-				else if (dwarrLetterAttribs[iStartLetter]&Base.bitDictSymbolLong) {
+				else if (dwarrLetterAttribs[iStartLetter]&Language.bitDictSymbolLong) {
 					pharrReturn=new Phoneme[] {FindPhonemeNonNullCopy("z")};
 				}
 				else pharrReturn=new Phoneme[] {FindPhonemeNonNullCopy("s")};
 			}
 			else if (sPhoneticBlend=="y") {
-				if (dwarrLetterAttribs[iStartLetter]&Base.bitDictSymbolLong) {
+				if (dwarrLetterAttribs[iStartLetter]&Language.bitDictSymbolLong) {
 					pharrReturn=new Phoneme[] {FindPhonemeNonNullCopy("ee")};
 				}
-				else if (dwarrLetterAttribs[iStartLetter]&Base.bitDictSymbolLatinize) {
+				else if (dwarrLetterAttribs[iStartLetter]&Language.bitDictSymbolLatinize) {
 					pharrReturn=new Phoneme[] {FindPhonemeNonNullCopy("ah"), FindPhonemeNonNullCopy("ee")};
 					pharrReturn[1].bDipthongWithPrev=true;
 				}
@@ -906,7 +906,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			else if (sPhoneticBlend=="oo") {
-				if (dwarrLetterAttribs[iStartLetter]&Base.bitDictSymbolLong) 
+				if (dwarrLetterAttribs[iStartLetter]&Language.bitDictSymbolLong) 
 					pharrReturn=new Phoneme[] {FindPhonemeNonNullCopy("oo")}; 
 				else pharrReturn=new Phoneme[] {FindPhonemeNonNullCopy("00")}; //zeros are short 'oo'
 			}
@@ -1027,21 +1027,21 @@ namespace ExpertMultimedia {
 					
 					if (bDoSentence) {
 						if (iStartNow==iSentenceDelimiter) { //get the delimiter
-							alNow.Add(Base.SafeSubstring(sVal,iStartNow,iLenSentenceDelimiter));
+							alNow.Add(RString.SafeSubstring(sVal,iStartNow,iLenSentenceDelimiter));
 							iStartNow+=iLenSentenceDelimiter;
 						}
 						else { //get the word preceding the delimiter
-							alNow.Add(Base.SafeSubstringByInclusiveLocations(sVal,iStartNow,iSentenceDelimiter-1));
+							alNow.Add(RString.SafeSubstringByInclusiveLocations(sVal,iStartNow,iSentenceDelimiter-1));
 							iStartNow=iSentenceDelimiter;
 						}
 					}
 					else { //else bDoWord
 						if (iStartNow==iWordDelimiter) { //get the delimiter
-							alNow.Add(Base.SafeSubstring(sVal,iStartNow,iLenWordDelimiter));
+							alNow.Add(RString.SafeSubstring(sVal,iStartNow,iLenWordDelimiter));
 							iStartNow+=iLenWordDelimiter;
 						}
 						else { //get the word preceding the delimiter
-							alNow.Add(Base.SafeSubstringByInclusiveLocations(sVal,iStartNow,iWordDelimiter-1));
+							alNow.Add(RString.SafeSubstringByInclusiveLocations(sVal,iStartNow,iWordDelimiter-1));
 							iStartNow=iWordDelimiter;
 						}
 					}
@@ -1140,9 +1140,9 @@ namespace ExpertMultimedia {
 				int iBlendSingle=iSelToMoveOrStay;
 				int iBlendStart=iSelToMoveOrStay;
 				int iBlendEnd=iSelToMoveOrStay;
-				bool bUnmarkedNonSilent=Base.MoveToOrStayAtAttrib(ref iBlendSingle, dwarrDictionarySymbols, Base.UintMask^(Base.bitDictSymbolSilent|Base.bitDictSymbolBlendStart|Base.bitDictSymbolBlendEnd) );
-				bool bStart=Base.MoveToOrStayAtAttrib(ref iBlendStart, dwarrDictionarySymbols, Base.bitDictSymbolBlendStart);
-				bool bEnd=Base.MoveToOrStayAtAttrib(ref iBlendEnd, dwarrDictionarySymbols, Base.bitDictSymbolBlendEnd);
+				bool bUnmarkedNonSilent=RMemory.MoveToOrStayAtAttrib(ref iBlendSingle, dwarrDictionarySymbols, RMemory.dwMask^(Language.bitDictSymbolSilent|Language.bitDictSymbolBlendStart|Language.bitDictSymbolBlendEnd) );
+				bool bStart=RMemory.MoveToOrStayAtAttrib(ref iBlendStart, dwarrDictionarySymbols, Language.bitDictSymbolBlendStart);
+				bool bEnd=RMemory.MoveToOrStayAtAttrib(ref iBlendEnd, dwarrDictionarySymbols, Language.bitDictSymbolBlendEnd);
 				bFound=bStart;
 				if (bStart&&bEnd) {
 					if (iBlendStart>=iBlendEnd) {
@@ -1215,10 +1215,10 @@ namespace ExpertMultimedia {
 		//				sarrWords[iNow]=SeparateSyllablesLower(sarrWords[iNow]);
 		//			}
 		//		}
-		//		else {bGood=false; Base.ShowErr("null words array sent to SeparateSyllables");}
+		//		else {bGood=false; RReporting.ShowErr("null words array sent to SeparateSyllables");}
 		//	}
 		//	catch (Exception exn) {
-		//		Base.ShowExn(exn,"SeparateSyllables"); bGood=false;
+		//		RReporting.ShowExn(exn,"SeparateSyllables"); bGood=false;
 		//	}
 		//	return true;
 		//}

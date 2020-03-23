@@ -62,9 +62,9 @@ namespace ExpertMultimedia {
 				coreInServer.Start();
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Packeter Init","starting Server packeter object");
+				RReporting.ShowExn(exn,"Packeter Init","starting Server packeter object");
 			}
-			Base.WriteLine("Server packeter initialized.");
+			RReporting.WriteLine("Server packeter initialized.");
 		}
 		~Packeter() {
 			Halt();
@@ -86,7 +86,7 @@ namespace ExpertMultimedia {
 					packetLogin=new Packet();
 					packetLogin.iType=PacketType.ServerMessage;
 					packetLogin.Set(0,"Server failed to process the login");
-					Base.Error_WriteLine("*Deq login response packet"); //got packet
+					RReporting.Error_WriteLine("*Deq login response packet"); //got packet
 					RunLoginPacket(ref packetLogin, ref packetAuth);
 					return packetLogin;
 				}
@@ -101,7 +101,7 @@ namespace ExpertMultimedia {
 							}
 						}
 						else {
-							Base.Error_WriteLine("*  -request was made to an user token that wasn't logged in."); 
+							RReporting.Error_WriteLine("*  -request was made to an user token that wasn't logged in."); 
 							packetTemp.Reset();
 							packetTemp.iType=PacketType.ServerMessage;
 							packetTemp.Set(0,"Server couldn't find your login data, try logging in again");
@@ -109,17 +109,17 @@ namespace ExpertMultimedia {
 						}
 					}
 					else {
-						Base.Error_WriteLine("*  -an invalid authentication packet was received");
+						RReporting.Error_WriteLine("*  -an invalid authentication packet was received");
 						return packetCorrupt; //i.exn. user is not authenticated
 						//debug NYI increment watch level of ALL players (do iLogins-iCorruptions and players with lowest diff are suspects)
 					}
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Packeter Deq","user getting packet");
+				RReporting.ShowExn(exn,"Packeter Deq","user getting packet");
 				return packetCorrupt;
 			}
-			//Base.ShowErr("Didn't return a packet","Packeter Deq");
+			//RReporting.ShowErr("Didn't return a packet","Packeter Deq");
 			//return packetCorrupt;
 		}//end Deq
 		public bool Enq(Packet packetX) { //debug performance make this a reference???
@@ -131,11 +131,11 @@ namespace ExpertMultimedia {
 					bGood=true;
 				}
 				else {
-					Base.ShowErr("security notice: name at token #"+packetX.iTokenNum.ToString()+" was "+accountant.NameOfNum(packetX.iTokenNum)+" not "+packetX.sFrom);
+					RReporting.ShowErr("security notice: name at token #"+packetX.iTokenNum.ToString()+" was "+accountant.NameOfNum(packetX.iTokenNum)+" not "+packetX.sFrom);
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Packeter Enq","checking matching name at token #"+packetX.iTokenNum.ToString()+" for authenticating a user packet" );
+				RReporting.ShowExn(exn,"Packeter Enq","checking matching name at token #"+packetX.iTokenNum.ToString()+" for authenticating a user packet" );
 			}
 			return bGood;
 		}
@@ -152,14 +152,14 @@ namespace ExpertMultimedia {
 			int iTokenNow=0;
 			bool bGood=true;
 			if (packetNow==null) {
-				Base.ShowErr("got a null packet","RunLoginPacket");
+				RReporting.ShowErr("got a null packet","RunLoginPacket");
 				return;
 			}
 			try {
 				iTokenNow=packetNow.iTokenNum;
 			}
 			catch (Exception exn) { 
-				Base.ShowExn(exn,"RunLoginPacket","reading a bad packet reference");
+				RReporting.ShowExn(exn,"RunLoginPacket","reading a bad packet reference");
 				return;
 			}
 			try {
@@ -169,7 +169,7 @@ namespace ExpertMultimedia {
 						packetLogin.Reset();
 					}
 					catch (Exception exn) {
-						Base.ShowExn(exn,"RunLoginPacket","resetting packet (creating new instead)");
+						RReporting.ShowExn(exn,"RunLoginPacket","resetting packet (creating new instead)");
 						packetLogin=new Packet();
 					}
 				}
@@ -177,7 +177,7 @@ namespace ExpertMultimedia {
 					packetLogin.Reset(); //debug performance, not needed
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"RunLoginPacket","accessing new packet");
+					RReporting.ShowExn(exn,"RunLoginPacket","accessing new packet");
 				}
 				string sName=packetNow.sFrom;//packetNow.vsData.GetForcedString(0);
 				string sPwd=packetNow.GetForcedString(0);//(1); 
@@ -187,7 +187,7 @@ namespace ExpertMultimedia {
 				}
 				catch (Exception exn) {
 					bGood=false;
-					Base.ShowExn(exn,"RunLoginPacket","accessing accountant after packetLogin creation");
+					RReporting.ShowExn(exn,"RunLoginPacket","accessing accountant after packetLogin creation");
 				}
 				//TODO: show sMsg somewhere somehow now
 				//(packetLogin's type etc will be changed by GetLoginConfirmation below):
@@ -219,7 +219,7 @@ namespace ExpertMultimedia {
 							packetLogin.iType=PacketType.ServerMessage;
 							packetLogin.sFrom="Server";
 							packetLogin.Set(0,"Exception error on server; couldn't complete the login because failed to access the packetqarr.");
-							Base.ShowExn(exn,"packeter RunLoginPacket","accessing packetqarr");
+							RReporting.ShowExn(exn,"packeter RunLoginPacket","accessing packetqarr");
 						}
 					}
 					else {
@@ -232,7 +232,7 @@ namespace ExpertMultimedia {
 				packetLogin.iTokenNum=iTokenNow;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"RunLoginPacket","processing login request");
+				RReporting.ShowExn(exn,"RunLoginPacket","processing login request");
 			}
 			return;
 		}//end RunLoginPacket
@@ -243,27 +243,27 @@ namespace ExpertMultimedia {
 			int iTokenNow=0;
 			bool bGood=false;
 			if (packetNow==null) {
-				Base.ShowErr("got a null packet","RunLoginPacket");
+				RReporting.ShowErr("got a null packet","RunLoginPacket");
 				return false;
 			}
 			try {
 				iTokenNow=packetNow.iTokenNum;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"RunPacket","accessing a bad packet reference");
+				RReporting.ShowExn(exn,"RunPacket","accessing a bad packet reference");
 				return false;
 			}
 			try {
 				switch (packetNow.iType) {
 				case PacketType.Idle:
-					Base.Error_WriteLine(" Idle recieved from "+accountant.NameOfNum(packetNow.iTokenNum));
+					RReporting.Error_WriteLine(" Idle recieved from "+accountant.NameOfNum(packetNow.iTokenNum));
 				break;
 				case PacketType.Shout: //if (packetNow.iType==PacketType.Shout) {
 					packetNow.iType=PacketType.ServerMessage;
 					//debug NYI only shout to nearby people if inside MMORPG
 					int iNum=accountant.iIndexers;
 					iTokenNow=0;
-					Base.Error_WriteLine("--"+packetNow.sFrom+" is shouting to "+iNum.ToString()+" users");
+					RReporting.Error_WriteLine("--"+packetNow.sFrom+" is shouting to "+iNum.ToString()+" users");
 					for (int i=0; i<iNum; i++) {
 						try { //debug NYI use iarrIndexer
 							iTokenNow=accountant.NumOfIndex(i);
@@ -271,28 +271,28 @@ namespace ExpertMultimedia {
 								if (packetqarr!=null) {
 									if (packetqarr[iTokenNow]!=null) {
 										bGood=packetqarr[iTokenNow].Enq(packetNow);
-										if (!bGood) Base.ShowErr(" QUEUE either full or error for user#"+iTokenNow+" - couldn't shout)","RunPacket");//debug NYI increase queue size to a maximum 
+										if (!bGood) RReporting.ShowErr(" QUEUE either full or error for user#"+iTokenNow+" - couldn't shout)","RunPacket");//debug NYI increase queue size to a maximum 
 									}//debug NYI else statements: (show error)
-									else Base.ShowErr("user #"+iTokenNow.ToString()+"'s packetq array is not initialized correctly","RunPacket");
+									else RReporting.ShowErr("user #"+iTokenNow.ToString()+"'s packetq array is not initialized correctly","RunPacket");
 								}
-								else Base.ShowErr("The server's packetq array is not initialized correctly.  Please restart host program.","RunPacket");
+								else RReporting.ShowErr("The server's packetq array is not initialized correctly.  Please restart host program.","RunPacket");
 							}
 							//if (userarr[i]!=null && userarr[i].packetq!=null) userarr[i].packetq.Enq(packetNow);
 							//debug NYI OPTIONALLY check if user is logged in, but
 							// packetqarr[i] would be null then so therefore the check is OPTIONAL
 						}
 						catch (Exception exn) {
-							Base.ShowExn(exn,"RunPacket","processing user shout to token#"+iTokenNow.ToString());
+							RReporting.ShowExn(exn,"RunPacket","processing user shout to token#"+iTokenNow.ToString());
 						} 
 					}
 					break;
 				default:
-					Base.ShowErr(" BAD PACKET TYPE ignored, iType="+packetNow.iType.ToString(),"RunPacket");
+					RReporting.ShowErr(" BAD PACKET TYPE ignored, iType="+packetNow.iType.ToString(),"RunPacket");
 					break;
 				}//end switch
 			} //end try
 			catch (Exception exn) {
-				Base.ShowExn(exn,"RunPacket","processing packet");
+				RReporting.ShowExn(exn,"RunPacket","processing packet");
 				return false;
 			}
 			return true;
@@ -313,7 +313,7 @@ namespace ExpertMultimedia {
 						//userarr[iNow].packetq.Enq(packetServerShutdown);
 					}
 					catch (Exception exn) {
-						Base.ShowExn(exn,"Packeter Halt");
+						RReporting.ShowExn(exn,"Packeter Halt");
 					}
 				}
 			}
@@ -334,10 +334,10 @@ namespace ExpertMultimedia {
 			bGood=true;
 			if (iPort<1024) {
 				iPort=61100;
-				Base.Error_WriteLine("  -Port was reset to "+iPort.ToString()+" because the config file was bad");
+				RReporting.Error_WriteLine("  -Port was reset to "+iPort.ToString()+" because the config file was bad");
 			}
-			Base.Error_WriteLine("  -Port = "+iPort.ToString());
-			Base.Error_WriteLine("  -Server name = "+sName);
+			RReporting.Error_WriteLine("  -Port = "+iPort.ToString());
+			RReporting.Error_WriteLine("  -Server name = "+sName);
 			if (iPort<1024) bGood=false; //debug NYI if not in standard set of allowed (high-number) ports
 			if (bGood) {
 				//Create&register channel
@@ -350,7 +350,7 @@ namespace ExpertMultimedia {
 			}
 			else {
 				//scriptIni.Dump();
-				Base.Error_WriteLine("The server was not initialized because the port number either set or loaded improperly in initialization file!");
+				RReporting.Error_WriteLine("The server was not initialized because the port number either set or loaded improperly in initialization file!");
 			}
 			
 			
@@ -368,23 +368,23 @@ namespace ExpertMultimedia {
 							bEmpty=packetqIn.IsEmpty;
 						}
 						catch (Exception exn) {
-							Base.ShowExn(exn,"Packeting","checking whether packetqIn IsEmpty");
+							RReporting.ShowExn(exn,"Packeting","checking whether packetqIn IsEmpty");
 							bEmpty=true;
 						}
 						if (!bEmpty) {
 							//Now Run the next Packet
 							packetNow = packetqIn.Deq();
-							if (packetNow==null) Base.ShowErr(" (packetq) packet in non-empty queue was null","Packeting");
+							if (packetNow==null) RReporting.ShowErr(" (packetq) packet in non-empty queue was null","Packeting");
 							else RunPacket(ref packetNow);
 						}//end if not empty
 					}
 					catch (Exception exn) {
-						Base.ShowExn(exn,"Packeting","trying to process next incoming packet");
+						RReporting.ShowExn(exn,"Packeting","trying to process next incoming packet");
 					}
 				}
-				else Base.ShowErr("packetqIn is not initialized correctly.","Packeting"); 
+				else RReporting.ShowErr("packetqIn is not initialized correctly.","Packeting"); 
 			}
-			Base.WriteLine("Packeting stopped.");
+			RReporting.WriteLine("Packeting stopped.");
 				//if (tPacketer!=null && tPacketer.IsRunning) tPacketer.Abort(); //is this possible (To exit self)?? //debug
 		}//end Packeting
 	} //end class Packeter

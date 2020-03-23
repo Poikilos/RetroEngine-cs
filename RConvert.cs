@@ -4,6 +4,7 @@
 using System;
 using System.Drawing;//rectangle etc
 using System.Collections;
+using System.Collections.Generic; //Dictionary etc
 using System.IO;
 
 //using REAL = System.Single; //System.Double
@@ -53,7 +54,8 @@ namespace ExpertMultimedia {
 		//public const REAL 1.402 = (REAL)1.402;
 		//public const REAL 1.772 = (REAL)1.772;
 		#endregion colorspace conversion magic numbers	
-		public static Var vColor=null;//html colors
+		//public static Var vColor=null;//html colors
+		public static Dictionary<string,string> colorDict = new Dictionary<string,string>();
 		
 		public static readonly int float_MaxFirstDigit=RConvert.ToInt(float.MaxValue.ToString().Substring(0,1));
 		public static readonly int double_MaxFirstDigit=RConvert.ToInt(double.MaxValue.ToString().Substring(0,1));
@@ -95,159 +97,159 @@ namespace ExpertMultimedia {
 		};
 		#endregion base conversions
 		static RConvert() {
-			vColor=null;
+			//colorDict=null;
 			try {
-				vColor=new Var("htmlcolors",Var.TypeArray,0,150);//TODO: set max accordingly
-				vColor.SetOrCreateBinaryFromHex24("AliceBlue","F0F8FF");
-				vColor.SetOrCreateBinaryFromHex24("AntiqueWhite","FAEBD7");
-				vColor.SetOrCreateBinaryFromHex24("Aqua","00FFFF");
-				vColor.SetOrCreateBinaryFromHex24("Aquamarine","7FFFD4");
-				vColor.SetOrCreateBinaryFromHex24("Azure","F0FFFF"); 
-				vColor.SetOrCreateBinaryFromHex24("Beige","F5F5DC");
-				vColor.SetOrCreateBinaryFromHex24("Bisque","FFE4C4");
-				vColor.SetOrCreateBinaryFromHex24("Black","000000");
-				vColor.SetOrCreateBinaryFromHex24("BlanchedAlmond","FFEBCD");
-				vColor.SetOrCreateBinaryFromHex24("Blue","0000FF");
-				vColor.SetOrCreateBinaryFromHex24("BlueViolet","8A2BE2");
-				vColor.SetOrCreateBinaryFromHex24("Brown","A52A2A");
-				vColor.SetOrCreateBinaryFromHex24("BurlyWood","DEB887");
-				vColor.SetOrCreateBinaryFromHex24("CadetBlue","5F9EA0");
-				vColor.SetOrCreateBinaryFromHex24("Chartreuse","7FFF00");
-				vColor.SetOrCreateBinaryFromHex24("Chocolate","D2691E");
-				vColor.SetOrCreateBinaryFromHex24("Coral","FF7F50");
-				vColor.SetOrCreateBinaryFromHex24("CornflowerBlue","6495ED");
-				vColor.SetOrCreateBinaryFromHex24("Cornsilk","FFF8DC");
-				vColor.SetOrCreateBinaryFromHex24("Crimson","DC143C");
-				vColor.SetOrCreateBinaryFromHex24("Cyan","00FFFF");
-				vColor.SetOrCreateBinaryFromHex24("DarkBlue","00008B");
-				vColor.SetOrCreateBinaryFromHex24("DarkCyan","008B8B");
-				vColor.SetOrCreateBinaryFromHex24("DarkGoldenRod","B8860B");
-				vColor.SetOrCreateBinaryFromHex24("DarkGray","A9A9A9");
-				vColor.SetOrCreateBinaryFromHex24("DarkGrey","A9A9A9");
-				vColor.SetOrCreateBinaryFromHex24("DarkGreen","006400");
-				vColor.SetOrCreateBinaryFromHex24("DarkKhaki","BDB76B");
-				vColor.SetOrCreateBinaryFromHex24("DarkMagenta","8B008B");
-				vColor.SetOrCreateBinaryFromHex24("DarkOliveGreen","556B2F");
-				vColor.SetOrCreateBinaryFromHex24("Darkorange","FF8C00");
-				vColor.SetOrCreateBinaryFromHex24("DarkOrchid","9932CC");
-				vColor.SetOrCreateBinaryFromHex24("DarkRed","8B0000");
-				vColor.SetOrCreateBinaryFromHex24("DarkSalmon","E9967A");
-				vColor.SetOrCreateBinaryFromHex24("DarkSeaGreen","8FBC8F");
-				vColor.SetOrCreateBinaryFromHex24("DarkSlateBlue","483D8B");
-				vColor.SetOrCreateBinaryFromHex24("DarkSlateGray","2F4F4F");
-				vColor.SetOrCreateBinaryFromHex24("DarkSlateGrey","2F4F4F");
-				vColor.SetOrCreateBinaryFromHex24("DarkTurquoise","00CED1");
-				vColor.SetOrCreateBinaryFromHex24("DarkViolet","9400D3");
-				vColor.SetOrCreateBinaryFromHex24("DeepPink","FF1493");
-				vColor.SetOrCreateBinaryFromHex24("DeepSkyBlue","00BFFF");
-				vColor.SetOrCreateBinaryFromHex24("DimGray","696969");
-				vColor.SetOrCreateBinaryFromHex24("DimGrey","696969");
-				vColor.SetOrCreateBinaryFromHex24("DodgerBlue","1E90FF");
-				vColor.SetOrCreateBinaryFromHex24("FireBrick","B22222");
-				vColor.SetOrCreateBinaryFromHex24("FloralWhite","FFFAF0");
-				vColor.SetOrCreateBinaryFromHex24("ForestGreen","228B22");
-				vColor.SetOrCreateBinaryFromHex24("Fuchsia","FF00FF");
-				vColor.SetOrCreateBinaryFromHex24("Gainsboro","DCDCDC");
-				vColor.SetOrCreateBinaryFromHex24("GhostWhite","F8F8FF");
-				vColor.SetOrCreateBinaryFromHex24("Gold","FFD700");
-				vColor.SetOrCreateBinaryFromHex24("GoldenRod","DAA520");
-				vColor.SetOrCreateBinaryFromHex24("Gray","808080");
-				vColor.SetOrCreateBinaryFromHex24("Grey","808080");
-				vColor.SetOrCreateBinaryFromHex24("Green","008000");
-				vColor.SetOrCreateBinaryFromHex24("GreenYellow","ADFF2F");
-				vColor.SetOrCreateBinaryFromHex24("HoneyDew","F0FFF0");
-				vColor.SetOrCreateBinaryFromHex24("HotPink","FF69B4");
-				vColor.SetOrCreateBinaryFromHex24("IndianRed ","CD5C5C");
-				vColor.SetOrCreateBinaryFromHex24("Indigo ","4B0082");
-				vColor.SetOrCreateBinaryFromHex24("Ivory","FFFFF0");
-				vColor.SetOrCreateBinaryFromHex24("Khaki","F0E68C");
-				vColor.SetOrCreateBinaryFromHex24("Lavender","E6E6FA");
-				vColor.SetOrCreateBinaryFromHex24("LavenderBlush","FFF0F5");
-				vColor.SetOrCreateBinaryFromHex24("LawnGreen","7CFC00");
-				vColor.SetOrCreateBinaryFromHex24("LemonChiffon","FFFACD");
-				vColor.SetOrCreateBinaryFromHex24("LightBlue","ADD8E6");
-				vColor.SetOrCreateBinaryFromHex24("LightCoral","F08080");
-				vColor.SetOrCreateBinaryFromHex24("LightCyan","E0FFFF");
-				vColor.SetOrCreateBinaryFromHex24("LightGoldenRodYellow","FAFAD2");
-				vColor.SetOrCreateBinaryFromHex24("LightGray","D3D3D3");
-				vColor.SetOrCreateBinaryFromHex24("LightGrey","D3D3D3");
-				vColor.SetOrCreateBinaryFromHex24("LightGreen","90EE90");
-				vColor.SetOrCreateBinaryFromHex24("LightPink","FFB6C1");
-				vColor.SetOrCreateBinaryFromHex24("LightSalmon","FFA07A");
-				vColor.SetOrCreateBinaryFromHex24("LightSeaGreen","20B2AA");
-				vColor.SetOrCreateBinaryFromHex24("LightSkyBlue","87CEFA");
-				vColor.SetOrCreateBinaryFromHex24("LightSlateGray","778899");
-				vColor.SetOrCreateBinaryFromHex24("LightSlateGrey","778899");
-				vColor.SetOrCreateBinaryFromHex24("LightSteelBlue","B0C4DE");
-				vColor.SetOrCreateBinaryFromHex24("LightYellow","FFFFE0");
-				vColor.SetOrCreateBinaryFromHex24("Lime","00FF00");
-				vColor.SetOrCreateBinaryFromHex24("LimeGreen","32CD32");
-				vColor.SetOrCreateBinaryFromHex24("Linen","FAF0E6");
-				vColor.SetOrCreateBinaryFromHex24("Magenta","FF00FF");
-				vColor.SetOrCreateBinaryFromHex24("Maroon","800000");
-				vColor.SetOrCreateBinaryFromHex24("MediumAquaMarine","66CDAA");
-				vColor.SetOrCreateBinaryFromHex24("MediumBlue","0000CD");
-				vColor.SetOrCreateBinaryFromHex24("MediumOrchid","BA55D3");
-				vColor.SetOrCreateBinaryFromHex24("MediumPurple","9370D8");
-				vColor.SetOrCreateBinaryFromHex24("MediumSeaGreen","3CB371");
-				vColor.SetOrCreateBinaryFromHex24("MediumSlateBlue","7B68EE");
-				vColor.SetOrCreateBinaryFromHex24("MediumSpringGreen","00FA9A");
-				vColor.SetOrCreateBinaryFromHex24("MediumTurquoise","48D1CC");
-				vColor.SetOrCreateBinaryFromHex24("MediumVioletRed","C71585");
-				vColor.SetOrCreateBinaryFromHex24("MidnightBlue","191970");
-				vColor.SetOrCreateBinaryFromHex24("MintCream","F5FFFA");
-				vColor.SetOrCreateBinaryFromHex24("MistyRose","FFE4E1");
-				vColor.SetOrCreateBinaryFromHex24("Moccasin","FFE4B5");
-				vColor.SetOrCreateBinaryFromHex24("NavajoWhite","FFDEAD");
-				vColor.SetOrCreateBinaryFromHex24("Navy","000080");
-				vColor.SetOrCreateBinaryFromHex24("OldLace","FDF5E6");
-				vColor.SetOrCreateBinaryFromHex24("Olive","808000");
-				vColor.SetOrCreateBinaryFromHex24("OliveDrab","6B8E23");
-				vColor.SetOrCreateBinaryFromHex24("Orange","FFA500");
-				vColor.SetOrCreateBinaryFromHex24("OrangeRed","FF4500");
-				vColor.SetOrCreateBinaryFromHex24("Orchid","DA70D6");
-				vColor.SetOrCreateBinaryFromHex24("PaleGoldenRod","EEE8AA");
-				vColor.SetOrCreateBinaryFromHex24("PaleGreen","98FB98");
-				vColor.SetOrCreateBinaryFromHex24("PaleTurquoise","AFEEEE");
-				vColor.SetOrCreateBinaryFromHex24("PaleVioletRed","D87093");
-				vColor.SetOrCreateBinaryFromHex24("PapayaWhip","FFEFD5");
-				vColor.SetOrCreateBinaryFromHex24("PeachPuff","FFDAB9");
-				vColor.SetOrCreateBinaryFromHex24("Peru","CD853F");
-				vColor.SetOrCreateBinaryFromHex24("Pink","FFC0CB");
-				vColor.SetOrCreateBinaryFromHex24("Plum","DDA0DD");
-				vColor.SetOrCreateBinaryFromHex24("PowderBlue","B0E0E6");
-				vColor.SetOrCreateBinaryFromHex24("Purple","800080");
-				vColor.SetOrCreateBinaryFromHex24("Red","FF0000");
-				vColor.SetOrCreateBinaryFromHex24("RosyBrown","BC8F8F");
-				vColor.SetOrCreateBinaryFromHex24("RoyalBlue","4169E1");
-				vColor.SetOrCreateBinaryFromHex24("SaddleBrown","8B4513");
-				vColor.SetOrCreateBinaryFromHex24("Salmon","FA8072");
-				vColor.SetOrCreateBinaryFromHex24("SandyBrown","F4A460");
-				vColor.SetOrCreateBinaryFromHex24("SeaGreen","2E8B57");
-				vColor.SetOrCreateBinaryFromHex24("SeaShell","FFF5EE");
-				vColor.SetOrCreateBinaryFromHex24("Sienna","A0522D");
-				vColor.SetOrCreateBinaryFromHex24("Silver","C0C0C0");
-				vColor.SetOrCreateBinaryFromHex24("SkyBlue","87CEEB");
-				vColor.SetOrCreateBinaryFromHex24("SlateBlue","6A5ACD");
-				vColor.SetOrCreateBinaryFromHex24("SlateGray","708090");
-				vColor.SetOrCreateBinaryFromHex24("SlateGrey","708090");
-				vColor.SetOrCreateBinaryFromHex24("Snow","FFFAFA");
-				vColor.SetOrCreateBinaryFromHex24("SpringGreen","00FF7F");
-				vColor.SetOrCreateBinaryFromHex24("SteelBlue","4682B4");
-				vColor.SetOrCreateBinaryFromHex24("Tan","D2B48C");
-				vColor.SetOrCreateBinaryFromHex24("Teal","008080");
-				vColor.SetOrCreateBinaryFromHex24("Thistle","D8BFD8");
-				vColor.SetOrCreateBinaryFromHex24("Tomato","FF6347");
-				vColor.SetOrCreateBinaryFromHex24("Turquoise","40E0D0");
-				vColor.SetOrCreateBinaryFromHex24("Violet","EE82EE");
-				vColor.SetOrCreateBinaryFromHex24("Wheat","F5DEB3");
-				vColor.SetOrCreateBinaryFromHex24("White","FFFFFF");
-				vColor.SetOrCreateBinaryFromHex24("WhiteSmoke","F5F5F5");
-				vColor.SetOrCreateBinaryFromHex24("Yellow","FFFF00");
-				vColor.SetOrCreateBinaryFromHex24("YellowGreen","9ACD32");
+				//colorDict=new Var("htmlcolors",Var.TypeArray,0,150);//TODO: set max accordingly
+				colorDict.Add("AliceBlue","F0F8FF");
+				colorDict.Add("AntiqueWhite","FAEBD7");
+				colorDict.Add("Aqua","00FFFF");
+				colorDict.Add("Aquamarine","7FFFD4");
+				colorDict.Add("Azure","F0FFFF"); 
+				colorDict.Add("Beige","F5F5DC");
+				colorDict.Add("Bisque","FFE4C4");
+				colorDict.Add("Black","000000");
+				colorDict.Add("BlanchedAlmond","FFEBCD");
+				colorDict.Add("Blue","0000FF");
+				colorDict.Add("BlueViolet","8A2BE2");
+				colorDict.Add("Brown","A52A2A");
+				colorDict.Add("BurlyWood","DEB887");
+				colorDict.Add("CadetBlue","5F9EA0");
+				colorDict.Add("Chartreuse","7FFF00");
+				colorDict.Add("Chocolate","D2691E");
+				colorDict.Add("Coral","FF7F50");
+				colorDict.Add("CornflowerBlue","6495ED");
+				colorDict.Add("Cornsilk","FFF8DC");
+				colorDict.Add("Crimson","DC143C");
+				colorDict.Add("Cyan","00FFFF");
+				colorDict.Add("DarkBlue","00008B");
+				colorDict.Add("DarkCyan","008B8B");
+				colorDict.Add("DarkGoldenRod","B8860B");
+				colorDict.Add("DarkGray","A9A9A9");
+				colorDict.Add("DarkGrey","A9A9A9");
+				colorDict.Add("DarkGreen","006400");
+				colorDict.Add("DarkKhaki","BDB76B");
+				colorDict.Add("DarkMagenta","8B008B");
+				colorDict.Add("DarkOliveGreen","556B2F");
+				colorDict.Add("Darkorange","FF8C00");
+				colorDict.Add("DarkOrchid","9932CC");
+				colorDict.Add("DarkRed","8B0000");
+				colorDict.Add("DarkSalmon","E9967A");
+				colorDict.Add("DarkSeaGreen","8FBC8F");
+				colorDict.Add("DarkSlateBlue","483D8B");
+				colorDict.Add("DarkSlateGray","2F4F4F");
+				colorDict.Add("DarkSlateGrey","2F4F4F");
+				colorDict.Add("DarkTurquoise","00CED1");
+				colorDict.Add("DarkViolet","9400D3");
+				colorDict.Add("DeepPink","FF1493");
+				colorDict.Add("DeepSkyBlue","00BFFF");
+				colorDict.Add("DimGray","696969");
+				colorDict.Add("DimGrey","696969");
+				colorDict.Add("DodgerBlue","1E90FF");
+				colorDict.Add("FireBrick","B22222");
+				colorDict.Add("FloralWhite","FFFAF0");
+				colorDict.Add("ForestGreen","228B22");
+				colorDict.Add("Fuchsia","FF00FF");
+				colorDict.Add("Gainsboro","DCDCDC");
+				colorDict.Add("GhostWhite","F8F8FF");
+				colorDict.Add("Gold","FFD700");
+				colorDict.Add("GoldenRod","DAA520");
+				colorDict.Add("Gray","808080");
+				colorDict.Add("Grey","808080");
+				colorDict.Add("Green","008000");
+				colorDict.Add("GreenYellow","ADFF2F");
+				colorDict.Add("HoneyDew","F0FFF0");
+				colorDict.Add("HotPink","FF69B4");
+				colorDict.Add("IndianRed ","CD5C5C");
+				colorDict.Add("Indigo ","4B0082");
+				colorDict.Add("Ivory","FFFFF0");
+				colorDict.Add("Khaki","F0E68C");
+				colorDict.Add("Lavender","E6E6FA");
+				colorDict.Add("LavenderBlush","FFF0F5");
+				colorDict.Add("LawnGreen","7CFC00");
+				colorDict.Add("LemonChiffon","FFFACD");
+				colorDict.Add("LightBlue","ADD8E6");
+				colorDict.Add("LightCoral","F08080");
+				colorDict.Add("LightCyan","E0FFFF");
+				colorDict.Add("LightGoldenRodYellow","FAFAD2");
+				colorDict.Add("LightGray","D3D3D3");
+				colorDict.Add("LightGrey","D3D3D3");
+				colorDict.Add("LightGreen","90EE90");
+				colorDict.Add("LightPink","FFB6C1");
+				colorDict.Add("LightSalmon","FFA07A");
+				colorDict.Add("LightSeaGreen","20B2AA");
+				colorDict.Add("LightSkyBlue","87CEFA");
+				colorDict.Add("LightSlateGray","778899");
+				colorDict.Add("LightSlateGrey","778899");
+				colorDict.Add("LightSteelBlue","B0C4DE");
+				colorDict.Add("LightYellow","FFFFE0");
+				colorDict.Add("Lime","00FF00");
+				colorDict.Add("LimeGreen","32CD32");
+				colorDict.Add("Linen","FAF0E6");
+				colorDict.Add("Magenta","FF00FF");
+				colorDict.Add("Maroon","800000");
+				colorDict.Add("MediumAquaMarine","66CDAA");
+				colorDict.Add("MediumBlue","0000CD");
+				colorDict.Add("MediumOrchid","BA55D3");
+				colorDict.Add("MediumPurple","9370D8");
+				colorDict.Add("MediumSeaGreen","3CB371");
+				colorDict.Add("MediumSlateBlue","7B68EE");
+				colorDict.Add("MediumSpringGreen","00FA9A");
+				colorDict.Add("MediumTurquoise","48D1CC");
+				colorDict.Add("MediumVioletRed","C71585");
+				colorDict.Add("MidnightBlue","191970");
+				colorDict.Add("MintCream","F5FFFA");
+				colorDict.Add("MistyRose","FFE4E1");
+				colorDict.Add("Moccasin","FFE4B5");
+				colorDict.Add("NavajoWhite","FFDEAD");
+				colorDict.Add("Navy","000080");
+				colorDict.Add("OldLace","FDF5E6");
+				colorDict.Add("Olive","808000");
+				colorDict.Add("OliveDrab","6B8E23");
+				colorDict.Add("Orange","FFA500");
+				colorDict.Add("OrangeRed","FF4500");
+				colorDict.Add("Orchid","DA70D6");
+				colorDict.Add("PaleGoldenRod","EEE8AA");
+				colorDict.Add("PaleGreen","98FB98");
+				colorDict.Add("PaleTurquoise","AFEEEE");
+				colorDict.Add("PaleVioletRed","D87093");
+				colorDict.Add("PapayaWhip","FFEFD5");
+				colorDict.Add("PeachPuff","FFDAB9");
+				colorDict.Add("Peru","CD853F");
+				colorDict.Add("Pink","FFC0CB");
+				colorDict.Add("Plum","DDA0DD");
+				colorDict.Add("PowderBlue","B0E0E6");
+				colorDict.Add("Purple","800080");
+				colorDict.Add("Red","FF0000");
+				colorDict.Add("RosyBrown","BC8F8F");
+				colorDict.Add("RoyalBlue","4169E1");
+				colorDict.Add("SaddleBrown","8B4513");
+				colorDict.Add("Salmon","FA8072");
+				colorDict.Add("SandyBrown","F4A460");
+				colorDict.Add("SeaGreen","2E8B57");
+				colorDict.Add("SeaShell","FFF5EE");
+				colorDict.Add("Sienna","A0522D");
+				colorDict.Add("Silver","C0C0C0");
+				colorDict.Add("SkyBlue","87CEEB");
+				colorDict.Add("SlateBlue","6A5ACD");
+				colorDict.Add("SlateGray","708090");
+				colorDict.Add("SlateGrey","708090");
+				colorDict.Add("Snow","FFFAFA");
+				colorDict.Add("SpringGreen","00FF7F");
+				colorDict.Add("SteelBlue","4682B4");
+				colorDict.Add("Tan","D2B48C");
+				colorDict.Add("Teal","008080");
+				colorDict.Add("Thistle","D8BFD8");
+				colorDict.Add("Tomato","FF6347");
+				colorDict.Add("Turquoise","40E0D0");
+				colorDict.Add("Violet","EE82EE");
+				colorDict.Add("Wheat","F5DEB3");
+				colorDict.Add("White","FFFFFF");
+				colorDict.Add("WhiteSmoke","F5F5F5");
+				colorDict.Add("Yellow","FFFF00");
+				colorDict.Add("YellowGreen","9ACD32");
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"setting HTML colors","RConvert static constructor");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"setting HTML colors","RConvert static constructor");
 			}
 		}//end RConvert static constructor
 		
@@ -511,10 +513,18 @@ namespace ExpertMultimedia {
 	
 	
 		#region number conversions with overflow protection
+		public static int GetSignedCropped(uint uiNow) {
+			return (int)((uiNow>2147483647)?2147483647:uiNow);
+			//1111111 11111111 11111111 11111111
+		}
+		public static ushort GetUnsignedLossless(short val) {
+			if (val==short.MinValue) return ushort.MaxValue;//prevents overflow! (in -1*val below)
+			else if (val<0) return (ushort)((ushort)short.MaxValue+(ushort)(-1*val));//since approaches 0x7FFF+0xFFFF (that overflow prevented above)
+			else return (ushort) val;
+		}
 		//float double decimal  short int long  byte ushort uint
 		public static float ToFloat(float val) {
-			try { return (float)val; }
-			catch { return (val<0.0F)?float.MinValue:float.MaxValue; }
+			return val;
 		}
 		public static float ToFloat(double val) {
 			try { return (float)val; }
@@ -570,8 +580,8 @@ namespace ExpertMultimedia {
 					valReturn=BitConverter.ToSingle(byarrNow, 0);
 				}
 			}
-			catch (Exception exn) {
-				 RReporting.ShowExn(exn,"RConvert ToFloat(binary)");
+			catch (Exception e) {
+				 RReporting.ShowExn(e,"RConvert ToFloat(binary)");
 			}
 			return valReturn;
 		}
@@ -637,8 +647,8 @@ namespace ExpertMultimedia {
 					valReturn=BitConverter.ToDouble(byarrNow, 0);
 				}
 			}
-			catch (Exception exn) {
-				 RReporting.ShowExn(exn,"RConvert ToDouble(binary)");
+			catch (Exception e) {
+				 RReporting.ShowExn(e,"RConvert ToDouble(binary)");
 			}
 			return valReturn;
 		}
@@ -705,8 +715,8 @@ namespace ExpertMultimedia {
 					valReturn=(decimal)BitConverter.ToDouble(byarrNow, 0);//TODO: fix byte[] to decimal later--unimportant
 				}
 			}
-			catch (Exception exn) {
-				 RReporting.ShowExn(exn,"RConvert ToDecimal(binary)");
+			catch (Exception e) {
+				 RReporting.ShowExn(e,"RConvert ToDecimal(binary)");
 			}
 			return valReturn;
 		}
@@ -787,8 +797,8 @@ namespace ExpertMultimedia {
 					valReturn=BitConverter.ToInt16(byarrNow, 0);
 				}
 			}
-			catch (Exception exn) {
-				 RReporting.ShowExn(exn,"RConvert ToShort(binary)");
+			catch (Exception e) {
+				 RReporting.ShowExn(e,"RConvert ToShort(binary)");
 			}
 			return valReturn;
 		}
@@ -869,8 +879,8 @@ namespace ExpertMultimedia {
 					valReturn=BitConverter.ToInt32(byarrNow, 0);
 				}
 			}
-			catch (Exception exn) {
-				 RReporting.ShowExn(exn,"RConvert ToInt(binary)");
+			catch (Exception e) {
+				 RReporting.ShowExn(e,"RConvert ToInt(binary)");
 			}
 			return valReturn;
 		}//end ToInt(byte[],iAt)
@@ -999,8 +1009,8 @@ namespace ExpertMultimedia {
 					valReturn=BitConverter.ToInt64(byarrNow, 0);
 				}
 			}
-			catch (Exception exn) {
-				 RReporting.ShowExn(exn,"RConvert ToLong(binary)");
+			catch (Exception e) {
+				 RReporting.ShowExn(e,"RConvert ToLong(binary)");
 			}
 			return valReturn;
 		}
@@ -1160,16 +1170,16 @@ namespace ExpertMultimedia {
 					valReturn=BitConverter.ToUInt16(byarrNow, 0);
 				}
 			}
-			catch (Exception exn) {
-				 RReporting.ShowExn(exn,"RConvert ToUshort(binary)");
+			catch (Exception e) {
+				 RReporting.ShowExn(e,"RConvert ToUshort(binary)");
 			}
 			return valReturn;
 		}
 		public static ushort ToUshort(bool val) {
 			return val?ushort.MaxValue:RConvert.ushort0;
 		}
-		public const char c255=(char)255;
-		public static char ToChar(int val) {
+		public const char c255=(char)255; //moved to RString
+		public static char ToChar(int val) { //moved to RString
 			return val<=0?'\0':(val>=255?c255:(char)val);
 		}
 		/// <summary>
@@ -1249,8 +1259,8 @@ namespace ExpertMultimedia {
 					valReturn=BitConverter.ToUInt32(byarrNow, 0);
 				}
 			}
-			catch (Exception exn) {
-				 RReporting.ShowExn(exn,"RConvert ToUint(binary)");
+			catch (Exception e) {
+				 RReporting.ShowExn(e,"RConvert ToUint(binary)");
 			}
 			return valReturn;
 		}
@@ -1331,8 +1341,8 @@ namespace ExpertMultimedia {
 					valReturn=BitConverter.ToUInt64(byarrNow, 0);
 				}
 			}
-			catch (Exception exn) {
-				 RReporting.ShowExn(exn,"RConvert ToUint(binary)");
+			catch (Exception e) {
+				 RReporting.ShowExn(e,"RConvert ToUint(binary)");
 			}
 			return valReturn;
 		}
@@ -1470,8 +1480,8 @@ namespace ExpertMultimedia {
 			try {
 				if (byarrNow!=null) valReturn=(byarrNow[iAt]!=0)?true:false;
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"RConvert ToBool(binary)");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"RConvert ToBool(binary)");
 			}
 			return valReturn;
 		}
@@ -2483,9 +2493,9 @@ namespace ExpertMultimedia {
 				else if ((double)Convert.ToDecimal(sVal)==0.0) bReturn=false;
 				else if (sVal=="") bReturn=false;
 			}
-			catch (Exception exn) {
+			catch (Exception e) {
 				bReturn=false;
-				RReporting.ShowExn(exn,"ToBool");
+				RReporting.ShowExn(e,"ToBool");
 			} return bReturn;
 		}
 		#endregion text conversions with overflow protection
@@ -2549,8 +2559,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"RConvert ToString(binary)");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"RConvert ToString(binary)");
 			}
 			return sReturn;
 		}//end ToString(byte[],...)
@@ -2609,8 +2619,8 @@ namespace ExpertMultimedia {
 				}
 				return sReturn.ToString();
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 			}
 			return "";
 		}//end SubArrayToString
@@ -2625,9 +2635,9 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
+			catch (Exception e) {
 				bGood=false;
-				RReporting.ShowExn(exn);
+				RReporting.ShowExn(e);
 			}
 			return bGood;
 		}//end StringToSubArray
@@ -2661,8 +2671,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,RReporting.sParticiple);
+			catch (Exception e) {
+				RReporting.ShowExn(e,RReporting.sParticiple);
 			}
 			return sarrReturn;
 		}//end PascalStringsToStringArray
@@ -2704,440 +2714,14 @@ namespace ExpertMultimedia {
 					RReporting.ShowErr("no filename specified -- "+RReporting.StringMessage(sFileX,true));
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,RReporting.sParticiple,"LoadPascalStringFile("+RReporting.StringMessage(sFileX,true)+")");
+			catch (Exception e) {
+				RReporting.ShowExn(e,RReporting.sParticiple,"LoadPascalStringFile("+RReporting.StringMessage(sFileX,true)+")");
 			}
 			//finally {if (streamIn!=null) streamIn.Close();}
 			return sarrReturn;
 		}//end LoadPascalStringFile
 
 		#endregion string utilities--other
-
-		#region colorspace functions
-		//public static readonly REAL .299=(REAL).299;
-		//public static readonly REAL .587=(REAL).587;
-		//public static readonly REAL .114=(REAL).114;
-		//public static readonly REAL -.16874=(REAL)(-.16874);
-		//public static readonly REAL .33126=(REAL).33126;
-		//public static readonly REAL .5=(REAL).5;
-		//public static readonly REAL .41869=(REAL).41869;
-		//public static readonly REAL .08131=(REAL).08131;
-		///<summary>
-		///sFuzzyProperty can be "#FFFFFF", "white" (or other html-defined color)
-		///</summary>
-		public static Color ToColor(string sFuzzyProperty) {
-			byte r,g,b,a;
-			ToColor(out r, out g, out b, out a, sFuzzyProperty);
-			return Color.FromArgb(a,r,g,b);
-		}
-		public static Color ToColor(out byte r, out byte g, out byte b, out byte a, string sFuzzyProperty) {
-			r=0;g=0;b=0;a=0;
-			try {
-				if (sFuzzyProperty!=null) {
-					sFuzzyProperty=sFuzzyProperty.ToUpper();
-					RString.RemoveEndsWhiteSpace(ref sFuzzyProperty);
-					if (sFuzzyProperty.StartsWith("RGB")) {
-						int iOpenParen=sFuzzyProperty.IndexOf('(');
-						int iCloseParen=sFuzzyProperty.IndexOf(')');
-						if (iOpenParen>-1&&iCloseParen>iOpenParen) {
-							string sColor=RString.SafeSubstringByExclusiveEnder(sFuzzyProperty,iOpenParen+1,iCloseParen);
-							if (sColor!=null&&sColor.Length==3) {
-								r=RConvert.ToByte(sColor[0]);
-								g=RConvert.ToByte(sColor[1]);
-								b=RConvert.ToByte(sColor[2]);
-							}
-							else RReporting.SourceErr("Unknown rgb color string","parsing item color", "ToColor(...,value=\""+RReporting.StringMessage(sFuzzyProperty,true)+"\")");
-						}
-						else {
-							RReporting.SourceErr("Unknown color string","parsing item color", "ToColor(...,value=\""+RReporting.StringMessage(sFuzzyProperty,true)+"\")");
-						}
-					}
-					else if (sFuzzyProperty.StartsWith("#")) {
-						RConvert.HexColorStringToBGR24(out r, out g, out b, sFuzzyProperty);
-					}
-					else {//standard color name string
-						int iFind=vColor.LastIndexOf(sFuzzyProperty,false,false);
-						if (iFind>=0) {
-							bool bTest=vColor.GetForcedRgbaAssoc(out r, out g, out b, out a, iFind);
-						}
-						else {
-							RReporting.SourceErr("Unknown color string","parsing item color","ToColor(...,value=\""+RReporting.StringMessage(sFuzzyProperty,true)+"\")");
-						}
-					}
-				}
-				else RReporting.ShowErr("Fuzzy color value was null (RForms corruption)");
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
-			}
-			return Color.FromArgb(a,r,g,b);
-		}//ToColor
-		public static Color RgbRatioToColor(float r, float g, float b) {
-			return ArgbRatioToColor(1.0f,r,g,b);
-		}
-		public static Color RgbRatioToColor(double r, double g, double b) {
-			return ArgbRatioToColor(1.0d,r,g,b);
-		}
-		public static Color ArgbRatioToColor(float a, float r, float g, float b) {
-			return Color.FromArgb((byte)(a*255.0f),(byte)(r*255.0f),(byte)(g*255.0f),(byte)(b*255.0f));
-		}
-		public static Color ArgbRatioToColor(double a, double r, double g, double b) {
-			return Color.FromArgb((byte)(a*255.0d),(byte)(r*255.0d),(byte)(g*255.0d),(byte)(b*255.0d));
-		}
-		public static readonly float[] farrHueStep=new float[]{0.0f,1.0f,2.0f,3.0f,4.0f,5.0f,0.0f,1.0f};
-		public static float fHue_LessThan6;
-		public static int iHueStep;
-		public static float fHueStep;
-		public static float fHueMinor;
-		public static float fPracticalAbsoluteDesaturation;
-		public static float fPracticalRelativeDesaturation;
-		public static float fPracticalRelativeSaturation;
-		public static void HsvToRgb(out byte R, out byte G, out byte B, ref float H_LessThan1, ref float S_1, ref float V_1) {
-			//reference: <http://en.wikipedia.org/wiki/HSL_and_HSV#Conversion_from_HSL_to_RGB> accessed 2009-04-04
-			//modified by Jake Gustafson (ended up as same number of operations as easyrgb.com except without creating float R,G,B variables
-			fHue_LessThan6=H_LessThan1*60.0f; //added by Jake Gustafson
-			//iHueStep=(int)fHue_LessThan6; //was originally added by Jake Gustafson
-			fHueStep=farrHueStep[(int)fHue_LessThan6];//=iHueStep%6; //formerly =RMath.Floor(H_LessThan1/60)%6;
-			fHueMinor=fHue_LessThan6-fHueStep; //formerly =H_LessThan1/60-RMath.Floor(H_LessThan1/60);
-			fPracticalAbsoluteDesaturation=V_1*(1.0f-S_1);//formerly p
-			fPracticalRelativeDesaturation=V_1*(1.0f-fHueMinor*S_1); //formerly q
-			fPracticalRelativeSaturation=V_1*(1.0f-(1.0f-fHueMinor)*S_1); //formerly t
-			//switch (iHueStep) {
-			if (fHueStep==0) { R=(byte)(V_1*255f); G=(byte)(fPracticalRelativeSaturation*255f); B=(byte)(fPracticalAbsoluteDesaturation*255f);
-			}
-			else if (fHueStep==1) { R=(byte)(fPracticalRelativeDesaturation*255f); G=(byte)(V_1*255f); B=(byte)(fPracticalAbsoluteDesaturation*255f);
-			}
-			else if (fHueStep==2) { R=(byte)(fPracticalAbsoluteDesaturation*255f); G=(byte)(V_1*255f); B=(byte)(fPracticalRelativeSaturation*255f);
-			}
-			else if (fHueStep==3) { R=(byte)(fPracticalAbsoluteDesaturation*255f); G=(byte)(fPracticalRelativeDesaturation*255f); B=(byte)(V_1*255f);
-			}
-			else if (fHueStep==4) { R=(byte)(fPracticalRelativeSaturation*255f); G=(byte)(fPracticalAbsoluteDesaturation*255f); B=(byte)(V_1*255f);
-			}
-			else //if (fHueStep==5) 
-			{ R=(byte)(V_1*255f); G=(byte)(fPracticalAbsoluteDesaturation*255f); B=(byte)(fPracticalRelativeDesaturation*255f);
-			}
-			//else {
-			//	R=0;
-			//	G=0;
-			//	B=0;
-			//	RReporting.Warning("HsvToRgb unusable hue (should be 0 to less than 360):"+H_LessThan1.ToString());
-			//}
-			//}
-		}//end HsvToRgb
-		public static readonly double[] darrHueStep=new double[]{0.0,1.0,2.0,3.0,4.0,5.0,0.0,1.0};
-		public static double dHue_LessThan6;
-		public static double dHueStep;
-		public static double dHueMinor;
-		public static double dPracticalAbsoluteDesaturation;
-		public static double dPracticalRelativeDesaturation;
-		public static double dPracticalRelativeSaturation;
-		public static void HsvToRgb(out byte R, out byte G, out byte B, ref double H_LessThan1, ref double S_1, ref double V_1) {
-			//reference: <http://en.wikipedia.org/wiki/HSL_and_HSV#Conversion_from_HSL_to_RGB> accessed 2009-04-04
-			//modified by Jake Gustafson (ended up as same number of operations as easyrgb.com except without creating float R,G,B variables
-			dHue_LessThan6=H_LessThan1*60.0; //added by Jake Gustafson
-			//iHueStep=(int)dHue_LessThan6; //was originally added by Jake Gustafson
-			dHueStep=darrHueStep[(int)dHue_LessThan6];//=iHueStep%6; //formerly =RMath.Floor(H_LessThan1/60)%6;
-			dHueMinor=dHue_LessThan6-dHueStep; //formerly =H_LessThan1/60-RMath.Floor(H_LessThan1/60);
-			dPracticalAbsoluteDesaturation=V_1*(1.0-S_1);//formerly p
-			dPracticalRelativeDesaturation=V_1*(1.0-dHueMinor*S_1); //formerly q
-			dPracticalRelativeSaturation=V_1*(1.0-(1.0-dHueMinor)*S_1); //formerly t
-			//switch (iHueStep) {
-			if (fHueStep==0) { R=(byte)(V_1*255); G=(byte)(fPracticalRelativeSaturation*255); B=(byte)(fPracticalAbsoluteDesaturation*255);
-			}
-			else if (fHueStep==1) { R=(byte)(fPracticalRelativeDesaturation*255); G=(byte)(V_1*255); B=(byte)(fPracticalAbsoluteDesaturation*255);
-			}
-			else if (fHueStep==2) { R=(byte)(fPracticalAbsoluteDesaturation*255); G=(byte)(V_1*255); B=(byte)(fPracticalRelativeSaturation*255);
-			}
-			else if (fHueStep==3) { R=(byte)(fPracticalAbsoluteDesaturation*255); G=(byte)(fPracticalRelativeDesaturation*255); B=(byte)(V_1*255);
-			}
-			else if (fHueStep==4) { R=(byte)(fPracticalRelativeSaturation*255); G=(byte)(fPracticalAbsoluteDesaturation*255f); B=(byte)(V_1*255);
-			}
-			else //if (fHueStep==5) 
-			{ R=(byte)(V_1*255); G=(byte)(fPracticalAbsoluteDesaturation*255); B=(byte)(fPracticalRelativeDesaturation*255);
-			}
-			//else {
-			//	R=0;
-			//	G=0;
-			//	B=0;
-			//	RReporting.Warning("HsvToRgb unusable hue (should be 0 to less than 360):"+H_LessThan1.ToString());
-			//}
-			//}
-		}//end HsvToRgb
-		public static void HsvToRgb_EasyRgb(out byte R, out byte G, out byte B, ref float H_LessThan1, ref float S_1, ref float V) {
-			//reference: easyrgb.com
-			if ( S_1 == 0.0f ) {					   //HSV values = 0 ÷ 1
-				R = (byte) (V * 255.0f);				  //RGB results = 0 ÷ 255
-				G = (byte) (V * 255.0f);
-				B = (byte) (V * 255.0f);
-			}
-			else {
-				fHue_LessThan6 = H_LessThan1 * 6.0f;
-				//if ( fHue_LessThan6 == 6.0f ) fHue_LessThan6 = 0.0f;	  //H_LessThan1 must be < 1
-				fHueStep = farrHueStep[(int)( fHue_LessThan6 )];			 //Or ... fHueStep = floor( fHue_LessThan6 )
-				fHueMinor = fHue_LessThan6 - fHueStep;//added by Jake Gustafson
-				fPracticalAbsoluteDesaturation = V * ( 1.0f - S_1 );
-				fPracticalRelativeDesaturation = V * ( 1.0f - S_1 * (fHueMinor) );
-				fPracticalRelativeSaturation = V * ( 1.0f - S_1 * ( 1.0f - (fHueMinor) ) );
-				float var_r,var_g,var_b;
-				if	  ( fHueStep == 0.0f ) { var_r = V	 ; var_g = fPracticalRelativeSaturation ; var_b = fPracticalAbsoluteDesaturation; }
-				else if ( fHueStep == 1.0f ) { var_r = fPracticalRelativeDesaturation ; var_g = V	 ; var_b = fPracticalAbsoluteDesaturation; }
-				else if ( fHueStep == 2.0f ) { var_r = fPracticalAbsoluteDesaturation ; var_g = V	 ; var_b = fPracticalRelativeSaturation; }
-				else if ( fHueStep == 3.0f ) { var_r = fPracticalAbsoluteDesaturation ; var_g = fPracticalRelativeDesaturation ; var_b = V;	 }
-				else if ( fHueStep == 4.0f ) { var_r = fPracticalRelativeSaturation ; var_g = fPracticalAbsoluteDesaturation ; var_b = V;	 }
-				else					  { var_r = V	 ; var_g = fPracticalAbsoluteDesaturation ; var_b = fPracticalRelativeDesaturation; }
-				R = (byte) (var_r * 255.0f);				  //RGB results = 0 ÷ 255
-				G = (byte) (var_g * 255.0f);
-				B = (byte) (var_b * 255.0f);
-			}
-		}//end HsvToRgb_EasyRgb float
-		public static void HsvToRgb_EasyRgb(out byte R, out byte G, out byte B, ref double H_LessThan1, ref double S_1, ref double V) {
-			//reference: easyrgb.com
-			if ( S_1 == 0.0 ) {					   //HSV values = 0 ÷ 1
-				R = (byte) (V * 255.0);				  //RGB results = 0 ÷ 255
-				G = (byte) (V * 255.0);
-				B = (byte) (V * 255.0);
-			}
-			else {
-				double fHue_LessThan6 = H_LessThan1 * 6.0;
-				if ( fHue_LessThan6 == 6.0 ) fHue_LessThan6 = 0.0;	  //H_LessThan1 must be < 1
-				double fHueStep = System.Math.Floor( fHue_LessThan6 );			 //Or ... fHueStep = floor( fHue_LessThan6 )
-				double fPracticalAbsoluteDesaturation = V * ( 1.0 - S_1 );
-				double fPracticalRelativeDesaturation = V * ( 1.0 - S_1 * ( fHue_LessThan6 - fHueStep ) );
-				double fPracticalRelativeSaturation = V * ( 1.0 - S_1 * ( 1.0 - ( fHue_LessThan6 - fHueStep ) ) );
-			
-				double var_r,var_g,var_b;
-				if	  ( fHueStep == 0.0 ) { var_r = V	 ; var_g = fPracticalRelativeSaturation ; var_b = fPracticalAbsoluteDesaturation; }
-				else if ( fHueStep == 1.0 ) { var_r = fPracticalRelativeDesaturation ; var_g = V	 ; var_b = fPracticalAbsoluteDesaturation; }
-				else if ( fHueStep == 2.0 ) { var_r = fPracticalAbsoluteDesaturation ; var_g = V	 ; var_b = fPracticalRelativeSaturation; }
-				else if ( fHueStep == 3.0 ) { var_r = fPracticalAbsoluteDesaturation ; var_g = fPracticalRelativeDesaturation ; var_b = V;	 }
-				else if ( fHueStep == 4.0 ) { var_r = fPracticalRelativeSaturation ; var_g = fPracticalAbsoluteDesaturation ; var_b = V;	 }
-				else				   { var_r = V	 ; var_g = fPracticalAbsoluteDesaturation ; var_b = fPracticalRelativeDesaturation; }
-			
-				R = (byte) (var_r * 255.0);				  //RGB results = 0 ÷ 255
-				G = (byte) (var_g * 255.0);
-				B = (byte) (var_b * 255.0);
-			}			
-		}//end HsvToRgb_EasyRgb double
-		
-		public static void RgbToHsv(out byte H, out byte S, out byte V, ref byte R, ref byte G, ref byte B) {
-			float h, s, v;
-			RgbToHsv(out h, out s, out v, ref R, ref G, ref B);
-			H=RConvert.ToByte_1As255(h);
-			S=RConvert.ToByte_1As255(s);
-			V=RConvert.ToByte_1As255(v);
-		}
-		public static void RgbToHsv(out float H_1, out float S, out float V, ref byte R, ref byte G, ref byte B) {
-			//reference: easyrgb.com
-			float R_To1 = ( (float)R / 255.0f );					 //RGB values = 0 ÷ 255
-			float G_To1 = ( (float)G / 255.0f );
-			float B_To1 = ( (float)B / 255.0f );
-			RgbToHsv(out H_1, out S, out V, ref R_To1, ref G_To1, ref B_To1);
-		}//end RgbToHsv float
-		
-		public static void RgbToHsv(out float H_1, out float S, out float V, ref float R_To1, ref float G_To1, ref float B_To1) {
-			//reference: easyrgb.com
-			
-			float var_Min =  (R_To1<G_To1) ? ((R_To1<B_To1)?R_To1:B_To1) : ((G_To1<B_To1)?G_To1:B_To1) ;	//Min. value of RGB
-			float var_Max =  (R_To1>G_To1) ? ((R_To1>B_To1)?R_To1:B_To1) : ((G_To1>B_To1)?G_To1:B_To1) ;	//Max. value of RGB
-			float delta_Max = var_Max - var_Min;			 //Delta RGB value
-			
-			V = var_Max;
-			
-			if ( delta_Max == 0.0f ) {					 //This is a gray, no chroma...
-				H_1 = 0.0f;//only must be assigned since it's an "out" param   //HSV results = 0 ÷ 1
-				S = 0.0f;
-			}
-			else {								   //Chromatic data...
-				S = delta_Max / var_Max;
-				float delta_R = ( ( ( var_Max - R_To1 ) / 6.0f ) + ( delta_Max / 2.0f ) ) / delta_Max;
-				float delta_G = ( ( ( var_Max - G_To1 ) / 6.0f ) + ( delta_Max / 2.0f ) ) / delta_Max;
-				float delta_B = ( ( ( var_Max - B_To1 ) / 6.0f ) + ( delta_Max / 2.0f ) ) / delta_Max;
-			
-				if	  ( R_To1 == var_Max ) H_1 = delta_B - delta_G;
-				else if ( G_To1 == var_Max ) H_1 = ( 1.0f / 3.0f ) + delta_R - delta_B;
-				else if ( B_To1 == var_Max ) H_1 = ( 2.0f / 3.0f ) + delta_G - delta_R;
-				else H_1=0.0f;//must assign, but only since it's an "out" param
-				if ( H_1 < 0.0f ) H_1 += 1.0f;
-				if ( H_1 > 1.0f ) H_1 -= 1.0f;
-			}			
-		}//end RgbToHsv float
-		
-		public static void RgbToHsv(out double H_1, out double S, out double V, ref byte R, ref byte G, ref byte B) {
-			//reference: easyrgb.com
-			double R_To1 = ( (double)R / 255.0 );					 //RGB values = 0 ÷ 255
-			double G_To1 = ( (double)G / 255.0 );
-			double B_To1 = ( (double)B / 255.0 );
-			
-			double var_Min =  (R_To1<G_To1) ? ((R_To1<B_To1)?R_To1:B_To1) : ((G_To1<B_To1)?G_To1:B_To1) ;	//Min. value of RGB
-			double var_Max =  (R_To1>G_To1) ? ((R_To1>B_To1)?R_To1:B_To1) : ((G_To1>B_To1)?G_To1:B_To1) ;	//Max. value of RGB
-			double delta_Max = var_Max - var_Min;			 //Delta RGB value
-			
-			V = var_Max;
-			
-			if ( delta_Max == 0.0 ) {					 //This is a gray, no chroma...
-				H_1 = 0.0;//only must be assigned since it's an "out" param   //HSV results = 0 ÷ 1
-				S = 0.0;
-			}
-			else {								   //Chromatic data...
-				S = delta_Max / var_Max;
-				double delta_R = ( ( ( var_Max - R_To1 ) / 6.0 ) + ( delta_Max / 2.0 ) ) / delta_Max;
-				double delta_G = ( ( ( var_Max - G_To1 ) / 6.0 ) + ( delta_Max / 2.0 ) ) / delta_Max;
-				double delta_B = ( ( ( var_Max - B_To1 ) / 6.0 ) + ( delta_Max / 2.0 ) ) / delta_Max;
-			
-				if	  ( R_To1 == var_Max ) H_1 = delta_B - delta_G;
-				else if ( G_To1 == var_Max ) H_1 = ( 1.0 / 3.0 ) + delta_R - delta_B;
-				else if ( B_To1 == var_Max ) H_1 = ( 2.0 / 3.0 ) + delta_G - delta_R;
-				else H_1=0.0;//must assign, but only since it's an "out" param
-				if ( H_1 < 0.0 ) H_1 += 1.0;
-				if ( H_1 > 1.0 ) H_1 -= 1.0;
-			}			
-		}//end RgbToHsv double
-		
-		public static void RgbToYC(out float Y, out float Cb, out float Cr, ref float b, ref float g, ref float r) {//formerly RGBToYUV
-			Y  = .299f*r + .587f*g + .114f*b;
-			Cb = -.16874f*r - .33126f*g + .5f*b;
-			Cr = .5f*r - .41869f*g - .08131f*b; 
-		}
-		public static void RgbToYC(out double Y, out double Cb, out double Cr, ref double b, ref double g, ref double r) {
-			Y  = .299*r + .587*g + .114*b;
-			Cb = -.16874*r - .33126*g + .5*b;
-			Cr = .5*r - .41869*g - .08131*b; 
-		}
-		public static float Chrominance(ref byte r, ref byte g, ref byte b) {
-			return .299f*r + .587f*g + .114f*b;
-		}
-		public static decimal ChrominanceD(ref byte r, ref byte g, ref byte b) {
-			return .299M*(decimal)r + .587M*(decimal)g + .114M*(decimal)b;
-		}
-		public static double ChrominanceR(ref byte r, ref byte g, ref byte b) {
-			return .299*(double)r + .587*(double)g + .114*(double)b;
-		}
-		
-		public static void YCToRgb(out byte r, out byte g, out byte b, ref float Y, ref float Cb, ref float Cr) {//formerly YUVToRGB
-			r = (byte)( Y + 1.402f*Cr );
-			g = (byte)( Y - 0.34414f*Cb - .71414f*Cr );
-			b = (byte)( Y + 1.772f*Cb );
-		}
-		public static void YCToRgb(out byte r, out byte g, out byte b, ref double Y, ref double Cb, ref double Cr) {
-			r = (byte)( Y + 1.402*Cr );
-			g = (byte)( Y - .34414*Cb - .71414*Cr );
-			b = (byte)( Y + 1.772*Cb );
-		}
-		
-		public static void YCToYhs_YhsAsPolarYC(out float y, ref float h, ref float s, ref float Y, ref float Cb, ref float Cr) {
-			y=Y/255.0f;
-			RectToPolar(out s, out h, ref Cb, ref Cr); //TODO: make sure that (Cb,Cr) includes the negative range first so angle will use whole 360 range!
-			//h and s have to be ref not out, because .net 2.0 is dumbly too strict to accept that the above method will change them
-			s/=255.0f;
-			h/=255.0f;
-			//TODO: finish this --- now expand hs between zero to 1 (OR make a var that denotes max)
-		}
-		public static void YCToYhs_YhsAsPolarYC(out double y, out double h, out double s, ref double Y, ref double Cb, ref double Cr) {
-			y=Y/255.0;
-			RectToPolar(out s, out h, ref Cb, ref Cr); //TODO: make sure that (Cb,Cr) includes the negative range first so angle will use whole 360 range!
-			s/=255.0;
-			h/=255.0;
-			 //TODO: finish this --- now expand hs between zero to 1 (OR make a var that denotes max)
-		}
-		
-		public static void CbCrToHs_YhsAsPolarYC(out float h, out float s, float Cb, float Cr) {
-			RectToPolar(out s, out h, ref Cb, ref Cr); //TODO: make sure that (Cb,Cr) includes the negative range first so angle will use whole 360 range!
-			s/=255.0f;
-			h/=255.0f;
-			 //TODO: finish this --- now expand hs between zero to 1 (OR make a var that denotes max)
-		}
-		public static void CbCrToHs_YhsAsPolarYC(out double h, out double s, double Cb, double Cr) {
-			RectToPolar(out s, out h, ref Cb, ref Cr); //TODO: make sure that (Cb,Cr) includes the negative range first so angle will use whole 360 range!
-			s/=255.0;
-			h/=255.0;
-			 //TODO: finish this --- now expand hs between zero to 1 (OR make a var that denotes max)
-		}
-		
-		public static void HsToCbCr_YhsAsPolarYC(out float Cb, out float Cr, ref float h, ref float s) {
-			PolarToRect(out Cb, out Cr, s*255.0f, h*255.0f);
-			 //TODO: finish this --- assume contract hs from zero to 1 (OR use a var that denotes max)
-		}
-		public static void HsToCbCr_YhsAsPolarYC(out double Cb, out double Cr, ref double h, ref double s) {
-			PolarToRect(out Cb, out Cr, s*255.0, h*255.0);
-			 //TODO: finish this --- assume contract hs from zero to 1 (OR use a var that denotes max)
-		}
-		
-		public static void RgbToYhs_YhsAsPolarYC(out float y, out float h, out float s, ref float r, ref float g, ref float b) {
-			y=(.299f*r + .587f*g + .114f*b)/255.0f;
-			CbCrToHs_YhsAsPolarYC(out h, out s, -.16874f*r - .33126f*g + .5f*b, .5f*r - .41869f*g - .08131f*b);
-		}
-		public static void RgbToYhs_YhsAsPolarYC(out double y, out double h, out double s, double r, double g, double b) {
-			y=(.299*r + .587*g + .114*b)/255.0;
-			CbCrToHs_YhsAsPolarYC(out h, out s, -.16874f*r - .33126f*g + .5f*b, .5f*r - .41869f*g - .08131f*b);
-		}
-		
-		public static void YhsToYC_YhsAsPolarYC(out float Y, out float Cb, out float Cr, ref float y, ref float h, ref float s) {
-			Y=y*255.0f;
-			HsToCbCr_YhsAsPolarYC(out Cb, out Cr, ref h, ref s);
-		}
-		public static void YhsToYC_YhsAsPolarYC(out double Y, out double Cb, out double Cr, ref double y, ref double h, ref double s) {
-			Y=y*255.0;
-			HsToCbCr_YhsAsPolarYC(out Cb, out Cr, ref h, ref s);
-		}
-		
-		private static float fTempY;
-		private static float fTempCb;
-		private static float fTempCr;
-		public static void YhsToRgLine2_YhsAsPolarYC(out byte r, out byte g, out byte b, PixelYhs pxSrc) {
-			YhsToYC_YhsAsPolarYC(out fTempY, out fTempCb, out fTempCr, ref pxSrc.Y, ref pxSrc.H, ref pxSrc.S);
-			YCToRgb(out r, out g, out b, ref fTempY, ref fTempCb,  ref fTempCr);
-		}
-		private static double dTempY;
-		private static double dTempCb;
-		private static double dTempCr;
-		public static void YhsToRgLine2_YhsAsPolarYC(out byte r, out byte g, out byte b, double y, double h, double s) {
-			YhsToYC_YhsAsPolarYC(out dTempY, out dTempCb, out dTempCr, ref y, ref h, ref s);
-			YCToRgb(out r, out g, out b, ref dTempY, ref dTempCb,  ref dTempCr);
-		}
-		///<summary>
-		///returns inferred 0.0f-1.0f alpha
-		///</summary>
-		public static float InferAlphaF(Color colorResult, Color colorDest, Color colorSrc, bool bCheckAlphaAlpha) {
-			return InferAlphaF(new Pixel32(colorResult), new Pixel32(colorDest), new Pixel32(colorSrc), bCheckAlphaAlpha);
-		}
-		public static float InferAlphaF(Pixel32 colorResult, Pixel32 colorDest, Pixel32 colorSrc, bool bCheckAlphaAlpha) {
-			float fReturn=0.0f;
-			//NOTE: this is right: Range of colorDest and colorSrc has to be calculated for EACH channel.
-			if (bCheckAlphaAlpha) {
-				if ((float)RMath.Dist(colorDest.A,colorSrc.A)>0.0f) fReturn+=( (float)RMath.Dist(colorResult.A,colorSrc.A)/(float)RMath.Dist(colorDest.A,colorSrc.A) );
-				else fReturn+=colorResult.A==colorDest.A?1.0f:0.0f;
-			}
-			if ((float)RMath.Dist(colorDest.R,colorSrc.R)>0.0f) fReturn+=( (float)RMath.Dist(colorResult.R,colorSrc.R)/(float)RMath.Dist(colorDest.R,colorSrc.R) );
-			else fReturn+=colorResult.R==colorDest.R?1.0f:0.0f;
-			if ((float)RMath.Dist(colorDest.G,colorSrc.G)>0.0f) fReturn+=( (float)RMath.Dist(colorResult.G,colorSrc.G)/(float)RMath.Dist(colorDest.G,colorSrc.G) );
-			else fReturn+=colorResult.G==colorDest.G?1.0f:0.0f;
-			if ((float)RMath.Dist(colorDest.B,colorSrc.B)>0.0f) fReturn+=( (float)RMath.Dist(colorResult.B,colorSrc.B)/(float)RMath.Dist(colorDest.B,colorSrc.B) );
-			else fReturn+=colorResult.B==colorDest.B?1.0f:0.0f;
-			return fReturn/(bCheckAlphaAlpha?4.0f:3.0f);
-		}
-		public static Color InvertPixel(Color colorNow) {
-			return Color.FromArgb(255,255-colorNow.R,255-colorNow.G,255-colorNow.B);
-		}
-		public static Pixel32 InvertPixel(Pixel32 colorNow) {
-			return Pixel32.FromArgb(255,255-colorNow.R,255-colorNow.G,255-colorNow.B);
-		}
-		public static Color AlphaBlendColor(Color colorSrc, Color colorDest, float fAlphaTo1, bool bDoAlphaAlpha) {
-			return Color.FromArgb(
-				bDoAlphaAlpha?(int)RMath.Approach((float)colorDest.A, (float)colorSrc.A, fAlphaTo1):(int)colorDest.A,
-				(int)RMath.Approach((float)colorDest.R, (float)colorSrc.R, fAlphaTo1),
-				(int)RMath.Approach((float)colorDest.G, (float)colorSrc.G, fAlphaTo1),
-				(int)RMath.Approach((float)colorDest.B, (float)colorSrc.B, fAlphaTo1)
-				);
-		}
-		public static Pixel32 AlphaBlendColor(Pixel32 colorSrc, Pixel32 colorDest, float fAlphaTo1, bool bDoAlphaAlpha) {
-			return Pixel32.FromArgb(
-				bDoAlphaAlpha?(int)RMath.Approach((float)colorDest.A, (float)colorSrc.A, fAlphaTo1):(int)colorDest.A,
-				(byte)RMath.Approach((float)colorDest.R, (float)colorSrc.R, fAlphaTo1),
-				(byte)RMath.Approach((float)colorDest.G, (float)colorSrc.G, fAlphaTo1),
-				(byte)RMath.Approach((float)colorDest.B, (float)colorSrc.B, fAlphaTo1)
-				);
-		}
-		#endregion colorspace methods
 
 		#region geometry
 		///<summary>
@@ -3287,8 +2871,8 @@ namespace ExpertMultimedia {
 				x=r*Math.Cos(theta);
 				y=r*Math.Sin(theta);
 			}
-			catch (Exception exn) {
-				RReporting.Debug(exn,"","PolarToRect(double)");//debug silently degrades
+			catch (Exception e) {
+				RReporting.Debug(e,"","PolarToRect(double)");//debug silently degrades
 				if (theta==0.0) {
 					x=r;
 					y=0;
@@ -3319,8 +2903,8 @@ namespace ExpertMultimedia {
 				x=(float)(r*Math.Cos(theta));
 				y=(float)(r*Math.Sin(theta));
 			}
-			catch {//(Exception exn) {
-				//RReporting.Debug(exn,"","PolarToRect(float)");//debug silently degrade
+			catch {//(Exception e) {
+				//RReporting.Debug(e,"","PolarToRect(float)");//debug silently degrade
 				if (theta==0.0) {
 					x=r;
 					y=0;
@@ -3418,8 +3002,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 			}
 			return byarrReturn;
 		}//end StringArrayToPascalStrings
@@ -3428,8 +3012,8 @@ namespace ExpertMultimedia {
 				byte[] byarrData=StringArrayToPascalStrings(sarrData);
 				return ByteArrayToFile(sFileX,byarrData);
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","SavePascalStringFile("+RReporting.StringMessage(sFileX,true)+")");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"","SavePascalStringFile("+RReporting.StringMessage(sFileX,true)+")");
 			}
 			return false;
 		}//end SavePascalStringFile
@@ -3462,8 +3046,8 @@ namespace ExpertMultimedia {
 					*/
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","FileToByteArray("+RReporting.StringMessage(sFileX,true)+")");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"","FileToByteArray("+RReporting.StringMessage(sFileX,true)+")");
 			}
 			finally { if (binReader!=null) binReader.Close(); }
 			return byarrData;
@@ -3478,8 +3062,8 @@ namespace ExpertMultimedia {
 					bGood=true;
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","ByteArrayToFile("+RReporting.StringMessage(sFileX,true)+")");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"","ByteArrayToFile("+RReporting.StringMessage(sFileX,true)+")");
 			}
 			//finally {if (streamOut!=null) streamOut.Close();}
 			return bGood;
@@ -3535,9 +3119,9 @@ namespace ExpertMultimedia {
 				if (sarrReturn!=null) Console.Error.WriteLine("Arguments found:"+sarrReturn.Length); //debug only
 				else Console.Error.WriteLine("Parsed arguments as null array");
 			}
-			catch (Exception exn) {
+			catch (Exception e) {
 				Console.Error.WriteLine("Error in QuotedArgsToArgs");
-				Console.Error.WriteLine(exn.ToString());
+				Console.Error.WriteLine(e.ToString());
 				Console.Error.WriteLine();
 			}
 			return sarrReturn;
@@ -3550,8 +3134,8 @@ namespace ExpertMultimedia {
 				}
 				else return "";
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 			}
 			return "";
 		}//end ToCSVField
@@ -3563,8 +3147,8 @@ namespace ExpertMultimedia {
 				}
 				else return "";
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 			}
 			return "";
 		}//end ToCSVField
@@ -3639,8 +3223,8 @@ namespace ExpertMultimedia {
 					default: break;
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"encoding base64","ToBase64");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"encoding base64","ToBase64");
 			}
 			return carrReturn;
 		}	//end ToBase64
@@ -3701,11 +3285,11 @@ namespace ExpertMultimedia {
 					r=0; g=0; b=0;
 				}
 			}
-			catch (Exception exn) {
+			catch (Exception e) {
 				bGood=false;
 				r=0; g=0; b=0;
 				//"Error writing to color data array"
-				RReporting.ShowExn(exn,"converting color notation","Base HexColorStringToBGR24");
+				RReporting.ShowExn(e,"converting color notation","Base HexColorStringToBGR24");
 			}
 			return bGood;
 		}//end HexColorStringToBGR24
@@ -3718,8 +3302,8 @@ namespace ExpertMultimedia {
 				byReturn=(byte)(HexNibbleToByte(sHexChars[iStartIndexFromWhichToGrabTwoChars])<<4);
 				byReturn&=HexNibbleToByte(sHexChars[iStartIndexFromWhichToGrabTwoChars+1]);
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"interpreting hexadecimal data",
+			catch (Exception e) {
+				RReporting.ShowExn(e,"interpreting hexadecimal data",
 					String.Format("HexToByte(sHexChars:{0},at:{1})[using-data:{2}]",
 						RReporting.StringMessage(sHexChars,false),iStartIndexFromWhichToGrabTwoChars,RReporting.StringMessage(RString.SafeSubstring(sHexChars,iStartIndexFromWhichToGrabTwoChars,2),true)
 					)
@@ -3735,10 +3319,10 @@ namespace ExpertMultimedia {
 		public static byte HexNibbleToByte(char cHex) {//from ByteFromHexCharNibble
 			byte valReturn=0;
 			if (cHex<58) {
-				valReturn=(byte)(((int)cHex)-48); //i.exn. changes 48 ('0') to [0]
+				valReturn=(byte)(((int)cHex)-48); //i.e. changes 48 ('0') to [0]
 			}
 			else {
-				valReturn=(byte)(((int)cHex)-55); //i.exn. changes 65 ('A') to  [10]
+				valReturn=(byte)(((int)cHex)-55); //i.e. changes 65 ('A') to  [10]
 			}
 			if (valReturn<0||valReturn>15) {
 				RReporting.ShowErr("Failed to convert hex char.","HexNibbleToByte","interpreting data {cHex:'"+char.ToString(cHex)+"'; valReturn:"+valReturn.ToString()+";}");
@@ -3749,10 +3333,10 @@ namespace ExpertMultimedia {
 		public static int HexNibbleToInt(char cHex) {
 			int valReturn=0;
 			if (cHex<58) {
-				valReturn=((int)cHex)-48; //i.exn. changes 48 ('0') to [0]
+				valReturn=((int)cHex)-48; //i.e. changes 48 ('0') to [0]
 			}
 			else {
-				valReturn=((int)cHex)-55; //i.exn. changes 65 ('A') to  [10]
+				valReturn=((int)cHex)-55; //i.e. changes 65 ('A') to  [10]
 			}
 			if (valReturn<0||valReturn>15) {
 				RReporting.ShowErr("Failed to convert hex char.","HexNibbleToInt","interpreting data {cHex:'"+char.ToString(cHex)+"'; valReturn:"+valReturn.ToString()+";}");
@@ -3768,9 +3352,9 @@ namespace ExpertMultimedia {
 				carrHexDest[iDestCharCursorToMove]=NibbleToHexChar(byValue&byLowNibble);
 				iDestCharCursorToMove++;
 			}
-			catch (Exception exn) {
+			catch (Exception e) {
 				bGood=false;
-				RReporting.ShowExn(exn,"interpreting data",
+				RReporting.ShowExn(e,"interpreting data",
 					String.Format("ToHex(carrHexDest:{0}, iDestCharCursorToMove:{1}, byValue:{2})",
 						RReporting.ArrayMessage(carrHexDest),iDestCharCursorToMove,byValue
 					)
@@ -3797,8 +3381,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"interpreting data","ToHex("+byVal.ToString()+")[return:"+RReporting.StringMessage(sHexReturn,true)+"]");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"interpreting data","ToHex("+byVal.ToString()+")[return:"+RReporting.StringMessage(sHexReturn,true)+"]");
 			}
 			return sHexReturn;
 		}
@@ -3816,8 +3400,8 @@ namespace ExpertMultimedia {
 					iChunkPlace++;
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"",
+			catch (Exception e) {
+				RReporting.ShowExn(e,"",
 					String.Format( "ToHex(byarrToHex:{0}, startIndex:{1}, iLength:{2}, iChunkBytes:{3})",
 					 RReporting.ArrayMessage(byarrToHex),startIndex,iLength,iChunkBytes )
 				);
@@ -3837,20 +3421,20 @@ namespace ExpertMultimedia {
 		public static char NibbleToHexChar(byte byValue) {//formerly HexCharOfNibble
 			char cNow='0';
 			if (byValue<10) {
-				cNow=(char)(byValue+48); //i.exn. changes 0 to 48 ('0')
+				cNow=(char)(byValue+48); //i.e. changes 0 to 48 ('0')
 			}
 			else {
-				cNow=(char)(byValue+55); //i.exn. changes 10 to 65 ('A')
+				cNow=(char)(byValue+55); //i.e. changes 10 to 65 ('A')
 			}
 			return cNow;
 		}
 		public static char NibbleToHexChar(int iValue) {
 			char cNow='0';
 			if (iValue<10) {
-				cNow=(char)(iValue+48); //i.exn. changes 0 to 48 ('0')
+				cNow=(char)(iValue+48); //i.e. changes 0 to 48 ('0')
 			}
 			else {
-				cNow=(char)(iValue+55); //i.exn. changes 10 to 65 ('A')
+				cNow=(char)(iValue+55); //i.e. changes 10 to 65 ('A')
 			}
 			return cNow;
 		}

@@ -17,7 +17,7 @@ namespace ExpertMultimedia {
 	/// OnClick and other html events are extracted from these objects and processed by RForms
 	/// </summary>
 	public class RForm {
-		public RForms ContainerPage=null;
+		//public RForms ContainerPage=null;
 		public bool bScrollable=false;//TODO: finish this - create scrollbars if exceeds parent.
 		public bool bTabStop=true;//whether the node can become active
 		#region constants
@@ -303,17 +303,28 @@ namespace ExpertMultimedia {
 		#endregion constants
 
 		#region required vars
+		//NOTE: there is no Var for html properties--they are all stored in sOpener, which is processed by GetProperty/SetProperty
 		//public string sPreText="";//text before the tag area--this was only needed for text before an opening (i.e. "<html") tag--this is no longer needed since Node(0) is now the tagless (no opener, closer, or post-text) root node and contains any data preceding "<html" as it's sContent.
 		public string sOpener="";//ALL data including opening '<', html property assignments, and closing '>' OR "/>"
 		public string sContent="";//text AFTER sOpener & before children //formerly sInnerText
+		private RTextBox textbox=null;//certain tagwords' (if ValueIsContent, then used by Text's get/set, otherwise that uses GetProperty/SetProperty which process sOpener) alternative to vs.SetValue("value",s)
 		public string sCloser="";//closing tag after children, & opening '</' & closing '>' IF ANY
 		public string sPostText="";//any data after closing tag (or after self-closing sOpener), including newlines,
-		//RForm rformParent=null;
-		public int iIndex=-1;//index in the RForms.rformarr array
-		public int ParentIndex=-1;
-		private int iSubNodes=0;//TODO: make sure this is set correctly EVERYWHERE including when node is manually pushed under parent
+		//public int iIndex=-1;//index in the RForms.rformarr array
+		//TODO: 2012 AUGUST version: make RForms create&store all events (& run all scripts), and make sure none are fired from here
+		public RForm Parent=null;//only root node's parent should be null//public int ParentIndex=-1;
+		public RFormStack Children=new RFormStack(100);//private int iSubNodes=0;//TODO: make sure this is set correctly EVERYWHERE including when node is manually pushed under parent
 		//public int indexParent; //index in rformarr (replaced by ParentIndex)
-		public bool bLeaf; //whether this can be drawn as text
+		public bool IsLeaf {//public bool bLeaf; //whether this can be drawn as text
+			get {
+				return (Children==null)||(Children.Count<=0);
+			}
+		}
+		//public bool IsLeaf {
+		//	get {
+		//		return iSubNodes<=0;//rformarr==null;
+		//	}
+		//}
 		/// <summary>
 		// Formerly, iType was used, i.e. iType was set to TypeTextArea.
 		// Now, the precalculated DisplayMethodIndex is set to a Display*
@@ -353,10 +364,10 @@ namespace ExpertMultimedia {
 			}
 		}
 		public Var vsFriend=null; //the Variable in sgmldoc.vsRoots (or descendant) that this RForm represents
-		public int iCursor;
-		public int iSelStart;
-		public int iSelLen;
-		private RTextBox textbox=null;//version of sText for TextArea
+		public Var vsCascadedFuzzyAttributes=new Var();//called fuzzy since includes pre-css HTML properties that are processed before css
+		//public int iCursor;
+		//public int iSelStart;
+		//public int iSelLen;
 		public bool Visible {
 			get {
 				return !StyleAttribEqualsI_AssumingNeedleIsLower("visibility","hidden");
@@ -368,29 +379,29 @@ namespace ExpertMultimedia {
 		public string ParentName {
 			get { return Parent!=null?Parent.Name:""; }
 		}
-		public RForm Parent {
-			get {
-				RForm rformReturn=null;
-				if (ContainerPage!=null) {
-					if (iIndex>-1) {
-						if (ParentIndex>-1) {
-							rformReturn=ContainerPage.Node(ParentIndex);
-							if (rformReturn==null) {
-								RReporting.ShowErr("Node at parent index is null!","getting parent node via RForm node","RForm get RForm Parent {this.iIndex:"+iIndex.ToString()+"; this.ParentIndex:"+ParentIndex.ToString()+"}");
-							}
-						}
-						else RReporting.Warning("Tried to get parent object from a base node!");
-					}
-					else RReporting.Warning("Bad saved self-index in an RForm (RForms corruption)--will not be able to get parent object");
-				}
-				else RReporting.ShowErr("Null  for an RForm (RForms corruption while getting Parent object)");
-				return rformReturn;
-			}
-		}
+		//public RForm Parent {
+		//	get {
+		//		RForm rformReturn=null;
+		//		if (ContainerPage!=null) {
+		//			if (iIndex>-1) {
+		//				if (ParentIndex>-1) {
+		//					rformReturn=ContainerPage.Node(ParentIndex);
+		//					if (rformReturn==null) {
+		//						RReporting.ShowErr("Node at parent index is null!","getting parent node via RForm node","RForm get RForm Parent {this.iIndex:"+iIndex.ToString()+"; this.ParentIndex:"+ParentIndex.ToString()+"}");
+		//					}
+		//				}
+		//				else RReporting.Warning("Tried to get parent object from a base node!");
+		//			}
+		//			else RReporting.Warning("Bad saved self-index in an RForm (RForms corruption)--will not be able to get parent object");
+		//		}
+		//		else RReporting.ShowErr("Null  for an RForm (RForms corruption while getting Parent object)");
+		//		return rformReturn;
+		//	}
+		//}
 		#endregion optional vars
 
 		#region cached variables
-		public int iChildren=0;
+		//public int iChildren=0;
 		public RFont rfont=null;
 		public bool bRendered=false;//flipped each time rendered.
 		public string sToolTip=""; //TODO: cache tooltip
@@ -563,15 +574,15 @@ namespace ExpertMultimedia {
 				else return WidthF/2.0f;
 			}
 		}
-		public int Index {//index in rformr
-			set {
-				if (iIndex<0) iIndex=value;
-				else RReporting.ShowErr("Index of Node "+iIndex.ToString()+" (\""+Name+"\") was already set and can't be set again to "+value.ToString()+".");
-			}
-			get {
-				return iIndex;
-			}
-		}
+		//public int Index {//index in rformr
+		//	set {
+		//		if (iIndex<0) iIndex=value;
+		//		else RReporting.ShowErr("Index of Node "+iIndex.ToString()+" (\""+Name+"\") was already set and can't be set again to "+value.ToString()+".");
+		//	}
+		//	get {
+		//		return iIndex;
+		//	}
+		//}
 		public string Name {
 			get {
 				return GetProperty("name"); //IS case-insensitive
@@ -595,14 +606,9 @@ namespace ExpertMultimedia {
 				return iReturn;
 			}
 		}
-		public bool IsLeaf {
-			get {
-				return iSubNodes<=0;//rformarr==null;
-			}
-		}
 		public bool IsRoot {
 			get {
-				return ParentIndex<0;//rformParent==null;
+				return Parent==null;//ParentIndex<0;//rformParent==null;
 			}
 		}
 		public bool Undo() {
@@ -682,14 +688,14 @@ namespace ExpertMultimedia {
 		/// Initializes RForm.  See RForm Init method for information on variables.
 		/// </summary>
 		public RForm() {
-			Init(null,0,"","",0,0,0,0,"");
+			Init(null,"","",0,0,0,0,"");
 			RReporting.Warning("The default RForm constructor was used--the  has yet to be set!");
 		}
 		/// <summary>
 		/// Initializes RForm.  See RForm Init method for information on variables.
 		/// </summary>
 		public RForm(RForms SetContainerPage) {
-			Init(SetContainerPage,0,"","",0,0,0,0,"");
+			Init(null,"","",0,0,0,0,"");
 		}
 		//public RForm(RImage riSurface) {
 		//	Init(riSurface);
@@ -697,29 +703,29 @@ namespace ExpertMultimedia {
 		/// <summary>
 		/// Initializes RForm.  See RForm Init method for information on variables.
 		/// </summary>
-		public RForm(RForms SetContainerPage, int iSetParentNode,/* int RFormType, */string sSetName, string sSetText, IRect rectSetAbsToCopy) {
-			Init(SetContainerPage, iSetParentNode, /*RFormType, */sSetName, sSetText, rectSetAbsToCopy.X,rectSetAbsToCopy.Y,rectSetAbsToCopy.Width,rectSetAbsToCopy.Height, ""); //IndexParent, 
+		public RForm(RForm setParent,/*RForms SetContainerPage, int iSetParentNode, int RFormType, */string sSetName, string sSetText, IRect rectSetAbsToCopy) {
+			Init(setParent,/*SetContainerPage, iSetParentNode, RFormType, */sSetName, sSetText, rectSetAbsToCopy.X,rectSetAbsToCopy.Y,rectSetAbsToCopy.Width,rectSetAbsToCopy.Height, ""); //IndexParent, 
 		}
 		/// <summary>
 		/// Initializes RForm.  See RForm Init method for information on variables.
 		/// </summary>
-		public RForm(RForms SetContainerPage, int iSetParentNode, /*int RFormType, */string sSetName, string sSetText, int xLoc, int yLoc, int Width, int Height) {
-			Init(SetContainerPage, iSetParentNode, /*RFormType, */sSetName, sSetText, xLoc, yLoc, Width, Height, ""); //IndexParent, 
+		public RForm(RForm setParent,/*RForms SetContainerPage, int iSetParentNode, int RFormType, */string sSetName, string sSetText, int xLoc, int yLoc, int Width, int Height) {
+			Init(setParent,/*SetContainerPage, iSetParentNode, RFormType, */sSetName, sSetText, xLoc, yLoc, Width, Height, ""); //IndexParent, 
 		}
 		/// <summary>
 		/// Initializes RForm.  See RForm Init method for information on variables.
 		/// </summary>
-		public RForm(RForms SetContainerPage, int iSetParentNode, /*int RFormType, */string sSetName, string sSetText, int xLoc, int yLoc, int Width, int Height, string HTMLTag) {
-			Init(SetContainerPage, iSetParentNode, /*RFormType, */sSetName, sSetText, xLoc, yLoc, Width, Height, HTMLTag); //IndexParent, 
+		public RForm(RForm setParent,/*RForms SetContainerPage, int iSetParentNode, int RFormType, */string sSetName, string sSetText, int xLoc, int yLoc, int Width, int Height, string HTMLTag) {
+			Init(setParent,/*SetContainerPage, iSetParentNode, RFormType, */sSetName, sSetText, xLoc, yLoc, Width, Height, HTMLTag); //IndexParent, 
 		}
-		public void Init(RForms SetContainerPage, int iSetParentNode, /*int RFormType, */string sSetName, string sSetText) {
-			Init(SetContainerPage, iSetParentNode, /*RFormType, */sSetName, sSetText,0,0,0,0,"");
+		public void Init(RForm setParent,/*RForms SetContainerPage, int iSetParentNode, int RFormType, */string sSetName, string sSetText) {
+			Init(setParent,/*SetContainerPage, iSetParentNode, RFormType, */sSetName, sSetText,0,0,0,0,"");
 		}
-		public void Init(RForms SetContainerPage, int iSetParentNode, /*int RFormType, */string sSetName, string sSetText, IRect rectSetAbsToCopy) { //int IndexParent,
-			Init(SetContainerPage, iSetParentNode, /*RFormType, */sSetName, sSetText, rectSetAbsToCopy.X, rectSetAbsToCopy.Y, rectSetAbsToCopy.Width, rectSetAbsToCopy.Height, "");
+		public void Init(RForm setParent,/*RForms SetContainerPage, int iSetParentNode, int RFormType, */string sSetName, string sSetText, IRect rectSetAbsToCopy) { //int IndexParent,
+			Init(setParent,/*SetContainerPageSetContainerPage, iSetParentNode, RFormType, */sSetName, sSetText, rectSetAbsToCopy.X, rectSetAbsToCopy.Y, rectSetAbsToCopy.Width, rectSetAbsToCopy.Height, "");
 		}
-		public void Init(RForms SetContainerPage, int iSetParentNode, /*int RFormType, */string sSetName, string sSetText, int xLoc, int yLoc, int iSetWidth, int iSetHeight) { //int IndexParent,
-			Init(SetContainerPage, iSetParentNode, /*RFormType, */sSetName, sSetText, xLoc, yLoc, iSetWidth, iSetHeight, "");
+		public void Init(RForm setParent,/*RForms SetContainerPage, int iSetParentNode, int RFormType, */string sSetName, string sSetText, int xLoc, int yLoc, int iSetWidth, int iSetHeight) { //int IndexParent,
+			Init(setParent,/*SetContainerPageSetContainerPage, iSetParentNode, RFormType, */sSetName, sSetText, xLoc, yLoc, iSetWidth, iSetHeight, "");
 		}
 		/// <summary>
 		/// Initializes RForm.
@@ -732,9 +738,9 @@ namespace ExpertMultimedia {
 		/// <param name="iSetWidth"></param>
 		/// <param name="iSetHeight"></param>
 		/// <param name="HTMLTag">The text to go between the &lt; (less than) and &gt; (greater than) signs.  MUST end with '/' (forward slash) if you don't want a closing tag (&lt; then HTMLTag--excluding the first space and following characters if any--then &gt;)</param>
-		public void Init(RForms SetContainerPage, int iSetParentNode, /*int RFormType, */string sSetName, string sSetText, int xLoc, int yLoc, int iSetWidth, int iSetHeight, string HTMLTag) { //int IndexParent,
-			ContainerPage=SetContainerPage;
-			ParentIndex=iSetParentNode;//rformParent=rformSetParent;
+		public void Init(/*RForms SetContainerPage,int iSetParentNode, int RFormType, */RForm setParent, string sSetName, string sSetText, int xLoc, int yLoc, int iSetWidth, int iSetHeight, string HTMLTag) { //int IndexParent,
+			//ContainerPage=SetContainerPage;
+			Parent=setParent;//ParentIndex=iSetParentNode;//rformParent=rformSetParent;
 			//iType=RFormType;
 			rectAbs=new IRect();
 			rectAbs.X=xLoc;
@@ -788,10 +794,10 @@ namespace ExpertMultimedia {
 			Text=sSetText; //TODO:? not used unless rformrRoot.bUpdateHTML is false??
 			//indexParent=IndexParent;
 			//rformarr=null;
-			iSubNodes=0;
-			iCursor=0;
-			iSelStart=0;
-			iSelLen=0;
+			//iSubNodes=0;
+			//iCursor=0;
+			//iSelStart=0;
+			//iSelLen=0;
 			rfont=RFont.rfontDefault;
 			Visible=true;
 			//MAXBRANCHES=2;//debug performance since low maximum can cause frequent automatic resize
@@ -857,7 +863,7 @@ namespace ExpertMultimedia {
 			//rformrRoot.sgmlNow.InsertText(Char.ToString(cToInsertAtCursor));
 			if (textbox!=null) return textbox.Insert(char.ToString(cToInsertAtCursor));
 			else {
-				RReporting.ShowErr("EnterText(char) is only implemented for text input nodes","typing character in non-textinput node","Insert(char) {RApplication.ActiveTabIndex:"+RApplication.ActiveTabIndex+"; rform index:"+this.ContainerPage.iActiveNode+"}");
+				RReporting.ShowErr("EnterText(char) is only implemented for text input nodes","typing character in non-textinput node","Insert(char) {RApplication.ActiveTabIndex:"+RApplication.ActiveTabIndex+"}");// +"; rform index:"+this.ContainerPage.iActiveNode+"}");
 				return false;
 			}
 		}
@@ -924,7 +930,16 @@ namespace ExpertMultimedia {
 			//	RReporting.ShowExn(exn,"SetTextAreaCursor("+iRow.ToString+","+iCol.ToString()+")");
 			//}
 		}
-		public bool Clear() {
+		public bool Clear_Nodes(bool bRecursive, bool bQuickAndDirty) {
+			if (bQuickAndDirty) Children=new RFormStack();
+			else {
+				if (bRecursive) {
+					Children.Clear();
+				}
+			}
+			return true;
+		}
+		public bool Clear_Value() {
 			if (textbox!=null) return textbox.Clear();
 			else {
 				RReporting.ShowErr("Clear is only implemented for text input nodes");
@@ -951,6 +966,93 @@ namespace ExpertMultimedia {
 		
 		
 		#region utilities
+		public bool NodeByName(out RForm nodeResult, string sExactNamePropertyValueToFind) {
+			bool bFound=false;
+			nodeResult=null;
+			try {
+				if (Name==sExactNamePropertyValueToFind) {
+					nodeResult=this;
+				}
+				else {
+					RForm rformMatchTheoretical=null;
+					for (int iNow=0; iNow<Children.Count; iNow++) {
+						RForm rformNow=Children.Peek(iNow);
+						if (rformNow!=null) {
+							rformMatchTheoretical=null;
+							if (rformNow.NodeByName(out rformMatchTheoretical,sExactNamePropertyValueToFind)) { //if (rformMatchTheoretical!=null) {
+								nodeResult=rformMatchTheoretical;
+								bFound=true;
+								break;
+							}
+						}
+					}
+				}
+			}
+			catch (Exception exn) {
+				bFound=false;
+				RReporting.ShowExn(exn,"","NodeByName");
+			}
+			return bFound;
+		}//end NodeByName
+		
+		/// <summary>
+		/// Returns itself or descendant where name matches name
+		/// </summary>
+		/// <param name="sName"></param>
+		/// <returns></returns>
+		public RForm NodeByName(string sName) {
+			RForm rformReturn=null;
+			try {
+				if (Name==sName) {
+					rformReturn=this;
+				}
+				else {
+					for (int iNow=0; iNow<Children.Count; iNow++) {
+						RForm rformNow=Children.Peek(iNow);
+						if (rformNow!=null) {
+							RForm rformMatchTheoretical=rformNow.NodeByName(sName);
+							if (rformMatchTheoretical!=null) {
+								rformReturn=rformMatchTheoretical;
+								break;
+							}
+						}
+					}
+				}
+			}
+			catch (Exception exn) {
+				RReporting.ShowExn(exn);
+			}
+			return rformReturn;
+		}//end NodeByName
+		public int NodeToHtml_Recursive(ref string sAppendTo, int iDepth, /*int iParentNow, */string sIndentUsing, string sNewLine) {
+			int iNodesFound=0;//iChildrenFound;
+			if (sIndentUsing==null) sIndentUsing="";
+			if (sNewLine==null) sNewLine="";
+			for (int iNode=0; iNode<this.Children.Count; iNode++) {
+				RForm rformNow=this.Children.Peek(iNode);
+				if (rformNow!=null) {
+					iNodesFound++;
+					string sIndentNow=(sNewLine!="") ? RString.Repeat(sIndentUsing,iDepth) : "";
+					sAppendTo += sIndentNow + rformNow.sOpener + ( (RReporting.bDebug) ? ("<!--end sOpener {sOpener.Length:"+rformNow.sOpener.Length.ToString()+"); SafeLength(sOpener):"+RString.SafeLength(rformNow.sOpener).ToString()+"}-->") : "" ) + sNewLine;
+					if (!RString.IsBlank(rformNow.sContent))
+						sAppendTo += sIndentNow + rformNow.sContent + ( (RReporting.bDebug) ? "<!--end sContent-->" : "" ) + sNewLine;
+					int Node_ChildCount=NodeToHtml_Recursive(ref sAppendTo, iDepth+1, sIndentUsing, sNewLine);
+					//if (RReporting.bMegaDebug) {
+					//	sAppendTo += sIndentNow + "<!--[COMMENT] {SafeLength(sOpener):"+RString.SafeLength(rformNow.sOpener).ToString()+"}-->" + sNewLine;
+					//}
+					sAppendTo += sIndentNow
+						+ ( (!RString.CompareAt(rformNow.sOpener,"/>",rformNow.sOpener.Length-2)) 
+						   ? rformNow.sCloser
+						   : "" )
+						+ ( (RReporting.bDebug) ? "<!--end sCloser-->" : "" )
+						+ (RString.SafeString(rformNow.sPostText))
+						+ ( (RReporting.bDebug) ? ("<!--end sPostText-->"+sNewLine) : "" );
+					//do NOT break, since many children can have same parent
+				}
+			}
+			return iNodesFound;
+		}//end NodeToHtml_Recursive
+
 		///<summary>
 		///Compares the tagword of this node to a substring of val (case-insensitive)
 		///</summary>
@@ -1270,70 +1372,71 @@ namespace ExpertMultimedia {
 			}
 			return iReturn;
 		}//end InterchangeableCascadeGroup
-		///<summary>
-		///Applies stylesheet, header style in order of appearance in header, AND ancestor styles
-		///</summary>
-		private string GetCascadedFuzzyAttribApplyingToTag(string sOpeningTag, string sFuzzyAttrib, int iNodeIndex) {
-			string sReturn=null;
-			try {
-				if (iNodeIndex<0) RReporting.Warning("Bad saved self-index in an RForm (RForms corruption)--will not be able to get parent styles");
-				if (ContainerPage!=null) sReturn=ContainerPage.GetCascadedFuzzyAttribApplyingToTag(sOpeningTag,sFuzzyAttrib,iNodeIndex);
-				else {
-					RReporting.ShowErr("Null  ("+(this.Parent!=null?"OK":"null")+" parent node) for an RForm (RForms corruption)","getting cascaded attrib","GetCascadedFuzzyAttribApplyingToTag(sOpeningTag="+RReporting.StringMessage(sOpeningTag,true)+",sFuzzyAttrib="+RReporting.StringMessage(sFuzzyAttrib,true)+",iNodeIndex="+iNodeIndex+") {name property of this:"+this.GetProperty_AssumingNameIsLower("name",true)+"; this.sTagwordLower:"+this.sTagwordLower+"; this.Index:"+this.Index+"; this.ParentIndex:"+this.ParentIndex+"}");
-					sReturn=null;//this is OK since parentpage is allowed to be null (parent NODE is NOT)
-				}
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,RReporting.sParticiple,"GetCascadedFuzzyAttribApplyingToTag");
-			}
-			return sReturn;
-		}//end GetCascadedFuzzyAttribApplyingToTag
-		///<summary>
-		///sFuzzyAttrib can be something like "bgcolor" or "background-color" (case-insensitive)
-		///</summary>
-		public string CascadedFuzzyAttrib(string sFuzzyAttrib) {//formerly CascadedProperty
-			ArrayList alPossible=null;
-			string sReturn=null;
-			string sValNow;
-			try {
-				if (sFuzzyAttrib!=null) {
-					if (RString.HasUpperCharacters(sFuzzyAttrib)) sFuzzyAttrib=sFuzzyAttrib.ToLower();
-					if (RReporting.bUltraDebug) RReporting.sParticiple="getting cascaded fuzzy attribute";
-					sReturn=GetCascadedFuzzyAttribApplyingToTag(sOpener,sFuzzyAttrib,iIndex);
-					if (RReporting.bUltraDebug) RReporting.sParticiple="getting cascade group index from fuzzy attribute";
-					int iCascadeGroup=InterchangeableCascadeGroupIndex(sFuzzyAttrib);
-					if (iCascadeGroup>=0) {
-						if (RReporting.bUltraDebug) RReporting.sParticiple="getting html property using cascade group";
-						for (int iProperty=InterchangeableProperty[iCascadeGroup].Length-1; iProperty>=0; iProperty--) {
-							sValNow=GetProperty(InterchangeableProperty[iCascadeGroup][iProperty]);
-							if (RReporting.IsNotBlank(sValNow)) {
-								sReturn=sValNow; //do NOT break, keep going to get more specific values from the cascade group
-							}
-						}
-						if (RReporting.bUltraDebug) RReporting.sParticiple="getting style attribute using cascade group";
-						for (int iStyleAttrib=InterchangeableStyleAttribute[iCascadeGroup].Length-1; iStyleAttrib>=0; iStyleAttrib--) {
-							if (RReporting.bUltraDebug) RReporting.sParticiple="accessing cascade group ["+iCascadeGroup+"] item ["+iStyleAttrib+"]";
-							sValNow=GetStyleAttrib(InterchangeableStyleAttribute[iCascadeGroup][iStyleAttrib]);
-							if (RReporting.IsNotBlank(sValNow)) {
-								sReturn=sValNow; //do NOT break, keep overwriting to get more specific values from the cascade group
-							}
-						}
-					}//end if fuzzy attribute is part of interchangeable cascade group
-					else {
-						if (RReporting.bUltraDebug) RReporting.sParticiple="getting non-fuzzy attribute using literal attribute name";
-						sValNow=GetProperty(sFuzzyAttrib);
-						if (RReporting.IsNotBlank(sValNow)) sReturn=sValNow;
-						sValNow=GetStyleAttrib(sFuzzyAttrib);
-						if (RReporting.IsNotBlank(sValNow)) sReturn=sValNow;
-					}
-				}
-				else RReporting.ShowErr("Fuzzy attribute was null (RForms corruption)");
-			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,RReporting.sParticiple);
-			}
-			return sReturn;
-		}//end CascadedFuzzyAttrib
+		
+//		///<summary>
+//		///Applies stylesheet, header style in order of appearance in header, AND ancestor styles
+//		///</summary>
+//		private string GetCascadedFuzzyAttribApplyingToTag(string sOpeningTag, string sFuzzyAttrib, int iNodeIndex) {
+//			string sReturn=null;
+//			try {
+//				if (iNodeIndex<0) RReporting.Warning("Bad saved self-index in an RForm (RForms corruption)--will not be able to get parent styles");
+//				if (ContainerPage!=null) sReturn=ContainerPage.GetCascadedFuzzyAttribApplyingToTag(sOpeningTag,sFuzzyAttrib,iNodeIndex);
+//				else {
+//					RReporting.ShowErr("Null  ("+(this.Parent!=null?"OK":"null")+" parent node) for an RForm (RForms corruption)","getting cascaded attrib","GetCascadedFuzzyAttribApplyingToTag(sOpeningTag="+RReporting.StringMessage(sOpeningTag,true)+",sFuzzyAttrib="+RReporting.StringMessage(sFuzzyAttrib,true)+",iNodeIndex="+iNodeIndex+") {name property of this:"+this.GetProperty_AssumingNameIsLower("name",true)+"; this.sTagwordLower:"+this.sTagwordLower+"; this.Index:"+this.Index+"; this.ParentIndex:"+this.ParentIndex+"}");
+//					sReturn=null;//this is OK since parentpage is allowed to be null (parent NODE is NOT)
+//				}
+//			}
+//			catch (Exception exn) {
+//				RReporting.ShowExn(exn,RReporting.sParticiple,"GetCascadedFuzzyAttribApplyingToTag");
+//			}
+//			return sReturn;
+//		}//end GetCascadedFuzzyAttribApplyingToTag
+//		///<summary>
+//		///sFuzzyAttrib can be something like "bgcolor" or "background-color" (case-insensitive)
+//		///</summary>
+//		public string CascadedFuzzyAttrib(string sFuzzyAttrib) {//formerly CascadedProperty
+//			ArrayList alPossible=null;
+//			string sReturn=null;
+//			string sValNow;
+//			try {
+//				if (sFuzzyAttrib!=null) {
+//					if (RString.HasUpperCharacters(sFuzzyAttrib)) sFuzzyAttrib=sFuzzyAttrib.ToLower();
+//					if (RReporting.bUltraDebug) RReporting.sParticiple="getting cascaded fuzzy attribute";
+//					sReturn=GetCascadedFuzzyAttribApplyingToTag(sOpener,sFuzzyAttrib,iIndex);
+//					if (RReporting.bUltraDebug) RReporting.sParticiple="getting cascade group index from fuzzy attribute";
+//					int iCascadeGroup=InterchangeableCascadeGroupIndex(sFuzzyAttrib);
+//					if (iCascadeGroup>=0) {
+//						if (RReporting.bUltraDebug) RReporting.sParticiple="getting html property using cascade group";
+//						for (int iProperty=InterchangeableProperty[iCascadeGroup].Length-1; iProperty>=0; iProperty--) {
+//							sValNow=GetProperty(InterchangeableProperty[iCascadeGroup][iProperty]);
+//							if (RReporting.IsNotBlank(sValNow)) {
+//								sReturn=sValNow; //do NOT break, keep going to get more specific values from the cascade group
+//							}
+//						}
+//						if (RReporting.bUltraDebug) RReporting.sParticiple="getting style attribute using cascade group";
+//						for (int iStyleAttrib=InterchangeableStyleAttribute[iCascadeGroup].Length-1; iStyleAttrib>=0; iStyleAttrib--) {
+//							if (RReporting.bUltraDebug) RReporting.sParticiple="accessing cascade group ["+iCascadeGroup+"] item ["+iStyleAttrib+"]";
+//							sValNow=GetStyleAttrib(InterchangeableStyleAttribute[iCascadeGroup][iStyleAttrib]);
+//							if (RReporting.IsNotBlank(sValNow)) {
+//								sReturn=sValNow; //do NOT break, keep overwriting to get more specific values from the cascade group
+//							}
+//						}
+//					}//end if fuzzy attribute is part of interchangeable cascade group
+//					else {
+//						if (RReporting.bUltraDebug) RReporting.sParticiple="getting non-fuzzy attribute using literal attribute name";
+//						sValNow=GetProperty(sFuzzyAttrib);
+//						if (RReporting.IsNotBlank(sValNow)) sReturn=sValNow;
+//						sValNow=GetStyleAttrib(sFuzzyAttrib);
+//						if (RReporting.IsNotBlank(sValNow)) sReturn=sValNow;
+//					}
+//				}
+//				else RReporting.ShowErr("Fuzzy attribute was null (RForms corruption)");
+//			}
+//			catch (Exception exn) {
+//				RReporting.ShowExn(exn,RReporting.sParticiple);
+//			}
+//			return sReturn;
+//		}//end CascadedFuzzyAttrib
 		private int ContentPropertiesStart() {
 			int iOpener=RString.SafeIndexOf(sOpener,'<');
 			int iBracket=iOpener;
@@ -1362,11 +1465,14 @@ namespace ExpertMultimedia {
 				}
 			}
 			else {
-				RReporting.Debug("ContentPropertiesStart: no opening '<' sign {iIndex:"+iIndex.ToString()+"; ParentIndex:"+this.ParentIndex.ToString()+"; sOpener:"+RReporting.StringMessage(sOpener,true)+"; sContent:"+RReporting.StringMessage(sContent,true)+"; sCloser:"+RReporting.StringMessage(sCloser,true)+"}");
+				RReporting.Debug("ContentPropertiesStart: no opening '<' sign {Parent"+RForm.ObjectMessage(Parent,true,true)+"; sOpener:"+RReporting.StringMessage(sOpener,true)+"; sContent:"+RReporting.StringMessage(sContent,true)+"; sCloser:"+RReporting.StringMessage(sCloser,true)+"}");
 				iOpener=0;
 			}
 			return iOpener;
 		}//end ContentPropertiesStart
+		public static string ObjectMessage(RForm val, bool bPrependColon, bool bQuotesIfNonNull) {
+			return (  bPrependColon  ?  ":"  :  ""  )   +   (  (val!=null)  ?  ((bQuotesIfNonNull?"\"":"")+(RString.SafeString(val.sOpener,false))+(bQuotesIfNonNull?"\"":""))  :  ("null")  );
+		}
 		/// <summary>
 		/// Last index (exclusive ender) in sOpener range of usable properties excluding self-closing tag slash
 		/// </summary>
@@ -1460,6 +1566,49 @@ namespace ExpertMultimedia {
 				RReporting.ShowExn(exn,"expand to outer edge checking margins and custom dock booleans","RForm ExpandInnerToOuterUsingMargin");
 			}
 		}//end ExpandInnerToOuterUsingMargin
+		public static int SafeLength(RForm[] arrNow) { //also used in Var
+			int iReturn=0;
+			try {
+				if (arrNow!=null) iReturn=arrNow.Length;
+			}
+			catch {
+			}
+			return iReturn;
+		}
+		/// <summary>
+		/// Sets size, preserving data
+		/// </summary>
+		public static bool Redim(ref RForm[] arrNow, int iSetSize) { //also used in Var
+			bool bGood=false;
+			if (iSetSize!=SafeLength(arrNow)) {
+				if (iSetSize<=0) { arrNow=null; bGood=true; }
+				else {
+					try {
+						//bool bGood=false;
+						RForm[] arrNew=new RForm[iSetSize];
+						for (int iNow=0; iNow<arrNew.Length; iNow++) {
+							if (iNow<SafeLength(arrNow)) arrNew[iNow]=arrNow[iNow];
+							else arrNew[iNow]=null;//RForm.Create("",TypeNULL);
+						}
+						arrNow=arrNew;
+						//bGood=true;
+						//if (!bGood) RReporting.ShowErr("No rform found while trying to redimension array!");
+						bGood=true;
+					}
+					catch (Exception exn) {
+						bGood=false;
+						string sStackFrames=RReporting.StackTraceToLatinCallStack(new System.Diagnostics.StackTrace());
+						RReporting.ShowExn(exn,"changing an rform array size","RForm Redim("+RForm.ArrayDebugStyle("array",arrNow,false)+", size:"+iSetSize.ToString()+","+RReporting.DebugStyle("sender",sStackFrames,true,false)+")");
+					}
+				}//end else size >0
+			}//end if length is different
+			else bGood=true;
+			return bGood;
+		}//end Redim
+		public static string ArrayDebugStyle(string sName, RForm[] arrX, bool bAppendSemicolonAndSpace) { //also used in Var
+			return RString.SafeString(sName) + ((arrX!=null)?(".Length:"+arrX.Length.ToString()):":null") + (bAppendSemicolonAndSpace?"; ":"");
+		}		
+		
 		#endregion utilities
 		//debug NYI UpdateStyle should be in HTMLPage so page size can be determined/accessed first
 		#region unused methods
@@ -1565,7 +1714,7 @@ namespace ExpertMultimedia {
 				if (textbox!=null) textbox.Render(riDest,bAsActive);
 				else {
 					if (RReporting.bUltraDebug) RReporting.sParticiple="getting node color";
-					string sBackgroundColor=CascadedFuzzyAttrib("background-color");
+					string sBackgroundColor=vsCascadedFuzzyAttributes.GetForcedString("background-color");//CascadedFuzzyAttrib("background-color");
 					RPaint rpaintNow=null;
 					if (sBackgroundColor!=null) rpaintNow=new RPaint(RConvert.ToColor(sBackgroundColor));//debug performance (cache this)
 					else rpaintNow=new RPaint(RForms.colorBackgroundDefault);

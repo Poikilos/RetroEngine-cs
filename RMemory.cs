@@ -11,7 +11,7 @@ namespace ExpertMultimedia {
 	public class RMemory {
 		#region variables
 		//"[rX]" vars below exist to avoid type conversion
-		public const uint dwMask=0xFFFFFFFF;//bitmask for uint bits	
+		public const uint dwMask=0xFFFFFFFF;//bitmask for uint bits; formerly UintMask
 		public static int iMaxAllocation=268435456; //debug calculated-size allocations where this is not used
 			//1MB = 1048576 bytes
 		#endregion variables
@@ -20,6 +20,23 @@ namespace ExpertMultimedia {
 			i1=i2;
 			i2=iTemp;
 		}
+		public static bool MoveToOrStayAtAttrib(ref int indexToGet, uint[] dwarrAttribToSearch, uint bitsToFindAnyOfThem) {
+			bool bFound=false;
+			try {
+				while (indexToGet<dwarrAttribToSearch.Length) {
+					if ((dwarrAttribToSearch[indexToGet]&bitsToFindAnyOfThem)!=0) {
+						bFound=true;
+						break;
+					}
+					indexToGet++;
+				}
+			}
+			catch (Exception e) {
+				bFound=false;
+				RReporting.ShowExn(e);
+			}
+			return bFound;
+		}//end MoveToOrStayAtAttrib
 		public static unsafe void SetMultiple(byte[] destination, int iDestByte, byte by0, byte by1, byte by2, byte by3) {
 			try {
 				fixed (byte* lpDest=destination) {
@@ -31,14 +48,14 @@ namespace ExpertMultimedia {
 					*lpDestNow=by3;
 				}
 			}
-			catch (Exception exn) {
+			catch (Exception e) {
 				StackTrace stacktraceNow=new System.Diagnostics.StackTrace();
 				StackFrame[] stackframesNow=stacktraceNow.GetFrames();
 				string sStackFrames="";
 				for (int i=0; i<stackframesNow.Length; i++) {
 					sStackFrames+=(i!=0?" via ":"")+stackframesNow[i].GetMethod().Name;
 				}
-				RReporting.ShowExn(exn,"setting multiple","RMemory SetMultiple(destination="+(destination!=null?("non-null[length:"+destination.Length.ToString()+"]"):"null")+", iDestByte="+iDestByte.ToString()+") {Called-By:"+sStackFrames+"}");
+				RReporting.ShowExn(e,"setting multiple","RMemory SetMultiple(destination="+(destination!=null?("non-null[length:"+destination.Length.ToString()+"]"):"null")+", iDestByte="+iDestByte.ToString()+") {Called-By:"+sStackFrames+"}");
 			}
 		}//end SetMultiple
 		public static unsafe bool CopyFast(ref byte[] destination, ref byte[] src, int iDestByte, int iSrcByte, int iBytes) {
@@ -61,14 +78,14 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
+			catch (Exception e) {
 				StackTrace stacktraceNow=new System.Diagnostics.StackTrace();
 				StackFrame[] stackframesNow=stacktraceNow.GetFrames();
 				string sStackFrames="";
 				for (int i=0; i<stackframesNow.Length; i++) {
 					sStackFrames+=(i!=0?" via ":"")+stackframesNow[i].GetMethod().Name;
 				}
-				RReporting.ShowExn(exn,"copying data","RMemory CopyFast(destination="+(destination!=null?"non-null":"null")+";src="+(src!=null?"non-null":"null")+", iDestByte="+iDestByte.ToString()+", iSrcByte="+iSrcByte.ToString()+", iBytes="+iBytes.ToString()+") {Called-By:"+sStackFrames+"}");
+				RReporting.ShowExn(e,"copying data","RMemory CopyFast(destination="+(destination!=null?"non-null":"null")+";src="+(src!=null?"non-null":"null")+", iDestByte="+iDestByte.ToString()+", iSrcByte="+iSrcByte.ToString()+", iBytes="+iBytes.ToString()+") {Called-By:"+sStackFrames+"}");
 				return false;
 			}
 			return true;
@@ -91,8 +108,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"CopyFast");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"CopyFast");
 				return false;
 			}
 			return true;
@@ -116,8 +133,8 @@ namespace ExpertMultimedia {
 					lpSrcNow++;
 				}
 			//}
-			//catch (Exception exn) {
-			//	RReporting.ShowExn(exn,"void Copy(byte pointers)");
+			//catch (Exception e) {
+			//	RReporting.ShowExn(e,"void Copy(byte pointers)");
 			//	return;
 			//}
 			return;
@@ -143,8 +160,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			//}
-			//catch (Exception exn) {
-			//	RReporting.ShowExn(exn,"CopyFastVoid");
+			//catch (Exception e) {
+			//	RReporting.ShowExn(e,"CopyFastVoid");
 			//	return;
 			//}
 			
@@ -168,8 +185,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"Memory Fill8ByteChunksByUnitCount(array,array,iDest,iSource,count)");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"Memory Fill8ByteChunksByUnitCount(array,array,iDest,iSource,count)");
 				return;
 			}
 			return;
@@ -196,8 +213,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","Memory Fill6ByteChunksByUnitCount(array,array,iDest,iSource,count)");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"","Memory Fill6ByteChunksByUnitCount(array,array,iDest,iSource,count)");
 				return;
 			}
 			
@@ -245,8 +262,8 @@ namespace ExpertMultimedia {
 					}
 				}//end if remainder
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","Memory Fill(array,array,iDest,count)");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"","Memory Fill(array,array,iDest,count)");
 				return;
 			}
 		}//end fill by looping through source array
@@ -266,8 +283,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"Memory Fill4ByteChunksByUnitCount(array,array,count)");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"Memory Fill4ByteChunksByUnitCount(array,array,count)");
 				return;
 			}
 			return;
@@ -285,8 +302,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"Memory Fill4ByteChunksByUnitCount");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"Memory Fill4ByteChunksByUnitCount");
 				return;
 			}
 			return;
@@ -302,8 +319,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"Memory Fill(array,uint,iDest,count");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"Memory Fill(array,uint,iDest,count");
 				return;
 			}
 			return;
@@ -335,8 +352,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"Memory Fill(array,byte,iDest,count");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"Memory Fill(array,byte,iDest,count");
 				return;
 			}
 			return;
@@ -346,8 +363,8 @@ namespace ExpertMultimedia {
 				//if (destination==null) destination=new byte[src.Length];
 				CopyFastVoid(ref destination, ref src, src.Length);
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"CopyFastVoid array","accessing source bytes array length");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"CopyFastVoid array","accessing source bytes array length");
 				return;
 			}
 		}
@@ -369,8 +386,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"CopyFastVoid byte array","copying binary data");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"CopyFastVoid byte array","copying binary data");
 				return;
 			}
 			return;
@@ -395,8 +412,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"CopyFastVoid Int Pointer dest");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"CopyFastVoid Int Pointer dest");
 				return;
 			}
 			return;
@@ -420,8 +437,8 @@ namespace ExpertMultimedia {
 				if (bBitState) byarrAsHugeUint[iByte]|=byarrBit[iAtBit];
 				else byarrAsHugeUint[iByte]&=(byte)(byarrBit[iAtBit]^0xFF);
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"SetLittleEndianBit","setting bit #"+iAtBit+" to "+((bBitState)?"true":"false"));
+			catch (Exception e) {
+				RReporting.ShowExn(e,"SetLittleEndianBit","setting bit #"+iAtBit+" to "+((bBitState)?"true":"false"));
 			}
 		}//end SetLittleEndianBit
 		//note: big-endian : big units first :: little-endian : little units first
@@ -429,8 +446,8 @@ namespace ExpertMultimedia {
 			try {
 				return ((byarrAsHugeUint[(int)(iFromBit/8)] & byarrBit[iFromBit%8]) > 0);
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"GetLittleEndianBit","getting bit #"+iFromBit+"; bit location was probably incorrect");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"GetLittleEndianBit","getting bit #"+iFromBit+"; bit location was probably incorrect");
 			}
 			return false;
 		}//end GetLittleEndianBit
@@ -455,8 +472,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"CopySafe");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"CopySafe");
 				return false;
 			}
 			return true;
@@ -467,8 +484,8 @@ namespace ExpertMultimedia {
 				byarrReturn=new byte[src.Length];
 				CopyFastVoid(ref byarrReturn,ref src);
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"Memory Copy(byte array)","copying binary data to new array");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"Memory Copy(byte array)","copying binary data to new array");
 			}
 			return byarrReturn;
 		}
@@ -525,8 +542,8 @@ namespace ExpertMultimedia {
 					iLocNow++;
 				}
 			}
-			catch (Exception exn) {
-				RReporting.Debug(exn,"","SubArray(byte array"+(arrNow==null?" is null":" length "+arrNow.Length.ToString())+", "+iLocOrig.ToString()+", "+iLen.ToString()+")");
+			catch (Exception e) {
+				RReporting.Debug(e,"","SubArray(byte array"+(arrNow==null?" is null":" length "+arrNow.Length.ToString())+", "+iLocOrig.ToString()+", "+iLen.ToString()+")");
 			}
 			return arrNew;
 		}//end SubArray
@@ -543,8 +560,8 @@ namespace ExpertMultimedia {
 					iLocNow++;
 				}
 			}
-			catch (Exception exn) {
-				RReporting.Debug(exn,"","SubArray(char array"+(arrNow==null?" is null":" length "+arrNow.Length.ToString())+", "+iLocOrig.ToString()+", "+iLen.ToString()+")");
+			catch (Exception e) {
+				RReporting.Debug(e,"","SubArray(char array"+(arrNow==null?" is null":" length "+arrNow.Length.ToString())+", "+iLocOrig.ToString()+", "+iLen.ToString()+")");
 			}
 			return arrNew;
 		}//end SubArray(char[],start,len)
@@ -552,8 +569,8 @@ namespace ExpertMultimedia {
 			try {
 				return SubArrayReversed(byarrNow,0,byarrNow.Length);
 			}
-			catch (Exception exn) {	
-				RReporting.ShowExn(exn,"SubArrayReversed(byte array)");
+			catch (Exception e) {	
+				RReporting.ShowExn(e,"SubArrayReversed(byte array)");
 			}
 			return null;
 		}
@@ -561,8 +578,8 @@ namespace ExpertMultimedia {
 			try {
 				return SubArrayReversed(byarrNow,iStart,byarrNow.Length-iStart);
 			}
-			catch (Exception exn) {	
-				RReporting.ShowExn(exn,"SubArrayReversed(byte array, start)");
+			catch (Exception e) {	
+				RReporting.ShowExn(e,"SubArrayReversed(byte array, start)");
 			}
 			return null;
 		}
@@ -579,8 +596,8 @@ namespace ExpertMultimedia {
 					iLocNow++;
 				}
 			}
-			catch (Exception exn) {
-				RReporting.Debug(exn,"","SubArrayReversed");
+			catch (Exception e) {
+				RReporting.Debug(e,"","SubArrayReversed");
 			}
 			return byarrNew;
 		}//end SubArrayReversed
@@ -597,8 +614,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"resizing array", String.Format("Redim(bytes:{0},size:{1})",RReporting.ArrayMessage(arrData),iSize) );
+			catch (Exception e) {
+				RReporting.ShowExn(e,"resizing array", String.Format("Redim(bytes:{0},size:{1})",RReporting.ArrayMessage(arrData),iSize) );
 			}
 		}//end Redim byte[]
 		//public const char c0='\0';
@@ -614,8 +631,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"resizing array", String.Format("Redim(characters:{0},size:{1})",RReporting.ArrayMessage(arrData),iSize) );
+			catch (Exception e) {
+				RReporting.ShowExn(e,"resizing array", String.Format("Redim(characters:{0},size:{1})",RReporting.ArrayMessage(arrData),iSize) );
 			}
 		}//end Redim byte[]
 		public static bool Redim(ref PictureBox[] arrNow, int iSetSize) {
@@ -635,10 +652,10 @@ namespace ExpertMultimedia {
 						//if (!bGood) RReporting.ShowErr("No vars were found while trying to set MaximumSeq!");
 						bGood=true;
 					}
-					catch (Exception exn) {
+					catch (Exception e) {
 						bGood=false;
 						string sCallStack=RReporting.StackTraceToLatinCallStack(new System.Diagnostics.StackTrace());
-						RReporting.ShowExn(exn,"resizing picture box array","Redim(PictureBox array)["+sCallStack+" failed setting PictureBox array Maximum]");
+						RReporting.ShowExn(e,"resizing picture box array","Redim(PictureBox array)["+sCallStack+" failed setting PictureBox array Maximum]");
 					}
 				}
 			}
@@ -659,8 +676,8 @@ namespace ExpertMultimedia {
 				}
 				else destination=null;
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"copying byte array","Base CopySafe");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"copying byte array","Base CopySafe");
 				destination=null;
 			}
 		}//end CopySafe(byte[] destination, byte[] src)

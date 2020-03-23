@@ -22,7 +22,7 @@ namespace ExpertMultimedia {
 			get { return iCount; }
 		}
 		public IntQ() { //Constructor
-			Init(512);//TODO: Init(Base.settings.GetForcedInt("IntQueueDefaultMaximumSize"));//debug hard-coded limitation will block Enq commands! Don't allow changing during runtime due to circular nature of queuing!
+			Init(512);//TODO: Init(settings.GetForcedInt("IntQueueDefaultMaximumSize"));//debug hard-coded limitation will block Enq commands! Don't allow changing during runtime due to circular nature of queuing!
 		}
 		public IntQ(int iSetMax) { //Constructor
 			Init(iSetMax);

@@ -203,7 +203,7 @@ namespace ExpertMultimedia {
 						sVerb="after checking variable in add interaction";
 						if (iNew>=iactionarr.Length) {
 							sVerb="after finding full array in add interaction";
-							Base.ShowErr("Program error in InteractionQ Enqueue.");
+							RReporting.ShowErr("Program error in InteractionQ Enqueue.");
 							return false;
 						}
 						sVerb="after finding room in array in add interation";
@@ -221,24 +221,24 @@ namespace ExpertMultimedia {
 					}
 					else {
 						sVerb="after skipping null parameter in add interaction";
-						Base.ShowErr("Tried to add a null Interaction to the queue");
+						RReporting.ShowErr("Tried to add a null Interaction to the queue");
 						return false;
 					}
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"InteractionQ Enq",sVerb+" {interactionAdd.iType:"+VarMessage(interactionAdd)+"; interactionq:"+VarMessage(iactionarr)+"; iNew:"+iNew.ToString()+"; iactionq[iNew]:"+VarMessage(iactionarr[iNew])+"}");
+					RReporting.ShowExn(exn,"InteractionQ Enq",sVerb+" {interactionAdd.iType:"+VarMessage(interactionAdd)+"; interactionq:"+VarMessage(iactionarr)+"; iNew:"+iNew.ToString()+"; iactionq[iNew]:"+VarMessage(iactionarr[iNew])+"}");
 				}
 				return false;
 			}
 			else {
-				Base.ShowErr("InteractionQ is full, with "+iCount.ToString()+" interactions","InteractionQ Enq("+((interactionAdd==null)?"null interaction":"non-null")+")");
+				RReporting.ShowErr("InteractionQ is full, with "+iCount.ToString()+" interactions","InteractionQ Enq("+((interactionAdd==null)?"null interaction":"non-null")+")");
 				return false;
 			}
 		}
 		public Interaction Deq() { //Dequeue
 			//sLogLine=("debug deq iCount="+iCount.ToString()+" and "+(IsEmpty?"is":"is not")+" empty.");
 			if (IsEmpty) {
-				//Base.ShowErr("no interactions to return so returned null","InteractionQ Deq");
+				//RReporting.ShowErr("no interactions to return so returned null","InteractionQ Deq");
 				return null;
 			}
 			int iReturn = iFirst;

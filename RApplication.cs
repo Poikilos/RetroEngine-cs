@@ -81,7 +81,7 @@ namespace ExpertMultimedia {
 		private static bool bDragging=false;
 		private static int iDragStartNode=0;
 		private static int iDragStartTab=0;//the RForms object where drag started
-		private static int iNodeUnderMouse=0;//Should only be used by RMouseUpdate and methods that it calls (secondary mouse methods)
+		private static RForm rformUnderMouse;// iNodeUnderMouse=0;//Should only be used by RMouseUpdate and methods that it calls (secondary mouse methods)
 		public int MouseX { get { return xMouse; } }
 		public int MouseY { get { return yMouse; } }
 
@@ -136,10 +136,10 @@ namespace ExpertMultimedia {
 		//		return ActiveTab!=null?ActiveTab.ActiveNode:null;
 		//	}
 		//}
-		private static int ActiveTab_iActiveNode {
-			get { return (ActiveTab!=null)?ActiveTab.iActiveNode:-1;}
-			set { if (ActiveTab!=null) ActiveTab.iActiveNode=value;}
-		}
+		//private static int ActiveTab_iActiveNode {
+		//	get { return (ActiveTab!=null)?ActiveTab.iActiveNode:-1;}
+		//	set { if (ActiveTab!=null) ActiveTab.iActiveNode=value;}
+		//}
 		private static string ActiveTab_sDebugLastAction {
 			set {
 				if (ActiveTab!=null) {
@@ -304,24 +304,11 @@ namespace ExpertMultimedia {
 			}
 			return -1;
 		}
-		private static int NodeAt(int X, int Y) {
-			return (ActiveTab!=null)?ActiveTab.NodeAt(X,Y):-1;
+		private static RForm NodeAt(int X, int Y) {
+			return (ActiveTab!=null)?ActiveTab.NodeAt(X,Y):null;
 		}
-		private static int GetNearestAncestor(int ChildIndex, string TagwordOfParent) {
-			return (ActiveTab!=null)?ActiveTab.GetNearestAncestor(ChildIndex,TagwordOfParent):-1;
-		}
-		private static RForm Node(int NodeIndex) {
-			RForm rformReturn=null;
-			if (ActiveTab!=null) {
-				rformReturn=ActiveTab.Node(NodeIndex);
-				if (rformReturn==null) {
-					RReporting.ShowErr("ActiveTab Node at this index is null!","getting ActiveTab node via RApplication","RApplication Node("+NodeIndex.ToString()+") {ActiveTab:"+iActiveTab.ToString()+"}");
-				}
-			}
-			else {
-				RReporting.ShowErr("ActiveTab is null!","getting ActiveTab node via RApplication","RApplication Node(NodeIndex="+NodeIndex.ToString()+") {ActiveTab:"+iActiveTab.ToString()+"}");
-			}
-			return rformReturn;
+		private static RForm GetNearestAncestor(RForm child, string TagwordOfParent) {
+			return (ActiveTab!=null)?ActiveTab.GetNearestAncestor(child,TagwordOfParent):null;
 		}
 		private static bool ActiveTab_AddEvents(string sScript) {
 			return (ActiveTab!=null)?ActiveTab.AddEvents(sScript):false;
@@ -536,11 +523,11 @@ namespace ExpertMultimedia {
 				RReporting.ShowExn(exn,"generating form from C declaration set (without html params)","RApplication GenerateForm");
 			}
 		}//end GenerateForm
-		public static int LastCreatedNodeIndex {
-			get { return ActiveNode!=null?ActiveTab.LastCreatedNodeIndex:-1; }
-		}
-		public static void SetDefaultNode(int iNodeInThisTab) {
-			if (ActiveTab!=null) ActiveTab.SetDefaultNode(iNodeInThisTab);
+		//public static int LastCreatedNodeIndex {
+		//	get { return ActiveNode!=null?ActiveTab.LastCreatedNodeIndex:-1; }
+		//}
+		public static void SetDefaultNode(RForm SetDefaultNode_MustBeInThisTab) { //int iNodeInThisTab) {
+			if (ActiveTab!=null) ActiveTab.SetDefaultNode(SetDefaultNode_MustBeInThisTab);//iNodeInThisTab);
 		}
 		public static void SetDefaultNode(string sName) {
 			if (ActiveTab!=null) ActiveTab.SetDefaultNode(sName);
@@ -796,7 +783,7 @@ namespace ExpertMultimedia {
 				else sTest=ShiftMessage()+"[]";//if (KeyEventArgs_KeyCodeStringLowerWas.Length<1) 
 			}//end if found a non-null InputTargetNow
 			else {
-				RReporting.Debug("A KeyDown was ignored since there was no active node","receiving framework keydown","FrameworkKeyDown(...){ActiveNode:"+(ActiveNode!=null?"non-null":"null")+"; DefaultNode:"+(DefaultNode!=null?"non-null":"null")+"; ActiveTab.DefaultNodeIndex:"+((ActiveTab!=null)?ActiveTab.DefaultNodeIndex.ToString():"N/A")+"; ActiveTabIndex:"+ActiveTabIndex+"; ActiveTab_iActiveNode:"+ActiveTab_iActiveNode+"}");
+				RReporting.Debug("A KeyDown was ignored since there was no active node","receiving framework keydown","FrameworkKeyDown(...){ActiveNode:"+(ActiveNode!=null?"non-null":"null")+"; DefaultNode:"+(DefaultNode!=null?"non-null":"null")+"; ActiveTab.DefaultNode:"+((ActiveTab!=null)?RForm.ObjectMessage(ActiveTab.DefaultNode,false,true):"N/A")+"; ActiveTabIndex:"+ActiveTabIndex+"; ActiveNode:"+RForm.ObjectMessage(ActiveNode,false,true)+"}");
 			}
 			RReporting.Debug("FrameworkKeyDown: "+sTest+(bGood?"...OK":"...FAILED"));
 			//if (!bGood) {
@@ -916,7 +903,7 @@ namespace ExpertMultimedia {
 			ActiveTab_sDebugLastAction="RMouseUpdate("+(bSetMouseDown?"down":"up")+","+iButton.ToString()+")";
 			bool bSetMouseDownPrimary=false;
 			if (iButton==1) bSetMouseDownPrimary=bSetMouseDown;
-			if (bSetMouseDownPrimary&&!MouseIsDownPrimary) ActiveTab_iActiveNode=iNodeUnderMouse;
+			if (bSetMouseDownPrimary&&!MouseIsDownPrimary) ActiveTab.ActiveNode=rformUnderMouse;
 			if (bSetMouseDownPrimary) {
 				if (!MouseIsDownPrimary) {
 					xDragStart=xMouse;
@@ -959,7 +946,7 @@ namespace ExpertMultimedia {
 			xSetAbs-=ActiveTab_rectWhereIAm_X;
 			ySetAbs-=ActiveTab_rectWhereIAm_Y;
 			if (xSetAbs!=xMouse||ySetAbs!=yMouse) {
-				iNodeUnderMouse=NodeAt(xSetAbs,ySetAbs);
+				rformUnderMouse=NodeAt(xSetAbs,ySetAbs);
 				xMousePrev=xMouse;
 				yMousePrev=yMouse;
 				xMouse=xSetAbs;
@@ -1000,8 +987,8 @@ namespace ExpertMultimedia {
 			//Console.Error.WriteLine("OnMouseDown() {("+xMouse.ToString()+","+yMouse.ToString()+")}");
 			string sEvents="";
 			try {
-				if (Node(iNodeUnderMouse)!=null) {
-					sEvents=Node(iNodeUnderMouse).GetProperty("onmousedown");
+				if (rformUnderMouse!=null) {
+					sEvents=rformUnderMouse.GetProperty("onmousedown");
 					if (sEvents!="") ActiveTab_AddEvents(sEvents);
 				}
 				else RReporting.Warning("OnMouseDown could not access node under mouse.");
@@ -1041,7 +1028,7 @@ namespace ExpertMultimedia {
 					if (sButtonType.ToLower()=="submit"||(ActiveNode.TagwordLower=="")) { //tagword can be input OR button
 					///NOTE: button tagword can be type submit, reset, or button
 						ActiveNode.SetProperty("disabled",null);
-						int iForm=GetNearestAncestor(ActiveTab_iActiveNode,"form");
+						int iForm=GetNearestAncestor(ActiveTab_ActiveNode,"form");
 						string[] sarrParams=null;
 						string sMETHOD=null;
 						if (Node(iForm)==null) {

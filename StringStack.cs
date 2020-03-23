@@ -20,15 +20,13 @@ namespace ExpertMultimedia {
 			}
 		}
 		private int iCount;
+		public int Count { get { return iCount; } }
 		private int LastIndex {	get { return iCount-1; } }
 		private int NewIndex { get  { return iCount; } }
 		//public bool IsFull { get { return (iCount>=Maximum) ? true : false; } }
 		public bool IsEmpty { get { return (iCount<=0) ? true : false ; } }
 		public string Element(int iElement) {
 			return (iElement<iCount&&iElement>=0&&sarr!=null)?sarr[iElement]:null;
-		}
-		public int Count {
-			get { return iCount; }
 		}
 		///<summary>
 		///
@@ -95,8 +93,8 @@ namespace ExpertMultimedia {
 				iCount++;
 				//sLogLine="debug enq iCount="+iCount.ToString();
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"accessing StringStack array","StringStack Push("+((sAdd==null)?"null string":"non-null")+"){at:"+NewIndex.ToString()+"}");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"accessing StringStack array","StringStack Push("+((sAdd==null)?"null string":"non-null")+"){at:"+NewIndex.ToString()+"}");
 				return false;
 			}
 			return true;
@@ -116,8 +114,8 @@ namespace ExpertMultimedia {
 					if (sarr[iNow]==val) return iNow;
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 			}
 			return -1;
 		}
@@ -160,8 +158,8 @@ namespace ExpertMultimedia {
 					}
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"","StringStack ToStringArray");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"","StringStack ToStringArray");
 			}
 			return sarrReturn;
 		}//end ToArray()

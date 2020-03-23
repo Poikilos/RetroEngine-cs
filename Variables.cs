@@ -128,7 +128,7 @@ namespace ExpertMultimedia {
 			bool bTest=true;
 			if (index1stDimension<iElements) {
 				bTest=Element(out iStart, out iLen, index1stDimension);
-				sVal=Base.SafeSubstring(sVal,0,iStart)+val+Base.SafeSubstring(sVal,iStart+iLen); 
+				sVal=RString.SafeSubstring(sVal,0,iStart)+val+RString.SafeSubstring(sVal,iStart+iLen); 
 			}
 			else if (iElements>0) {//add an index if array
 				bTest=Element(out iStart, out iLen, iElements-1);//get location of last element
@@ -136,14 +136,14 @@ namespace ExpertMultimedia {
 					int iAddIndeces=(index1stDimension+1)-iElements;
 					int iAfterLastElement=iStart+iLen;
 					for (int iNow=0; iNow<iAddIndeces; iNow++) {
-						sVal=Base.SafeInsert(sVal,iAfterLastElement,",");
+						sVal=RString.SafeInsert(sVal,iAfterLastElement,",");
 						iAfterLastElement++;
 					}
 					bTest=Element(out iStart, out iLen, index1stDimension);//do this test to make sure the operation worked
-					if (bTest) sVal=Base.SafeSubstring(sVal,0,iStart)+val+Base.SafeSubstring(sVal,iStart+iLen);
+					if (bTest) sVal=RString.SafeSubstring(sVal,0,iStart)+val+RString.SafeSubstring(sVal,iStart+iLen);
 					else {
 						int iStatus=Elements(index1stDimension);
-						Base.ShowErr( "Could not create index "+index1stDimension.ToString()+" in variable "+sName+(iStatus>0?"--program failed to detect it as a non-array and change it to one":("--there were only "+iStatus.ToString()+" elements.")) );
+						RReporting.ShowErr( "Could not create index "+index1stDimension.ToString()+" in variable "+sName+(iStatus>0?"--program failed to detect it as a non-array and change it to one":("--there were only "+iStatus.ToString()+" elements.")) );
 					}
 				}
 			}
@@ -194,56 +194,56 @@ namespace ExpertMultimedia {
 			int iStart, iLen;
 			bool bGood;
 			bGood=Element(out iStart, out iLen, index);
-			if (bGood) return Base.SafeSubstring(sVal,iStart,iLen);
+			if (bGood) return RString.SafeSubstring(sVal,iStart,iLen);
 			else return "";
 		}
 		public int GetForcedInt(int index) {
 			int iStart, iLen;
 			bool bGood;
 			bGood=Element(out iStart, out iLen, index);
-			if (bGood) return Convert.ToInt32(Base.SafeSubstring(sVal,iStart,iLen));
+			if (bGood) return Convert.ToInt32(RString.SafeSubstring(sVal,iStart,iLen));
 			else return 0;
 		}
 		public long GetForcedLong(int index) {
 			int iStart, iLen;
 			bool bGood;
 			bGood=Element(out iStart, out iLen, index);
-			if (bGood) return (long)Convert.ToInt64(Base.SafeSubstring(sVal,iStart,iLen));
+			if (bGood) return (long)Convert.ToInt64(RString.SafeSubstring(sVal,iStart,iLen));
 			else return 0;
 		}
 		public float GetForcedFloat(int index) {
 			int iStart, iLen;
 			bool bGood;
 			bGood=Element(out iStart, out iLen, index);
-			if (bGood) return (float)Convert.ToDouble(Base.SafeSubstring(sVal,iStart,iLen));
+			if (bGood) return (float)Convert.ToDouble(RString.SafeSubstring(sVal,iStart,iLen));
 			else return 0.0f;
 		}
 		public double GetForcedDouble(int index) {
 			int iStart, iLen;
 			bool bGood;
 			bGood=Element(out iStart, out iLen, index);
-			if (bGood) return Convert.ToDouble(Base.SafeSubstring(sVal,iStart,iLen));
+			if (bGood) return Convert.ToDouble(RString.SafeSubstring(sVal,iStart,iLen));
 			else return 0.0;
 		}
 		public REAL GetForcedReal(int index) {
 			int iStart, iLen;
 			bool bGood;
 			bGood=Element(out iStart, out iLen, index);
-			if (bGood) return (REAL)Convert.ToDouble(Base.SafeSubstring(sVal,iStart,iLen));
+			if (bGood) return (REAL)Convert.ToDouble(RString.SafeSubstring(sVal,iStart,iLen));
 			else return r0;
 		}
 		public decimal GetForcedDecimal(int index) {
 			int iStart, iLen;
 			bool bGood;
 			bGood=Element(out iStart, out iLen, index);
-			if (bGood) return Convert.ToDecimal(Base.SafeSubstring(sVal,iStart,iLen));
+			if (bGood) return Convert.ToDecimal(RString.SafeSubstring(sVal,iStart,iLen));
 			else return 0.0M;
 		}
 		public bool GetForcedBool(int index) {
 			int iStart, iLen;
 			bool bGood;
 			bGood=Element(out iStart, out iLen, index);
-			if (bGood) return Variable.ConvertToBool(Base.SafeSubstring(sVal,iStart,iLen));
+			if (bGood) return Variable.ConvertToBool(RString.SafeSubstring(sVal,iStart,iLen));
 			else return false;
 		}
 		
@@ -251,56 +251,56 @@ namespace ExpertMultimedia {
 			int iStart, iLen;
 			bool bGood;
 			bGood=Element(out iStart, out iLen, index1stDim, index2ndDim);
-			if (bGood) return Base.SafeSubstring(sVal,iStart,iLen);
+			if (bGood) return RString.SafeSubstring(sVal,iStart,iLen);
 			else return "";
 		}
 		public int GetForcedInt(int index1stDim, int index2ndDim) {
 			int iStart, iLen;
 			bool bGood;
 			bGood=Element(out iStart, out iLen, index1stDim, index2ndDim);
-			if (bGood) return Convert.ToInt32(Base.SafeSubstring(sVal,iStart,iLen));
+			if (bGood) return Convert.ToInt32(RString.SafeSubstring(sVal,iStart,iLen));
 			else return 0;
 		}
 		public long GetForcedLong(int index1stDim, int index2ndDim) {
 			int iStart, iLen;
 			bool bGood;
 			bGood=Element(out iStart, out iLen, index1stDim, index2ndDim);
-			if (bGood) return (long)Convert.ToInt64(Base.SafeSubstring(sVal,iStart,iLen));
+			if (bGood) return (long)Convert.ToInt64(RString.SafeSubstring(sVal,iStart,iLen));
 			else return 0;
 		}
 		public float GetForcedFloat(int index1stDim, int index2ndDim) {
 			int iStart, iLen;
 			bool bGood;
 			bGood=Element(out iStart, out iLen, index1stDim, index2ndDim);
-			if (bGood) return (float)Convert.ToDouble(Base.SafeSubstring(sVal,iStart,iLen));
+			if (bGood) return (float)Convert.ToDouble(RString.SafeSubstring(sVal,iStart,iLen));
 			else return 0.0f;
 		}
 		public double GetForcedDouble(int index1stDim, int index2ndDim) {
 			int iStart, iLen;
 			bool bGood;
 			bGood=Element(out iStart, out iLen, index1stDim, index2ndDim);
-			if (bGood) return Convert.ToDouble(Base.SafeSubstring(sVal,iStart,iLen));
+			if (bGood) return Convert.ToDouble(RString.SafeSubstring(sVal,iStart,iLen));
 			else return 0.0;
 		}
 		public REAL GetForcedReal(int index1stDim, int index2ndDim) {
 			int iStart, iLen;
 			bool bGood;
 			bGood=Element(out iStart, out iLen, index1stDim, index2ndDim);
-			if (bGood) return (REAL)Convert.ToDouble(Base.SafeSubstring(sVal,iStart,iLen));
+			if (bGood) return (REAL)Convert.ToDouble(RString.SafeSubstring(sVal,iStart,iLen));
 			else return r0;
 		}
 		public decimal GetForcedDecimal(int index1stDim, int index2ndDim) {
 			int iStart, iLen;
 			bool bGood;
 			bGood=Element(out iStart, out iLen, index1stDim, index2ndDim);
-			if (bGood) return Convert.ToDecimal(Base.SafeSubstring(sVal,iStart,iLen));
+			if (bGood) return Convert.ToDecimal(RString.SafeSubstring(sVal,iStart,iLen));
 			else return 0.0M;
 		}
 		public bool GetForcedBool(int index1stDim, int index2ndDim) {
 			int iStart, iLen;
 			bool bGood;
 			bGood=Element(out iStart, out iLen, index1stDim, index2ndDim);
-			if (bGood) return Variable.ConvertToBool(Base.SafeSubstring(sVal,iStart,iLen));
+			if (bGood) return Variable.ConvertToBool(RString.SafeSubstring(sVal,iStart,iLen));
 			else return false;
 		}
 		public static int SubSections(string sData,int iStart,int iLen, string sSubOpener,string sSubCloser,string sTextDelimiter, string sFieldDelimiterNow) {
@@ -357,7 +357,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Variable Elements","getting script array size");
+				RReporting.ShowExn(exn,"Variable Elements","getting script array size");
 			}
 			return iFound;
 		}//end Elements
@@ -378,7 +378,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Variable Elements(index)","getting script sub-array size");
+				RReporting.ShowExn(exn,"Variable Elements(index)","getting script sub-array size");
 			}
 			return iFound;
 		}
@@ -466,7 +466,7 @@ namespace ExpertMultimedia {
 					iReturn=(varr==null)?0:varr.Length;
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"variables","getting MAXIMUM");
+					RReporting.ShowExn(exn,"variables","getting MAXIMUM");
 					iReturn=0;
 				}
 				return iReturn;
@@ -518,14 +518,14 @@ namespace ExpertMultimedia {
 		}
 		public bool LoadIni(string sSetFile) {
 			sFile=sSetFile;
-			bool bTest=LoadIniData(Base.FileToString(sSetFile));
+			bool bTest=LoadIniData(RString.FileToString(sSetFile));
 			return bTest;
 		}
 		public bool LoadIniData(string sAllData) {
 			int iCursor=0;
 			string sLine="";
 			bool bGood=true;
-			while (Base.ReadLine(out sLine, sAllData, ref iCursor)) {
+			while (RString.ReadLine(out sLine, sAllData, ref iCursor)) {
 				if (!SetOrCreate(sLine)) bGood=false;
 			}
 			return bGood;
@@ -545,11 +545,11 @@ namespace ExpertMultimedia {
 								sAllData+=Environment.NewLine;
 						}
 					}
-					Base.StringToFile(sFile,sAllData);
+					RString.StringToFile(sFile,sAllData);
 					bGood=true;
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"variables.Save");
+					RReporting.ShowExn(exn,"variables.Save");
 					bGood=false;
 				}
 			}
@@ -606,10 +606,10 @@ namespace ExpertMultimedia {
 				if (iVarNow>=0) {
 					varr[iVarNow].Elements();
 				}
-				else Base.ShowErr("Variable named \""+sNameNow+"\" does not exist.","Variables Elements");
+				else RReporting.ShowErr("Variable named \""+sNameNow+"\" does not exist.","Variables Elements");
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Variables Elements","getting script array size");
+				RReporting.ShowExn(exn,"Variables Elements","getting script array size");
 			}
 			return iFound;
 		}//end Elements (formerly IndecesAtFirstDim or IndecesAtDim1)
@@ -620,7 +620,7 @@ namespace ExpertMultimedia {
 				return varr[iInternalIndex].GetForcedString();
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GetForcedString");
+				RReporting.ShowExn(exn,"GetForcedString");
 			}
 			return "";
 		}
@@ -629,7 +629,7 @@ namespace ExpertMultimedia {
 				return varr[iInternalIndex].GetForcedInt();
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GetForcedInt");
+				RReporting.ShowExn(exn,"GetForcedInt");
 			}
 			return 0;
 		}
@@ -638,7 +638,7 @@ namespace ExpertMultimedia {
 				return varr[iInternalIndex].GetForcedLong();
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GetForcedLong");
+				RReporting.ShowExn(exn,"GetForcedLong");
 			}
 			return 0;
 		}
@@ -647,7 +647,7 @@ namespace ExpertMultimedia {
 				return varr[iInternalIndex].GetForcedFloat();
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GetForcedFloat");
+				RReporting.ShowExn(exn,"GetForcedFloat");
 			}
 			return 0.0f;
 		}
@@ -656,10 +656,10 @@ namespace ExpertMultimedia {
 			try {
 				if (val=="true") bReturn=true;
 				else if (val=="yes") bReturn=true;
-				else if (Base.IsNumeric(val,true,false)&&Convert.ToInt32(val)!=0) bReturn=true;
+				else if (RString.IsNumeric(val,true,false)&&Convert.ToInt32(val)!=0) bReturn=true;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"ConvertToBool(string)");
+				RReporting.ShowExn(exn,"ConvertToBool(string)");
 			}
 			return bReturn;
 		}
@@ -669,7 +669,7 @@ namespace ExpertMultimedia {
 				bReturn=ConvertToBool(varr[iInternalIndex].sVal);
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GetForcedBool");
+				RReporting.ShowExn(exn,"GetForcedBool");
 			}
 			return bReturn;
 		}
@@ -678,7 +678,7 @@ namespace ExpertMultimedia {
 				return varr[iInternalIndex].GetForcedDouble();
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GetForcedDouble");
+				RReporting.ShowExn(exn,"GetForcedDouble");
 				return r0;
 			}
 		}
@@ -687,7 +687,7 @@ namespace ExpertMultimedia {
 				return varr[iInternalIndex].GetForcedReal();
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GetForcedReal");
+				RReporting.ShowExn(exn,"GetForcedReal");
 				return r0;
 			}
 		}
@@ -703,7 +703,7 @@ namespace ExpertMultimedia {
 				return GetForcedInt(index);
 			}
 			else {
-				Base.ShowErr("not found","GetForcedInt","looking for variable {sName:"+sName+"}");
+				RReporting.ShowErr("not found","GetForcedInt","looking for variable {sName:"+sName+"}");
 				return 0;
 			}
 		}
@@ -713,7 +713,7 @@ namespace ExpertMultimedia {
 				return GetForcedLong(index);
 			}
 			else {
-				Base.ShowErr("not found","GetForcedLong","looking for variable {sName:"+sName+"}");
+				RReporting.ShowErr("not found","GetForcedLong","looking for variable {sName:"+sName+"}");
 				return 0;
 			}
 		}
@@ -723,7 +723,7 @@ namespace ExpertMultimedia {
 				return GetForcedFloat(index);
 			}
 			else {
-				Base.ShowErr("not found","GetForcedFloat","looking for variable {sName:"+sName+"}");
+				RReporting.ShowErr("not found","GetForcedFloat","looking for variable {sName:"+sName+"}");
 				return 0.0f;
 			}
 		}
@@ -733,7 +733,7 @@ namespace ExpertMultimedia {
 				return GetForcedBool(index);
 			}
 			else {
-				Base.ShowErr("not found","GetForcedBool","looking for variable {sName:"+sName+"}");
+				RReporting.ShowErr("not found","GetForcedBool","looking for variable {sName:"+sName+"}");
 				return false;
 			}
 		}
@@ -752,14 +752,14 @@ namespace ExpertMultimedia {
 				return GetForcedReal(index);
 			}
 			else {
-				Base.ShowErr("not found","GetForcedReal","looking for variable {sName:"+sName+"}");
+				RReporting.ShowErr("not found","GetForcedReal","looking for variable {sName:"+sName+"}");
 				return r0;
 			}
 		}
 		public bool Get(out string val, string sName) {
-			Base.ClearErr();
+			RReporting.ClearErr();
 			val=GetForcedString(sName);
-			return Base.sLastErr=="";
+			return RReporting.sLastErr=="";
 			/*
 			int index=IndexOf(sName);
 			if (index>=0) {
@@ -767,35 +767,35 @@ namespace ExpertMultimedia {
 					return varr[index].Get(out val, index);
 				}
 				catch (Exception exn) {	
-					Base.ShowExn(exn,"Get(out string,...)","looking for script string variable {sName:"+sName+"}");
+					RReporting.ShowExn(exn,"Get(out string,...)","looking for script string variable {sName:"+sName+"}");
 					return false;
 				}
 			}
 			else {
-				Base.ShowErr("not found","GetForcedString","looking for script string variable {sName:"+sName+"}");
+				RReporting.ShowErr("not found","GetForcedString","looking for script string variable {sName:"+sName+"}");
 				return false;
 			}
 			*/
 		}
 		public bool Get(out float val, string sName) {
-			Base.ClearErr();
+			RReporting.ClearErr();
 			val=GetForcedFloat(sName);
-			return Base.sLastErr=="";
+			return RReporting.sLastErr=="";
 		}
 		public bool Get(out bool val, string sName) {
-			Base.ClearErr();
+			RReporting.ClearErr();
 			val=GetForcedBool(sName);
-			return Base.sLastErr=="";
+			return RReporting.sLastErr=="";
 		}
 		public bool Get(out int val, string sName) {
-			Base.ClearErr();
+			RReporting.ClearErr();
 			val=GetForcedInt(sName);
-			return Base.sLastErr=="";
+			return RReporting.sLastErr=="";
 		}
 		public bool Get(out long val, string sName) {
-			Base.ClearErr();
+			RReporting.ClearErr();
 			val=GetForcedLong(sName);
-			return Base.sLastErr=="";
+			return RReporting.sLastErr=="";
 		}
 		public bool Get(out byte[] byarrReturn, int iInternalIndex) {
 			bool bGood=true;
@@ -804,7 +804,7 @@ namespace ExpertMultimedia {
 				bGood=varr[iInternalIndex].Get(out byarrReturn);//ByReference
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Get(byte array,iInternalIndex)");
+				RReporting.ShowExn(exn,"Get(byte array,iInternalIndex)");
 				bGood=false;
 			}
 			return bGood;
@@ -832,7 +832,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"variables.GetOrCreate(int,...)");
+				RReporting.ShowExn(exn,"variables.GetOrCreate(int,...)");
 			}
 			return bGood;
 		}//end GetOrCreate(int,...)
@@ -849,7 +849,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"variables.GetOrCreate(float,...)");
+				RReporting.ShowExn(exn,"variables.GetOrCreate(float,...)");
 			}
 			return bGood;
 		}//end GetOrCreate(float,...
@@ -872,7 +872,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"variables.GetOrCreate(double,...)");
+				RReporting.ShowExn(exn,"variables.GetOrCreate(double,...)");
 			}
 			return bGood;
 		}//end GetOrCreate(double,...
@@ -889,7 +889,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"variables.GetOrCreate(string,...)");
+				RReporting.ShowExn(exn,"variables.GetOrCreate(string,...)");
 			}
 			return bGood;
 		}//end GetOrCreate(string,...)
@@ -903,8 +903,8 @@ namespace ExpertMultimedia {
 			if (sLine!=null) {
 				iTemp=sLine.IndexOf("=");
 				if (iTemp!=0 && iTemp<=sLine.Length) {
-					sName=Base.SafeSubstring(sLine,0,iTemp);
-					sVal=Base.SafeSubstring(sLine,iTemp+1);
+					sName=RString.SafeSubstring(sLine,0,iTemp);
+					sVal=RString.SafeSubstring(sLine,iTemp+1);
 					bGood=SetOrCreate(sName,sVal);
 				}
 			}
@@ -984,7 +984,7 @@ namespace ExpertMultimedia {
 				}
 				if (iInternalIndex>iCount) {//but CAN be created at iCount!!!!
 					bGood=false;
-					Base.ShowErr("variables.ForceSet(...,"+sName+",...)","Index "+iInternalIndex.ToString()+" is beyond "+iCount.ToString()+" currently used slots and cannot be set or created.");
+					RReporting.ShowErr("variables.ForceSet(...,"+sName+",...)","Index "+iInternalIndex.ToString()+" is beyond "+iCount.ToString()+" currently used slots and cannot be set or created.");
 				}
 				else if (iInternalIndex>=0) { //else if everything is okay, set it
 					//if (sName.Length>0) {
@@ -995,21 +995,21 @@ namespace ExpertMultimedia {
 						//}
 						//else {
 						//	bGood=false;
-						//	Base.ShowErr("variables.ForceCreate","Value is blank.");
+						//	RReporting.ShowErr("variables.ForceCreate","Value is blank.");
 						//}
 					//}
 					//else {
 					//	bGood=false;
-					//	Base.ShowErr("Name is blank.","variables ForceSet");
+					//	RReporting.ShowErr("Name is blank.","variables ForceSet");
 					//}
 				}
 				else {
 					bGood=false;
-					Base.ShowErr("variables ForceSet","Index "+iInternalIndex.ToString()+" is not valid");
+					RReporting.ShowErr("variables ForceSet","Index "+iInternalIndex.ToString()+" is not valid");
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"ForceSet("+((sName==null)?"null":"\"sName\","),((val==null)?"null":"\"val\")"));
+				RReporting.ShowExn(exn,"ForceSet("+((sName==null)?"null":"\"sName\","),((val==null)?"null":"\"val\")"));
 			}
 			return bGood;
 		}//end ForceSet(...,...,string)
@@ -1021,7 +1021,7 @@ namespace ExpertMultimedia {
 				}
 				if (iInternalIndex>iCount) {//but CAN be created at iCount!!!!
 					bGood=false;
-					Base.ShowErr("variables.ForceSetByRef(...,"+sName+",...)","Index "+iInternalIndex.ToString()+" is beyond "+iCount.ToString()+" currently used slots and cannot be set or created.");
+					RReporting.ShowErr("variables.ForceSetByRef(...,"+sName+",...)","Index "+iInternalIndex.ToString()+" is beyond "+iCount.ToString()+" currently used slots and cannot be set or created.");
 				}
 				else if (iInternalIndex>=0) { //else if everything is okay, set it
 					//if (sName.Length>0) {
@@ -1033,21 +1033,21 @@ namespace ExpertMultimedia {
 						//}
 						//else {
 						//	bGood=false;
-						//	Base.ShowErr("variables.ForceCreate","Value is blank.");
+						//	RReporting.ShowErr("variables.ForceCreate","Value is blank.");
 						//}
 					//}
 					//else {
 					//	bGood=false;
-					//	Base.ShowErr("Name is blank.","variables ForceSet");
+					//	RReporting.ShowErr("Name is blank.","variables ForceSet");
 					//}
 				}
 				else {
 					bGood=false;
-					Base.ShowErr("variables ForceSetByRef","Index "+iInternalIndex.ToString()+" is not valid");
+					RReporting.ShowErr("variables ForceSetByRef","Index "+iInternalIndex.ToString()+" is not valid");
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"ForceSetByRef("+((sName==null)?"null":"\"sName\","),((byarrToReference==null)?"null":"\"val\")"));
+				RReporting.ShowExn(exn,"ForceSetByRef("+((sName==null)?"null":"\"sName\","),((byarrToReference==null)?"null":"\"val\")"));
 			}
 			return bGood;
 		}//end ForceSetByRef(...,...,byarrToReference)
@@ -1059,7 +1059,7 @@ namespace ExpertMultimedia {
 				}
 				if (iInternalIndex>iCount) {//but CAN be created at iCount!!!!
 					bGood=false;
-					Base.ShowErr("variables.ForceSet(...,"+sName+",...)","Index "+iInternalIndex.ToString()+" is beyond "+iCount.ToString()+" currently used slots and cannot be set or created.");
+					RReporting.ShowErr("variables.ForceSet(...,"+sName+",...)","Index "+iInternalIndex.ToString()+" is beyond "+iCount.ToString()+" currently used slots and cannot be set or created.");
 				}
 				else if (iInternalIndex>=0) { //else if everything is okay, set it
 					//if (sName.Length>0) {
@@ -1070,21 +1070,21 @@ namespace ExpertMultimedia {
 						//}
 						//else {
 						//	bGood=false;
-						//	Base.ShowErr("variables.ForceCreate","Value is blank.");
+						//	RReporting.ShowErr("variables.ForceCreate","Value is blank.");
 						//}
 					//}
 					//else {
 					//	bGood=false;
-					//	Base.ShowErr("Name is blank.","variables ForceSet");
+					//	RReporting.ShowErr("Name is blank.","variables ForceSet");
 					//}
 				}
 				else {
 					bGood=false;
-					Base.ShowErr("variables ForceSet","Index "+iInternalIndex.ToString()+" is not valid");
+					RReporting.ShowErr("variables ForceSet","Index "+iInternalIndex.ToString()+" is not valid");
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"ForceSet("+((sName==null)?"null":"\"sName\","),((val==null)?"null":"\"val\")"));
+				RReporting.ShowExn(exn,"ForceSet("+((sName==null)?"null":"\"sName\","),((val==null)?"null":"\"val\")"));
 			}
 			return bGood;
 		}//end ForceSet(...,...,string)
@@ -1169,7 +1169,7 @@ namespace ExpertMultimedia {
 			iMax=iMax1;
 			iCount = 0;
 			vsarr = new Variables[iMax];
-			if (vsarr==null) Base.ShowErr("VariablesQ constructor couldn't initialize vsarr");
+			if (vsarr==null) RReporting.ShowErr("VariablesQ constructor couldn't initialize vsarr");
 		}
 		public void EmptyNOW () {
 			iCount=0;
@@ -1190,19 +1190,19 @@ namespace ExpertMultimedia {
 					return true;
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"VariablesQ Enq("+((vsAdd==null)?"null interaction":"non-null")+")","setting iactionarr["+iNew.ToString()+"]");
+					RReporting.ShowExn(exn,"VariablesQ Enq("+((vsAdd==null)?"null interaction":"non-null")+")","setting iactionarr["+iNew.ToString()+"]");
 				}
 				return false;
 			}
 			else {
-				Base.ShowErr("VariablesQ is full, with "+iCount.ToString()+" packets","VariablesQ Enq("+((vsAdd==null)?"null packet":"non-null")+")");
+				RReporting.ShowErr("VariablesQ is full, with "+iCount.ToString()+" packets","VariablesQ Enq("+((vsAdd==null)?"null packet":"non-null")+")");
 				return false;
 			}
 		}
 		public Variables Deq() { //Dequeue
 			//sLogLine=("debug deq iCount="+iCount.ToString()+" and "+(IsEmpty?"is":"is not")+" empty.");
 			if (IsEmpty) {
-				Base.ShowErr("No packets to return so returned null packet","Deq");
+				RReporting.ShowErr("No packets to return so returned null packet","Deq");
 				return null;
 			}
 			int iReturn = iFirst;

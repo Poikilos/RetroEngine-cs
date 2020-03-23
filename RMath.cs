@@ -49,8 +49,8 @@ namespace ExpertMultimedia {
 					streamIn.Close();
 				}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"reading alphalook file","RMath static constructor {File:\""+AlphaLookFile_FullName+"\"}");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"reading alphalook file","RMath static constructor {File:\""+AlphaLookFile_FullName+"\"}");
 				AlphaLookData=null;
 				bCached=false;
 			}
@@ -106,14 +106,14 @@ namespace ExpertMultimedia {
 					streamOut.Close();
 					streamOut=null;
 				}
-				catch (Exception exn) {
-					RReporting.ShowExn(exn,"saving alpha lookup table","RMath static constructor {AlphaLookFile_FullName:\""+AlphaLookFile_FullName+"\"}");
+				catch (Exception e) {
+					RReporting.ShowExn(e,"saving alpha lookup table","RMath static constructor {AlphaLookFile_FullName:\""+AlphaLookFile_FullName+"\"}");
 				}
 				try {
 					if (streamOut!=null) streamOut.Close();
 				}
-				catch (Exception exn) {
-					RReporting.ShowExn(exn,"closing new alpha lookup table","RMath static constructor {AlphaLookFile_FullName:\""+AlphaLookFile_FullName+"\"}");
+				catch (Exception e) {
+					RReporting.ShowExn(e,"closing new alpha lookup table","RMath static constructor {AlphaLookFile_FullName:\""+AlphaLookFile_FullName+"\"}");
 				}
 			}
 			Console.Error.WriteLine("OK (RMath static constructor finished)."); //see beginning of constructor for beginning of output line
@@ -549,9 +549,9 @@ namespace ExpertMultimedia {
 					else iReturn=IntersectionYes;
 				}
 			}
-			catch (Exception exn) {
+			catch (Exception e) {
 				iReturn=IntersectionError;
-				RReporting.ShowExn(exn,"Base Intersection","checking line intersection {"
+				RReporting.ShowExn(e,"Base Intersection","checking line intersection {"
 					+"Line1:("+Line1_x1.ToString()+","+Line1_y1.ToString()+")to("+Line1_x2.ToString()+","+Line1_y2.ToString()+"); "
 					+"Line2:("+Line2_x1.ToString()+","+Line2_y1.ToString()+")to("+Line2_x2.ToString()+","+Line2_y2.ToString()+"); "
 					+"}");
@@ -631,8 +631,8 @@ namespace ExpertMultimedia {
 						return LineRelationshipIntersectionOutOfRange;
 					}
 				}
-				catch (Exception exn) {
-					RReporting.ShowExn(exn,"Base IntersectionAndRelationship","checking line relationship {"
+				catch (Exception e) {
+					RReporting.ShowExn(e,"Base IntersectionAndRelationship","checking line relationship {"
 						+"Line1:("+Line1_x1.ToString()+","+Line1_y1.ToString()+")to("+Line1_x2.ToString()+","+Line1_y2.ToString()+"); "
 						+"Line2:("+Line2_x1.ToString()+","+Line2_y1.ToString()+")to("+Line2_x2.ToString()+","+Line2_y2.ToString()+"); "
 						+"}");
@@ -729,15 +729,6 @@ namespace ExpertMultimedia {
 			}
 			else return val;
 		}
-		public static int GetSignedCropped(uint uiNow) {
-			return (int)((uiNow>2147483647)?2147483647:uiNow);
-			//1111111 11111111 11111111 11111111
-		}
-		public static ushort GetUnsignedLossless(short val) {
-			if (val==short.MinValue) return ushort.MaxValue;//prevents overflow! (in -1*val below)
-			else if (val<0) return (ushort)((ushort)short.MaxValue+(ushort)(-1*val));//since approaches 0x7FFF+0xFFFF (that overflow prevented above)
-			else return (ushort) val;
-		}
 		public static byte Dist(byte by1, byte by2) {
 			return (byte)( (by1>by2)?by1-by2:by2-by1 );
 		}
@@ -745,8 +736,8 @@ namespace ExpertMultimedia {
 			try {
 				return SafeSqrt(System.Math.Abs(p2.X-p1.X)+System.Math.Abs(p2.Y-p1.Y));
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"double Dist()");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"double Dist()");
 			}
 			return 0;
 		}
@@ -874,8 +865,8 @@ namespace ExpertMultimedia {
 				dArea = dArea + ang*c2_Radius*c2_Radius;
 				dArea = dArea - d*h;
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+			catch (Exception e) {
+				RReporting.ShowExn(e);
 			}
 			return dArea;
 		}//end GetAreaOfCirclesIntersection
@@ -884,8 +875,8 @@ namespace ExpertMultimedia {
 			try {
 				return SafeSqrt(System.Math.Abs(x2-x1)+System.Math.Abs(y2-y1));
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"double Dist()");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"double Dist()");
 			}
 			return 0;
 		}
@@ -893,8 +884,8 @@ namespace ExpertMultimedia {
 			try {
 				return SafeSqrt(System.Math.Abs(x2-x1)+System.Math.Abs(y2-y1));
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"double Dist()");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"double Dist()");
 			}
 			return 0;
 		}
@@ -913,8 +904,8 @@ namespace ExpertMultimedia {
 			try {
 				return SafeSqrt(System.Math.Abs(x2-x1)+System.Math.Abs(y2-y2));
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"double Dist()");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"double Dist()");
 			}
 			return 0;
 		}
@@ -922,8 +913,8 @@ namespace ExpertMultimedia {
 			try {
 				return SafeSqrt(System.Math.Abs(p2.X-p1.X)+System.Math.Abs(p2.Y-p1.Y));
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"float Dist()");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"float Dist()");
 			}
 			return 0;
 		}
@@ -931,8 +922,8 @@ namespace ExpertMultimedia {
 			try {
 				return SafeSqrt(System.Math.Abs(p2.X-p1.X)+System.Math.Abs(p2.Y-p1.Y));
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"Dist(MPoint, MPoint)");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"Dist(MPoint, MPoint)");
 			}
 			return 0;
 		}
@@ -1000,8 +991,8 @@ namespace ExpertMultimedia {
 				else if (float.IsNaN(valDivisor)) return 0f;
 				else return val/valDivisor;
 			}
-			catch (Exception exn)  {
-				RReporting.ShowExn(exn,"SafeDivide("+val.ToString()+","+valDivisor.ToString()+","+valMax.ToString()+")");
+			catch (Exception e)  {
+				RReporting.ShowExn(e,"SafeDivide("+val.ToString()+","+valDivisor.ToString()+","+valMax.ToString()+")");
 			}
 			return 0f;
 		} //end SafeDivide(float,float,float,float)
@@ -1060,8 +1051,8 @@ namespace ExpertMultimedia {
 				else if (double.IsNaN(valDivisor)) return 0.0;
 				else return val/valDivisor;
 			}
-			catch (Exception exn)  {
-				RReporting.ShowExn(exn,"SafeDivide("+val.ToString()+","+valDivisor.ToString()+","+valMax.ToString()+")");
+			catch (Exception e)  {
+				RReporting.ShowExn(e,"SafeDivide("+val.ToString()+","+valDivisor.ToString()+","+valMax.ToString()+")");
 			}
 			return 0.0;
 		} //end SafeDivide(double,double,double,double)
@@ -1122,8 +1113,8 @@ namespace ExpertMultimedia {
 				//else if (decimal.IsNaN(valDivisor)) return 0.0M;
 				else return val/valDivisor;
 			}
-			catch (Exception exn)  {
-				RReporting.ShowExn(exn,"SafeDivide("+val.ToString()+","+valDivisor.ToString()+","+valMax.ToString()+")");
+			catch (Exception e)  {
+				RReporting.ShowExn(e,"SafeDivide("+val.ToString()+","+valDivisor.ToString()+","+valMax.ToString()+")");
 			}
 			return 0.0M;
 		} //end SafeDivide(decimal,decimal,decimal,decimal)
@@ -1217,8 +1208,8 @@ namespace ExpertMultimedia {
 					return bNeg? ((val>valDivisor?valMax:valMin)*-1) : (val>valDivisor?valMax:valMin);
 				}
 			}
-			catch (Exception exn)  {//should NEVER happen
-				RReporting.ShowExn(exn,"SafeDivide","dividing "+val.ToString()+" by "+valDivisor.ToString()+" (unexpected crash) {min:"+valMin.ToString()+"; max="+valMax.ToString()+"}");
+			catch (Exception e)  {//should NEVER happen
+				RReporting.ShowExn(e,"SafeDivide","dividing "+val.ToString()+" by "+valDivisor.ToString()+" (unexpected crash) {min:"+valMin.ToString()+"; max="+valMax.ToString()+"}");
 			}
 			return 0;
 		} //end SafeDivide(int...)
@@ -1494,8 +1485,8 @@ namespace ExpertMultimedia {
 			//try {
 			//	return ByRound(((float)start)-(((float)start)-((float)toward))*(factor));
 			//}
-			//catch (Exception exn) {
-			//	RReporting.Debug(exn,"","Base Approach(byte)");
+			//catch (Exception e) {
+			//	RReporting.Debug(e,"","Base Approach(byte)");
 			//	//TODO: make this more accurate
 			//	return toward; //check this--may be correct since overflow means too big in the formula above
 			//}
@@ -1507,8 +1498,8 @@ namespace ExpertMultimedia {
 			try {
 				return ((start)-((start)-(toward))*(factor));
 			}
-			catch (Exception exn) {
-				RReporting.Debug(exn,"","Base Approach");
+			catch (Exception e) {
+				RReporting.Debug(e,"","Base Approach");
 				//TODO: make this more accurate
 				return toward; //check this--may be correct since overflow means too big in the formula above
 			}
@@ -1517,8 +1508,8 @@ namespace ExpertMultimedia {
 			try {
 				return ((start)-((start)-(toward))*(factor));
 			}
-			catch (Exception exn) {
-				RReporting.Debug(exn,"","Approach");
+			catch (Exception e) {
+				RReporting.Debug(e,"","Approach");
 				//TODO: make this more accurate
 				return toward; //check this--may be correct since overflow means too big in the formula above
 			}
@@ -1915,25 +1906,25 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 				//	dtDestruct.AddDays(1.0d);
 				//}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"getting difference of datetime objects","DaysAbsoluteValueOfDifferenceIgnoringHours");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"getting difference of datetime objects","DaysAbsoluteValueOfDifferenceIgnoringHours");
 			}
 			if (bNeg) iReturn=0-iReturn;
 			return iReturn;
 		}
-		public static string ToString(IPoint point) {
-			return (point!=null)?("("+point.X.ToString()+","+point.Y.ToString()+")"):"null";
-		}
-		public static string ToString(FPoint point) {
-			return "("+point.X.ToString()+","+point.Y.ToString()+")"; //return (point!=null)?("("+point.X.ToString()+","+point.Y.ToString()+")"):"null";
-		}
-		public static string ToString(DPoint point) {
-			return "("+point.X.ToString()+","+point.Y.ToString()+")"; //return (point!=null)?("("+point.X.ToString()+","+point.Y.ToString()+")"):"null";
-		}
-		public static int IndexOf(int[] arrX, int valX) {
-			if (arrX!=null) {
-				for (int iNow=0; iNow<arrX.Length; iNow++) {
-					if (arrX[iNow]==valX) {
+		//public static string ToString(IPoint point) {//see RTypes
+		//	return (point!=null)?("("+point.X.ToString()+","+point.Y.ToString()+")"):"null";
+		//}
+		//public static string ToString(FPoint point) {//see RTypes
+		//	return "("+point.X.ToString()+","+point.Y.ToString()+")"; //return (point!=null)?("("+point.X.ToString()+","+point.Y.ToString()+")"):"null";
+		//}
+		//public static string ToString(DPoint point) {//see RTypes
+		//	return "("+point.X.ToString()+","+point.Y.ToString()+")"; //return (point!=null)?("("+point.X.ToString()+","+point.Y.ToString()+")"):"null";
+		//}
+		public static int IndexOf(int[] arrVal, int valX) {
+			if (arrVal!=null) {
+				for (int iNow=0; iNow<arrVal.Length; iNow++) {
+					if (arrVal[iNow]==valX) {
 						return iNow;
 					}
 				}
@@ -1993,8 +1984,8 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 				} //end if there's notation to remove
 				//else no change
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"RemoveExpNotation");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"RemoveExpNotation");
 			}
 		}//end RemoveExpNotation
 // 		public static int LocationToFuzzyMaximum(int iCurrentMax, int iLoc) {
@@ -2130,8 +2121,8 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 				if (RectToModify_Width<1) { RectToModify_Width=0; bGood=false;}
 				if (RectToModify_Height<1) { RectToModify_Height=0; bGood=false;}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"clipping rectangle","RMath CropRect(int,...)");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"clipping rectangle","RMath CropRect(int,...)");
 			}
 			return bGood;
 		}//end CropRect(integers)
@@ -2166,8 +2157,8 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 				if (RectToModify_Width<=0) { RectToModify_Width=0; bGood=false;}
 				if (RectToModify_Height<=0) { RectToModify_Height=0; bGood=false;}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"clipping rectangle","RMath CropRect(float,...)");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"clipping rectangle","RMath CropRect(float,...)");
 			}
 			return bGood;
 		}//end CropRect(float,...)
@@ -2206,8 +2197,8 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 			if (ZoneToModify_Right<ZoneToModify_X) { ZoneToModify_Right=ZoneToModify_X; bGood=false;}
 			if (ZoneToModify_Y<ZoneToModify_Bottom) { ZoneToModify_Bottom=ZoneToModify_Y; bGood=false;}
 			//}
-			//catch (Exception exn) {
-			//	RReporting.ShowExn(exn,"clipping zone","RMath CropZone(float,...)");
+			//catch (Exception e) {
+			//	RReporting.ShowExn(e,"clipping zone","RMath CropZone(float,...)");
 			//}
 			return bGood;
 		}//end CropZone(float,...)
@@ -2242,8 +2233,8 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 				if (RectToModify_Width<=0) { RectToModify_Width=0; bGood=false;}
 				if (RectToModify_Height<=0) { RectToModify_Height=0; bGood=false;}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"clipping rectangle","RMath CropRect");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"clipping rectangle","RMath CropRect");
 			}
 			return bGood;
 		}//end CropRect(doubles)
@@ -2278,8 +2269,8 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 				if (RectToModify_Width<1) { RectToModify_Width=0; bGood=false;}
 				if (RectToModify_Height<1) { RectToModify_Height=0; bGood=false;}
 			}
-			catch (Exception exn) {
-				RReporting.ShowExn(exn,"clipping rectangle","RMath CropRect");
+			catch (Exception e) {
+				RReporting.ShowExn(e,"clipping rectangle","RMath CropRect");
 			}
 			return bGood;
 		}//end CropRect(decimals)
@@ -2322,5 +2313,5 @@ Pax Diablo answer for "What’s the difference between Math.Floor() and Math.Trunc
 		}
 		#endregion UI methods
 
-	}//end RMath section
+	}//end RMath class
 }//end namespace

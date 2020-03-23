@@ -44,14 +44,14 @@ namespace ExpertMultimedia {
 					
 				if (sServerURL1.StartsWith("http://")) //debug if non-http
 					sServerURL = sServerURL1;
-				else Base.Error_WriteLine("-sServerURL defaulted to "+sServerURL);
+				else RReporting.Error_WriteLine("-sServerURL defaulted to "+sServerURL);
 				
 				
 				//Create and register remoting channel
 				HttpChannel chanRetroEngine = new HttpChannel();
 				ChannelServices.RegisterChannel(chanRetroEngine);
 				bServer = ClientConnectServer(); //Init the remoting system
-				if (!bServer) Base.Error_WriteLine("Couldn't connect to server or single-player game. Both require that you check your firewall settings.");
+				if (!bServer) RReporting.Error_WriteLine("Couldn't connect to server or single-player game. Both require that you check your firewall settings.");
 				
 				//string sOS = Environment.OSVersion.ToString;
 				//System.PlatformID platformidOS = Environment.OSVersion.Platform;
@@ -66,8 +66,8 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				if (bServer) {
-					Base.WriteLine("Couldn't initialize client");
-					Base.ShowExn(exn,"Client constructor","initializing client");
+					RReporting.WriteLine("Couldn't initialize client");
+					RReporting.ShowExn(exn,"Client constructor","initializing client");
 				}
 				//bContinue==false;
 			}
@@ -81,7 +81,7 @@ namespace ExpertMultimedia {
 				return true;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"ClientConnectServer","connecting (Make sure you are online and the server is correct)");
+				RReporting.ShowExn(exn,"ClientConnectServer","connecting (Make sure you are online and the server is correct)");
 				return false;
 			}
 		}
@@ -119,7 +119,7 @@ namespace ExpertMultimedia {
 					}
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"Signal");;
+					RReporting.ShowExn(exn,"Signal");;
 				}
 			}//else if login
 			
@@ -138,13 +138,13 @@ namespace ExpertMultimedia {
 						bool bTest=false;
 						if (coreInClient!=null) bTest=coreInClient.Stop(); //debug NYI track the thread and kill if locked
 						try {
-							Base.Error_WriteLine("Packets iSent="+iSent.ToString());
+							RReporting.Error_WriteLine("Packets iSent="+iSent.ToString());
 						}
 						catch (Exception exn) {};
 					}
 					else if (packetOut.iType==PacketType.Invalid) {	
 						try {
-							Base.Error_WriteLine("The command you typed was not understood.");
+							RReporting.Error_WriteLine("The command you typed was not understood.");
 						}
 						catch (Exception exn) {};
 					}
@@ -154,17 +154,17 @@ namespace ExpertMultimedia {
 							if (packetOut!=null) {
 								if (packetOut.iType==PacketType.LoginConfirmation) {
 									bLogin=true;
-									Base.Error_WriteLine("Server responded to the login request: ");
-									Base.Error_WriteLine(packetOut.s);
+									RReporting.Error_WriteLine("Server responded to the login request: ");
+									RReporting.Error_WriteLine(packetOut.s);
 								}
 								else {
-									Base.Error_WriteLine("The server couldn't log you in, but instead said:");
-									Base.Error_WriteLine("  "+packetOut.s);
+									RReporting.Error_WriteLine("The server couldn't log you in, but instead said:");
+									RReporting.Error_WriteLine("  "+packetOut.s);
 								}
 								packetOut.sFrom=packetOut.sTo; //lets the packet be used as auth. packet from now on.
 							}
 							else {
-								Base.Error_WriteLine("The server sent a null reply to the login attempt");
+								RReporting.Error_WriteLine("The server sent a null reply to the login attempt");
 							}
 						}
 						catch (Exception exn) {
@@ -248,7 +248,7 @@ namespace ExpertMultimedia {
 					//Parent.WriteLine(RetroEngine.TickCount.ToString()+" was "+iTickLastIdle.ToString());
 				}
 			}
-			Base.Error_WriteLine("The client packet manager stopped.");
+			RReporting.Error_WriteLine("The client packet manager stopped.");
 		}
 		
 		//static void Main(string[] args) {

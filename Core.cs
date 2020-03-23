@@ -29,7 +29,7 @@ namespace ExpertMultimedia {
 				}
 				catch (Exception exn) {
 					bGood=false;
-					Base.ShowExn(exn,"Core Start (!)");
+					RReporting.ShowExn(exn,"Core Start (!)");
 				}
 			}
 			return bGood;
@@ -41,14 +41,14 @@ namespace ExpertMultimedia {
 		private void Scenarior() {
 		//runs as a Thread to put core.scenario into motion.
 		//thread should be used by server AND client (but does client use server???) (?)
-			Base.WriteLine("Scenario manager started");
+			RReporting.WriteLine("Scenario manager started");
 			while (bContinue) {
 				//if (bShuttingDown) {
 					//if (iPacketsSending==0) bContinue=false; //debug this statement should be fixed and used
 				//	if (RetroEngine.TickCount-iTickShutdown>iTicksToShutdown) bContinue=false;
 				//}
   			}
-			Base.WriteLine("Scenario manager stopped");
+			RReporting.WriteLine("Scenario manager stopped");
 		}
 	} //end class Core
 } //end namespace

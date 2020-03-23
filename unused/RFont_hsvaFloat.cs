@@ -63,7 +63,7 @@ namespace ExpertMultimedia {
 				if (!ResetGlyphTypeArray()) bGood=false;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GFont Init");
+				RReporting.ShowExn(exn,"GFont Init");
 				bGood=false;
 			}
 			return bGood;
@@ -74,15 +74,15 @@ namespace ExpertMultimedia {
 				bGood=animarrGlyphType[iGlyphType].SaveSeq(sFileBaseName, sFileExt);
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn, "GFont SaveSeq","saving font to image sequence");
+				RReporting.ShowExn(exn, "GFont SaveSeq","saving font to image sequence");
 				bGood=false;
 			}
 			if (!bGood) {
 				try {
-					Base.ShowErr("Failed to save "+sFileExt+" files named starting with "+sFileBaseName+" "+animarrGlyphType[iGlyphType].ToString(true),"GFont SaveSeq");
+					RReporting.ShowErr("Failed to save "+sFileExt+" files named starting with "+sFileBaseName+" "+animarrGlyphType[iGlyphType].ToString(true),"GFont SaveSeq");
 				}
 				catch (Exception exn2) {
-					Base.ShowExn(exn2,"GFont SaveSeq","accessing font glyphs (saving "+sFileExt+" files named starting with "+sFileBaseName+")");
+					RReporting.ShowExn(exn2,"GFont SaveSeq","accessing font glyphs (saving "+sFileExt+" files named starting with "+sFileBaseName+")");
 				}
 			}
 			return bGood;
@@ -102,13 +102,13 @@ namespace ExpertMultimedia {
 					animarrGlyphType[iGlyphType].GotoFrame((long)carrText[i]);
 					if (!GBuffer.OverlayNoClipToBigCopyAlpha(ref gbDest, ref ipDestNow, ref animarrGlyphType[iGlyphType].gbFrame,ref gradNow)) {
 						bGood=false;
-						Base.ShowErr("failed to overlay text character#"+((long)carrText[i]).ToString(),"TypeFast");
+						RReporting.ShowErr("failed to overlay text character#"+((long)carrText[i]).ToString(),"TypeFast");
 					}
 					ipDestNow.X+=animarrGlyphType[iGlyphType].gbFrame.iWidth;
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"TypeFast(...,\""+sText+"\")");
+				RReporting.ShowExn(exn,"TypeFast(...,\""+sText+"\")");
 				bGood=false;
 			}
 			return bGood;
@@ -122,7 +122,7 @@ namespace ExpertMultimedia {
 				
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"TypeHTML(...,\""+sText+"\",...)");
+				RReporting.ShowExn(exn,"TypeHTML(...,\""+sText+"\",...)");
 				bGood=false;
 			}
 			return bGood;
@@ -137,7 +137,7 @@ namespace ExpertMultimedia {
 				bGood=true;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GFont ResetGlyphArray");
+				RReporting.ShowExn(exn,"GFont ResetGlyphArray");
 				bGood=false;
 			}
 			return bGood;
@@ -162,10 +162,10 @@ namespace ExpertMultimedia {
 					//ShowAsciiTable();
 					//sLogLine=".animarrGlyphType[GFont.GlyphTypeNormal].ToString(true) "+animarrGlyphType[GFont.GlyphTypeNormal].ToString(true);
 				}
-				else Base.ShowErr("Failed to initialize","GFont FromImageValue");
+				else RReporting.ShowErr("Failed to initialize","GFont FromImageValue");
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"FromImageValue");
+				RReporting.ShowExn(exn,"FromImageValue");
 			}
 			return bGood;
 		}
@@ -192,7 +192,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GFont ShowAsciiTable");
+				RReporting.ShowExn(exn,"GFont ShowAsciiTable");
 			}
 		}
 	}//end class GFont

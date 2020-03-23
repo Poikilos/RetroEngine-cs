@@ -73,7 +73,7 @@ namespace ExpertMultimedia {
 				vsData.ForceSet(index,"",val);
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"packet Set("+index.ToString()+","+val+")");
+				RReporting.ShowExn(exn,"packet Set("+index.ToString()+","+val+")");
 			}
 		}
 		public string GetForcedString(int index) {
@@ -82,12 +82,12 @@ namespace ExpertMultimedia {
 					return vsData.GetForcedString(index);
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"packet GetForcedString","trying to get string at index "+index.ToString());
+					RReporting.ShowExn(exn,"packet GetForcedString","trying to get string at index "+index.ToString());
 					return "";
 				}
 			}
 			else {
-				Base.ShowErr("Tried to get string index "+index.ToString()+" from packet with null vsData","packet GetForcedString");
+				RReporting.ShowErr("Tried to get string index "+index.ToString()+" from packet with null vsData","packet GetForcedString");
 				return "";
 			}
 			return "";
@@ -133,7 +133,7 @@ namespace ExpertMultimedia {
 			iMax=iMax1;
 			iCount = 0;
 			packetarr = new Packet[iMax];
-			if (packetarr==null) Base.ShowErr("PacketQ constructor couldn't initialize packetarr");
+			if (packetarr==null) RReporting.ShowErr("PacketQ constructor couldn't initialize packetarr");
 		}
 		public void EmptyNOW () {
 			iCount=0;
@@ -155,24 +155,24 @@ namespace ExpertMultimedia {
 					return true;
 					}
 					else {
-						Base.ShowErr("null packet","PacketQ Enq");
+						RReporting.ShowErr("null packet","PacketQ Enq");
 						return false;
 					}
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"PacketQ Enq("+((packetAdd==null)?"null interaction":"non-null")+")","setting iactionarr["+iNew.ToString()+"]");
+					RReporting.ShowExn(exn,"PacketQ Enq("+((packetAdd==null)?"null interaction":"non-null")+")","setting iactionarr["+iNew.ToString()+"]");
 				}
 				return false;
 			}
 			else {
-				Base.ShowErr("PacketQ is full, with "+iCount.ToString()+" packets","PacketQ Enq("+((packetAdd==null)?"null packet":"non-null")+")");
+				RReporting.ShowErr("PacketQ is full, with "+iCount.ToString()+" packets","PacketQ Enq("+((packetAdd==null)?"null packet":"non-null")+")");
 				return false;
 			}
 		}
 		public Packet Deq() { //Dequeue
 			//sLogLine=("debug deq iCount="+iCount.ToString()+" and "+(IsEmpty?"is":"is not")+" empty.");
 			if (IsEmpty) {
-				Base.ShowErr("No packets to return so returned null packet","Deq");
+				RReporting.ShowErr("No packets to return so returned null packet","Deq");
 				return null;
 			}
 			int iReturn = iFirst;

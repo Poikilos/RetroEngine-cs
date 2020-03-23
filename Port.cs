@@ -17,26 +17,26 @@ namespace ExpertMultimedia {
 			//packetMoving=new Packet();
 			Init();
 			try {
-				Base.WriteLine("Port constructor: defaulting to server mode");
+				RReporting.WriteLine("Port constructor: defaulting to server mode");
 				packeter = new Packeter(); //server = new Server( );
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Port constructor");
+				RReporting.ShowExn(exn,"Port constructor");
 			}
 		}
 		/*
 		public Port(string sPurpose) { //client calls this contructor locally??
 			packeter=null; //server=null;
 			if (sPurpose=="client") { //server mode
-				Base.ShowErr("Port constructor: running as {0}", sPurpose);
+				RReporting.ShowErr("Port constructor: running as {0}", sPurpose);
 			}
 			else if (sPurpose=="server") {
-				Base.ShowErr("Port constructor: running as {0}", sPurpose);
+				RReporting.ShowErr("Port constructor: running as {0}", sPurpose);
 				packeter=new Packeter(); //server = new Server();
 			}
 			else {
 				server = new Server();
-				Base.ShowErr("Port constructor: defaulting to server since invalid argument={0}", sPurpose);
+				RReporting.ShowErr("Port constructor: defaulting to server since invalid argument={0}", sPurpose);
 			}
 			Init();
 		}
@@ -50,7 +50,7 @@ namespace ExpertMultimedia {
 		}
 		private void Init() {
 			//apHost = new Packet();
-			//try{Base.WriteLine("Starting EMRE Core...");}
+			//try{RReporting.WriteLine("Starting EMRE Core...");}
 			//catch(Exception exn){exn=exn};
 			//core = new Core(); //now core is a member of both Client and Server
 			try{
@@ -59,7 +59,7 @@ namespace ExpertMultimedia {
 				packetServerCrash.Set(0,"Port says: Server object crashed or is not completely initialized.");
 			}
 			catch (Exception exn) {
-				Base.ShowException(exn,"Port.Init");
+				RReporting.ShowExn(exn,"Port.Init");
 			}
 		}//end Init()
 		/////////// Done Initialization /////////////
@@ -68,11 +68,11 @@ namespace ExpertMultimedia {
 			bool bReturn = false;
 			try { //if didn't crash
 				if (packeter!=null) bReturn = packeter.Enq(packetNew); //passes on the packet to the engine server
-				else Base.ShowErr("Port says: Server was not created so the data couldn't be processed.");
+				else RReporting.ShowErr("Port says: Server was not created so the data couldn't be processed.");
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"port Enq");
-				Base.ShowErr("Port says: Server thread not working!!! Please restart!");
+				RReporting.ShowExn(exn,"port Enq");
+				RReporting.ShowErr("Port says: Server thread not working!!! Please restart!");
 				return false;
 			}
 			return bReturn;
@@ -82,7 +82,7 @@ namespace ExpertMultimedia {
 				if (packetAuth!=null) return packeter.Deq(packetAuth);
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"port Deq");
+				RReporting.ShowExn(exn,"port Deq");
 				packetServerCrash.Set(0,("Port says: Couldn't get packet from server object."));
 				return packetServerCrash;
 			}

@@ -33,7 +33,7 @@
     - EmotionalityType as Emotionality
     - Entity attributes
       - fHandCoord, fFootCoord, fHealth, fEmpowerment, bitSpirit, bitFlesh, bitEmpowered, bitEmpowererAlignment
-  - AutoResponses when falls, says a random exclamation from any built-in or custom TextGroup
+    - AutoResponses when falls, says a random exclamation from any built-in or custom TextGroup
   - Allow clicking on a destination to watch the character walk around
   - can be camera
 - Actions \[Action object, which is a RetroEngine command\]: has sName, sFriendlyName, sToolTip, sParentType \[sParentType values: "Entity" (including camera)\]

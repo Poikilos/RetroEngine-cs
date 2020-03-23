@@ -135,7 +135,6 @@ namespace ExpertMultimedia {
 				else iFound=1;
 			}
 			return iFound;
-			//TODO: remove from Base.cs
 		}//end CountCSVElements
 		public static string[] CSVLineToRow(string sLine, char cFieldDelimiter, char cTextDelimiter) {
 			string[] sarrReturn=null;
@@ -164,7 +163,6 @@ namespace ExpertMultimedia {
 				}
 			}
 			return sarrReturn;
-			//TODO: remove from Base.cs
 		}//end CSVLineToRow
 		public string RowToCSVLine(int iRow, bool bReplaceNewLineWithTabInsteadOfHTMLBrWithMarkerProperty) {
 			string sReturn="";
@@ -253,7 +251,7 @@ namespace ExpertMultimedia {
 						while (iChar<=sLine.Length) {//intentionally <=
 							if ( iChar==sLine.Length || sLine[iChar]==cFieldDelimiter ) {
 								iEnderNow=iChar;
-								sarrReturn[iFound]=Base.SafeSubstringByExclusiveEnder(sLine,iStartNow,iEnderNow);
+								sarrReturn[iFound]=RString.SafeSubstringByExclusiveEnder(sLine,iStartNow,iEnderNow);
 								iFound++;
 								iStartNow=iEnderNow++;
 							}
@@ -281,7 +279,7 @@ namespace ExpertMultimedia {
 				sarrReturn=new string[iarrEnder.Length];
 				int iFieldStart=iStart;
 				for (int iNow=0; iNow<iarrEnder.Length; iNow++) {
-					sarrReturn[iNow]=Base.SafeSubstring(sData,iFieldStart,iarrEnder[iNow]-iFieldStart);
+					sarrReturn[iNow]=RString.SafeSubstring(sData,iFieldStart,iarrEnder[iNow]-iFieldStart);
 					RemoveEndsSpacing(ref sarrReturn[iNow]);
 					iFieldStart=iarrEnder[iNow]+sFieldDelimiter.Length; //ok since only other ender is NewLine which is at the end of the line
 				}
@@ -292,7 +290,7 @@ namespace ExpertMultimedia {
 				int iFieldLen=0;
 				for (int iRel=0; iRel<iChars; iRel++) {
 					if (CompareAt(sData,Environment.NewLine,iAbs)) {//NewLine
-						alResult.Add(Base.SafeSubstring(sData,iFieldStart,iFieldLen));
+						alResult.Add(RString.SafeSubstring(sData,iFieldStart,iFieldLen));
 						iFields++;
 						break;
 					}
@@ -301,7 +299,7 @@ namespace ExpertMultimedia {
 						iFieldLen++;
 					}
 					else if ((!bInQuotes) && CompareAt(sData,sFieldDelimiter,iAbs)) {//Field Delimiter
-						alResult.Add(Base.SafeSubstring(sData,iFieldStart,iFieldLen));
+						alResult.Add(RString.SafeSubstring(sData,iFieldStart,iFieldLen));
 						iFieldStart=iAbs+1;
 						iFieldLen=0;
 						iFields++;
@@ -310,7 +308,7 @@ namespace ExpertMultimedia {
 					
 					if (iRel+1==iChars) { //ok since stopped already if newline
 						//i.e. if iChars==1 then: if [0]==sFieldDelimiter iFields=2 else iFields=1
-						alResult.Add(Base.SafeSubstring(sData,iFieldStart,iFieldLen));
+						alResult.Add(RString.SafeSubstring(sData,iFieldStart,iFieldLen));
 						iFields++;
 					}
 					iAbs++;
@@ -318,17 +316,17 @@ namespace ExpertMultimedia {
 				if (iChars==0) iFields++;
 				
 				if (alResult.Count>0) {
-					if (alResult.Count!=iFields) Base.ShowErr("Field count does not match field ArrayList");
+					if (alResult.Count!=iFields) RReporting.ShowErr("Field count does not match field ArrayList");
 					sarrReturn=new string[alResult.Count];
 					int iNow=0;
-					Base.Write("found: ");//debug only
+					RReporting.Write("found: ");//debug only
 					foreach (string sNow in alResult) {
 						RemoveEndsSpacing(ref sNow);
 						sarrReturn[iNow]=sNow;
-						Base.Write(sarrReturn[iNow]+" ");//debug only
+						RReporting.Write(sarrReturn[iNow]+" ");//debug only
 						iNow++;
 					}
-					Base.WriteLine();//debug only
+					RReporting.WriteLine();//debug only
 				}
 				else {
 					sarrReturn=new string[1];
@@ -339,7 +337,7 @@ namespace ExpertMultimedia {
 			catch (Exception exn) {
 				sarrReturn=null;
 				bGood=false;
-				Base.ShowExn(exn,"Base SplitCSV","reading columns");
+				RReporting.ShowExn(exn,"Base SplitCSV","reading columns");
 			}
 			return sarrReturn;
 		}//end SplitCSV
@@ -380,7 +378,7 @@ namespace ExpertMultimedia {
 				if (alResult.Count>0) {
 					if (iFields!=alResult.Count) {
 						bGood=false;
-						Base.ShowErr("Field count ("+iFields.ToString()+") does not match field list length ("+alResult.Count.ToString()+")","Base CSVGetFieldEnders");
+						RReporting.ShowErr("Field count ("+iFields.ToString()+") does not match field list length ("+alResult.Count.ToString()+")","Base CSVGetFieldEnders");
 					}
 					int iNow=0;
 					if (iarrReturn==null||iarrReturn.Length!=alResult.Count) iarrReturn=new int[alResult.Count];
@@ -395,7 +393,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"Base CSVGetFieldEnders","separating columns");
+				RReporting.ShowExn(exn,"Base CSVGetFieldEnders","separating columns");
 			}
 			if (iarrReturn==null) {
 				iarrReturn=new int[1];
@@ -411,8 +409,8 @@ namespace ExpertMultimedia {
 				//string sCharX;
 				//string sCharXY;
 				for (int iRel=0; iRel<iChars; iRel++) {
-					//sCharX=Base.SafeSubstring(sData,iAbs,1);
-					//sCharXY=Base.SafeSubstring(sData,iAbs,2);
+					//sCharX=RString.SafeSubstring(sData,iAbs,1);
+					//sCharXY=RString.SafeSubstring(sData,iAbs,2);
 					//if (Environment.NewLine.Length>1?(sCharXY==Environment.NewLine):(sCharX==Environment.NewLine)) {
 					//}
 					if (CompareAt(sData,Environment.NewLine,iAbs)) {
@@ -435,7 +433,7 @@ namespace ExpertMultimedia {
 				if (iChars==0) iReturn++;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Base CSVCountCols","counting columns");
+				RReporting.ShowExn(exn,"Base CSVCountCols","counting columns");
 				iReturn=0;
 			}
 			return iReturn;

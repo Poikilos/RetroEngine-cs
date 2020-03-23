@@ -35,7 +35,7 @@ namespace ExpertMultimedia {
 				//formX.Refresh();
 			}
 			catch (Exception exn) {
-				Base.IgnoreExn(exn,"MyCallback UpdateForm");
+				RReporting.IgnoreExn(exn,"MyCallback UpdateForm");
 				return false;
 			}
 			return true;
@@ -48,7 +48,7 @@ namespace ExpertMultimedia {
 				bGood=UpdateStatus();
 			}
 			catch (Exception exn) {
-				Base.IgnoreExn(exn,"MyCallback UpdateStatus(string)");
+				RReporting.IgnoreExn(exn,"MyCallback UpdateStatus(string)");
 				return false;
 			}
 			if (bGood) bGood=UpdateForm();
@@ -62,7 +62,7 @@ namespace ExpertMultimedia {
 				//sReturn=sbX.Text;
 			}
 			catch (Exception exn) {
-				Base.IgnoreExn(exn,"MyCallback GetStatus");
+				RReporting.IgnoreExn(exn,"MyCallback GetStatus");
 				return "Can't get status.";
 			}
 			return sReturn;
@@ -71,10 +71,10 @@ namespace ExpertMultimedia {
 		public bool UpdateStatus() {
 			try {
 				//sbX.Refresh();
-				Base.WriteLine(sLast);
+				RReporting.WriteLine(sLast);
 			}
 			catch (Exception exn) {
-				Base.IgnoreExn(exn,"MyCallback UpdateStatus(void)");
+				RReporting.IgnoreExn(exn,"MyCallback UpdateStatus(void)");
 				return false;
 			}
 			return true;

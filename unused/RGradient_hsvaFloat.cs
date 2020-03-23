@@ -27,13 +27,13 @@ namespace ExpertMultimedia {
 					else return pxarrStep.Length;
 				}
 				catch (Exception exn) {
-					Base.ShowException(exn,"Gradient","getting STEPS");
+					RReporting.ShowExn(exn,"Gradient","getting STEPS");
 					return 0;
 				}
 			}
 			set {
 				try {
-					if (value<=0) Base.ShowErr("Can't set step count to "+value.ToString(),"Gradient","setting STEPS");
+					if (value<=0) RReporting.ShowErr("Can't set step count to "+value.ToString(),"Gradient","setting STEPS");
 					else if (STEPS!=value) {
 						if (value>0) {
 							if (STEPS>0) {
@@ -63,14 +63,14 @@ namespace ExpertMultimedia {
 							}
 						}
 						else {
-							Base.ShowErr("Can't set steps to "+value.ToString());
+							RReporting.ShowErr("Can't set steps to "+value.ToString());
 						}
 					}//end if not same as current size
 					iTop=STEPS-1;
 					if (iTop<0) iTop=0;
 				}//end
 				catch (Exception exn) {
-					Base.ShowException(exn,"set STEPS","setting steps to "+value.ToString());
+					RReporting.ShowExn(exn,"set STEPS","setting steps to "+value.ToString());
 				}
 			}//end set STEPS
 		}//end STEPS
@@ -84,24 +84,24 @@ namespace ExpertMultimedia {
 				pxLower=new PixelYhsa(0,0,0,0);
 				if (pxUpper==null) {
 					bGood=false;
-					Base.ShowErr("Couldn't allocate pixel (upper)","Gradient");//TODO: remove this line, for performance
+					RReporting.ShowErr("Couldn't allocate pixel (upper)","Gradient");//TODO: remove this line, for performance
 				}
 				if (pxLower==null) {
 					bGood=false;
-					Base.ShowErr("Couldn't allocate pixel (lower)","Gradient");//TODO: remove this line, for performance
+					RReporting.ShowErr("Couldn't allocate pixel (lower)","Gradient");//TODO: remove this line, for performance
 				}
 				if (bGood) {
-					Base.Write("Create gradient...");
+					RReporting.Write("Create gradient...");
 					bGood=From(ref pxUpper, ref pxLower);
-					Base.WriteLine(bGood?"Success.":"Failed!");
+					RReporting.WriteLine(bGood?"Success.":"Failed!");
 				}
 				else {
-					Base.ShowErr("Create gradient failed!","Gradient constructor");
+					RReporting.ShowErr("Create gradient failed!","Gradient constructor");
 				}
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"Gradient()","initializing");
+				RReporting.ShowExn(exn,"Gradient()","initializing");
 			}
 		}
 		public Gradient(int iSteps) {
@@ -111,35 +111,35 @@ namespace ExpertMultimedia {
 			bool bGood=true;
 			try {
 				if (pxUpper==null||pxLower==null) {
-					if (pxUpper==null) Base.ShowErr("pxUpper is null","Gradient(YHS,YHS)","creating gradient");
-					else if (pxLower==null) Base.ShowErr("pxUpper is null","Gradient(YHS,YHS)","creating gradient");
+					if (pxUpper==null) RReporting.ShowErr("pxUpper is null","Gradient(YHS,YHS)","creating gradient");
+					else if (pxLower==null) RReporting.ShowErr("pxUpper is null","Gradient(YHS,YHS)","creating gradient");
 				}
 				else From(ref pxUpper, ref pxLower);
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Gradient(YHS,YHS)","initializing");
+				RReporting.ShowExn(exn,"Gradient(YHS,YHS)","initializing");
 			}
 		}
 		public Gradient(ref PixelYhsa pxUpper, ref PixelYhsa pxLower) {
 			bool bGood=true;
 			try {
 				if (pxUpper==null) {
-					Base.ShowErr("pxUpper is null","Gradient(YHSA,YHSA)","creating gradient");
+					RReporting.ShowErr("pxUpper is null","Gradient(YHSA,YHSA)","creating gradient");
 					bGood=false;
 				}
 				else if (pxLower==null) {
-					Base.ShowErr("pxUpper is null","Gradient(YHSA,YHSA)","creating gradient");
+					RReporting.ShowErr("pxUpper is null","Gradient(YHSA,YHSA)","creating gradient");
 					bGood=false;
 				}
 				if (bGood) {
 					if (!From(ref pxUpper, ref pxLower)) {
 						bGood=false;
-						Base.ShowErr("From(PixelYhsa,PixelYhsa) failed!","Gradient constructor");
+						RReporting.ShowErr("From(PixelYhsa,PixelYhsa) failed!","Gradient constructor");
 					}
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Gradient(YHSA,YHSA)","initializing");
+				RReporting.ShowExn(exn,"Gradient(YHSA,YHSA)","initializing");
 			}
 		}
 		public Gradient Copy() {
@@ -152,7 +152,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Gradient Copy");
+				RReporting.ShowExn(exn,"Gradient Copy");
 				gradReturn=null;
 			}
 			return gradReturn;
@@ -167,22 +167,22 @@ namespace ExpertMultimedia {
 				}
 				catch (Exception exn) {
 					bGood=false;
-					Base.ShowExn(exn,"Gradient.From(YHSA,YHSA)","setting steps to "+STEPS.ToString());
+					RReporting.ShowExn(exn,"Gradient.From(YHSA,YHSA)","setting steps to "+STEPS.ToString());
 				}
 				if (pxarrStep==null) {
 					bGood=false;
-					Base.ShowErr("Gradient step array is still null!","Gradient From(YHSA,YHSA)");
+					RReporting.ShowErr("Gradient step array is still null!","Gradient From(YHSA,YHSA)");
 				}
 				else if (pxarrStep[0]==null) {
 					bGood=false;
-					Base.ShowErr("Gradient step first index is still null!","Gradient From(YHSA,YHSA)");
+					RReporting.ShowErr("Gradient step first index is still null!","Gradient From(YHSA,YHSA)");
 				}
 				try {
 					pxarrStep[0].Y=pxarrStep[0].Y;
 				}
 				catch (Exception exn) {
 					bGood=false;
-					Base.ShowExn(exn,"Gradient.From(YHSA,YHSA)","accessing pixel step array");
+					RReporting.ShowExn(exn,"Gradient.From(YHSA,YHSA)","accessing pixel step array");
 				}
 				try {
 					pxarrStep[0].Y=pxLower.Y;
@@ -192,7 +192,7 @@ namespace ExpertMultimedia {
 				}
 				catch (Exception exn) {
 					bGood=false;
-					Base.ShowExn(exn,"Gradient.From(YHSA,YHSA)","copying lower pixel values");
+					RReporting.ShowExn(exn,"Gradient.From(YHSA,YHSA)","copying lower pixel values");
 				}
 				try {
 					pxarrStep[1].Y=pxUpper.Y;
@@ -202,7 +202,7 @@ namespace ExpertMultimedia {
 				}
 				catch (Exception exn) {
 					bGood=false;
-					Base.ShowExn(exn,"Gradient.From(YHSA,YHSA)","copying upper pixel values");
+					RReporting.ShowExn(exn,"Gradient.From(YHSA,YHSA)","copying upper pixel values");
 				}
 				try {
 					rarrStep[0]=(REAL)0.0;
@@ -210,13 +210,13 @@ namespace ExpertMultimedia {
 				}
 				catch (Exception exn) {
 					bGood=false;
-					Base.ShowExn(exn,"Gradient.From(YHSA,YHSA)","setting step values");
+					RReporting.ShowExn(exn,"Gradient.From(YHSA,YHSA)","setting step values");
 				}
 				bGood=true;
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"Gradient.From(YHSA,YHSA)","copying values");
+				RReporting.ShowExn(exn,"Gradient.From(YHSA,YHSA)","copying values");
 			}
 			return bGood;
 		}//end From(YHSA,YHSA)
@@ -237,7 +237,7 @@ namespace ExpertMultimedia {
 				bGood=true;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Gradient.From(YHS,YHS)");
+				RReporting.ShowExn(exn,"Gradient.From(YHS,YHS)");
 				bGood=false;
 			}
 			return bGood;
@@ -271,10 +271,10 @@ namespace ExpertMultimedia {
 							if (rSrcZeroTo1<rarrStep[iUpper]) {
 								//the ratio formula: (abs-min)/(max-min)
 								ratio=(rSrcZeroTo1-rarrStep[iLower])/(rarrStep[iUpper]-rarrStep[iLower]);
-								if (ratio==Base.r0) {
+								if (ratio==RMath.r0) {
 									pxDest.From(pxarrStep[iLower]);
 								}
-								else if (ratio==Base.r1) {
+								else if (ratio==RMath.r1) {
 									pxDest.From(pxarrStep[iLower]);
 								}
 								else {
@@ -295,9 +295,9 @@ namespace ExpertMultimedia {
 				else pxDest.Set(0,0,0,0);
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Gradient Shade(YHSA)");
+				RReporting.ShowExn(exn,"Gradient Shade(YHSA)");
 			}
-			if (bWasNull) Base.ShowErr("Null dest pixel","Gradient Shade(YHSA)");
+			if (bWasNull) RReporting.ShowErr("Null dest pixel","Gradient Shade(YHSA)");
 			return bFound;//TODO: is this right?
 		}//end Shade(YHSA,REAL)
 	
@@ -330,10 +330,10 @@ namespace ExpertMultimedia {
 							if (rSrcZeroTo1<=rarrStep[iUpper]) {
 								//the ratio formula: (abs-min)/(max-min)
 								ratio=(rSrcZeroTo1-rarrStep[iLower])/(rarrStep[iUpper]-rarrStep[iLower]);
-								if (ratio<=Base.r0) {
+								if (ratio<=RMath.r0) {
 									pxDest.From(pxarrStep[iLower]);
 								}
-								else if (ratio>=Base.r1) {
+								else if (ratio>=RMath.r1) {
 									pxDest.From(pxarrStep[iUpper]);
 								}
 								else {
@@ -355,9 +355,9 @@ namespace ExpertMultimedia {
 				else pxDest.Set(0,0,0);
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Gradient Shade(YHS)");
+				RReporting.ShowExn(exn,"Gradient Shade(YHS)");
 			}
-			if (bWasNull) Base.ShowErr("Null dest pixel","Gradient Shade(YHS)");
+			if (bWasNull) RReporting.ShowErr("Null dest pixel","Gradient Shade(YHS)");
 			return bFound;//TODO: is this right?
 		}//end Shade(YHS,REAL)
 	

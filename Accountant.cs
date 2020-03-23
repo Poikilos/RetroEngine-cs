@@ -67,7 +67,7 @@ namespace ExpertMultimedia {
 			try {
 				//if (File.Exists(sFileSettings)) {
 					settings.LoadIni(sFileSettings);
-					//sAllData=Base.FileToString(sFileSettings);
+					//sAllData=RString.FileToString(sFileSettings);
 					//settings.LoadIniData(sAllData);
 				//}
 				settings.GetOrCreate(ref iMaxAccounts, "iMaxAccounts");
@@ -76,7 +76,7 @@ namespace ExpertMultimedia {
 				settings.GetOrCreate(ref iRandomizerMaxMisses, "iRandomizerMaxMisses");
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Accountant constructor");
+				RReporting.ShowExn(exn,"Accountant constructor");
 			}
 		}
 		public Accountant() {
@@ -107,17 +107,17 @@ namespace ExpertMultimedia {
 			if (sTest==null) return true;
 			string sTestToLower=sTest.ToLower();
 			if (sTestToLower==TheFakeUserNameDenotingAnExeption) return true;
-			else if (Base.Contains(sTestToLower,"admin")) return true;
+			else if (RString.Contains(sTestToLower,"admin")) return true;
 			else if (sTestToLower=="administrator") return true;
 			else if (sTestToLower=="all") return true; //so "/to all Hello Everyone!" works
 			else if (sTestToLower=="noone") return true; //so TheFakeUserNameDenotingAnExeption works
 			//debug NYI check if CONTAINS:
-			else if (Base.Contains(sTestToLower,"neoarmor")) return true;
-			else if (Base.Contains(sTestToLower,"neoarmor")) return true;
-			else if (Base.Contains(sTestToLower,"expert multimedia")) return true;
-			else if (Base.Contains(sTestToLower,"expertmultimedia")) return true;
-			else if (Base.Contains(sTestToLower,"jakegustafson")) return true;
-			else if (Base.Contains(sTestToLower,"jake gustafson")) return true;
+			else if (RString.Contains(sTestToLower,"neoarmor")) return true;
+			else if (RString.Contains(sTestToLower,"neoarmor")) return true;
+			else if (RString.Contains(sTestToLower,"expert multimedia")) return true;
+			else if (RString.Contains(sTestToLower,"expertmultimedia")) return true;
+			else if (RString.Contains(sTestToLower,"jakegustafson")) return true;
+			else if (RString.Contains(sTestToLower,"jake gustafson")) return true;
 			else return false;
 		}
 		public int NumOfIndex(int index) {
@@ -146,7 +146,7 @@ namespace ExpertMultimedia {
 				sErrNow="Exception error--"+exn.ToString();
 				iReturn=PacketToken.Invalid;
 			}
-			if (sErrNow!="") Base.ShowErr(sErrNow,"accountant NumOfIndex");
+			if (sErrNow!="") RReporting.ShowErr(sErrNow,"accountant NumOfIndex");
 			return iReturn;
 		}//end NumOfIndex
 		public string NameOfNum(int iTokenNumX) {
@@ -203,7 +203,7 @@ namespace ExpertMultimedia {
 			}
 			if (sErrNow!="") {
 				bGood=false;
-				Base.ShowErr(sErrNow,"accountant NumOfIndex");
+				RReporting.ShowErr(sErrNow,"accountant NumOfIndex");
 			}
 			return bGood;
 		}
@@ -226,7 +226,7 @@ namespace ExpertMultimedia {
 							iTokenX=PacketToken.NoLogin;
 						}
 						else { //good
-							Base.Error_WriteLine(" Validated username \""+sNameX+"\" and gave token #"+iTokenX.ToString()+" --starting user init.");
+							RReporting.Error_WriteLine(" Validated username \""+sNameX+"\" and gave token #"+iTokenX.ToString()+" --starting user init.");
 							userarr[iTokenX]=new User();
 							userarr[iTokenX].iTokenBytes=iMaxTokenBytes; //debug NYI randomize
 							userarr[iTokenX].byarrToken=new byte[userarr[iTokenX].iTokenBytes];
@@ -282,12 +282,12 @@ namespace ExpertMultimedia {
 					}
 				}
 				else {
-					Base.ShowErr("The token length was "+userarr[iTokenNum].iTokenBytes.ToString()+" (invalid)","GetLoginConfirmation");
+					RReporting.ShowErr("The token length was "+userarr[iTokenNum].iTokenBytes.ToString()+" (invalid)","GetLoginConfirmation");
 					packetX.Reset();//=new Packet();//{ packetX=new Packet(); packetX.Set("The security variable you sent is not appropriate");}
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowException(exn,"GetLoginConfirmation(...,"+iTokenNum.ToString()+")","validating login status");
+				RReporting.ShowExn(exn,"GetLoginConfirmation(...,"+iTokenNum.ToString()+")","validating login status");
 				packetX.Reset();//=new Packet();
 			}
 		}//end GetLoginConfirmation
@@ -320,13 +320,13 @@ namespace ExpertMultimedia {
 					}
 				}
 				else {
-					if (packetX.iTokenNum>0) Base.ShowErr("User #"+packetX.iTokenNum+" who is sending packet is not logged in");
+					if (packetX.iTokenNum>0) RReporting.ShowErr("User #"+packetX.iTokenNum+" who is sending packet is not logged in");
 					bGood=false;
 				}
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowException(exn,"IsValidPacket","accessing security variables");
+				RReporting.ShowExn(exn,"IsValidPacket","accessing security variables");
 				//Lockout();//debug security - mark user account for causing exception
 			}
 			return bGood;

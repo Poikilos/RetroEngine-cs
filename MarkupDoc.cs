@@ -532,7 +532,7 @@ namespace ExpertMultimedia {
 				*/
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"MarkupDoc static constructor","setting HTML colors etc.");
+				RReporting.ShowExn(exn,"MarkupDoc static constructor","setting HTML colors etc.");
 			}
 			Console.WriteLine("done preparing MarkupDoc.");//debug only
 		}
@@ -565,7 +565,7 @@ namespace ExpertMultimedia {
 			return Save();
 		}
 		public bool Save() {
-			bool bGood=Base.StringToFile(sFile, sData);
+			bool bGood=RString.StringToFile(sFile, sData);
 			return bGood;
 		}
 		public bool Load(string sFileX) {
@@ -573,10 +573,10 @@ namespace ExpertMultimedia {
 			return LoadFile();
 		}
 		public bool Load() {
-			//TODO: bool bGood=SetAll(Base.StringFromFile(sFile), true);
+			//TODO: bool bGood=SetAll(RString.StringFromFile(sFile), true);
 			//TODO: if (bGood) bGood=Parse(sData);
 			//TODO: return bGood;
-			return SetAll(Base.StringFromFile(sFile), true);
+			return SetAll(RString.StringFromFile(sFile), true);
 		}
 		#endregion utils
 		
@@ -585,15 +585,15 @@ namespace ExpertMultimedia {
 			string sFirstValue=sHex;
 			bool bGood=false;
 			try {
-				if (Base.IsUsedString(sName)&&Base.IsUsedString(sHex)) {
-					bGood=Base.HexColorStringToBGR24(ref by2dKnownColorBGR[iKnownColors], 0, sHex);
+				if (RReporting.IsNotBlank(sName)&&RReporting.IsNotBlank(sHex)) {
+					bGood=RConvert.HexColorStringToBGR24(ref by2dKnownColorBGR[iKnownColors], 0, sHex);
 					if (bGood) iKnownColors++;
 				}
-				else Base.ShowErr("Can't use empty color/name string.","AddKnownColor","adding blank color without notation {name:"+Base.StringMessage(sName,true)+"; hex:"+Base.StringMessage(sFirstValue,true)+"}");
+				else RReporting.ShowErr("Can't use empty color/name string.","AddKnownColor","adding blank color without notation {name:"+RReporting.StringMessage(sName,true)+"; hex:"+RReporting.StringMessage(sFirstValue,true)+"}");
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"MarkupDoc AddKnownColor","adding color {name:"+Base.StringMessage(sName,true)+"; hex:"+Base.StringMessage(sFirstValue,true)+"; iKnownColors:"+iKnownColors.ToString()+"}");
+				RReporting.ShowExn(exn,"MarkupDoc AddKnownColor","adding color {name:"+RReporting.StringMessage(sName,true)+"; hex:"+RReporting.StringMessage(sFirstValue,true)+"; iKnownColors:"+iKnownColors.ToString()+"}");
 			}
 			return bGood;
 		}
@@ -601,7 +601,7 @@ namespace ExpertMultimedia {
 			iKnownColors=0;
 			iSetByteDepth=3;
 			if (iMaxBufferSize<1) {
-				Base.ShowErr("Tried to set known colors maximum too low so reverting to 1","ResetKnownColors","setting maximum named colors {iMaxBufferSize:"+iMaxBufferSize.ToString()+"}");
+				RReporting.ShowErr("Tried to set known colors maximum too low so reverting to 1","ResetKnownColors","setting maximum named colors {iMaxBufferSize:"+iMaxBufferSize.ToString()+"}");
 				iMaxBufferSize=1;
 			}
 			sarrKnownColor=new string[iMaxBufferSize];
@@ -615,7 +615,7 @@ namespace ExpertMultimedia {
 			get {
 				if (sarrKnownColor!=null&&by2dKnownColorBGR!=null) {
 					if (sarrKnownColor.Length==by2dKnownColorBGR.Length) return sarrKnownColor.Length;
-					else Base.ShowErr("Known color array sizes do not match!");
+					else RReporting.ShowErr("Known color array sizes do not match!");
 				}
 				return 0;
 			}
@@ -665,7 +665,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {	
-				Base.ShowExn(exn,"KnownColor(colorReturn,string)");
+				RReporting.ShowExn(exn,"KnownColor(colorReturn,string)");
 			}
 		}
 		public static void KnownColor(out int iReturnR,out int iReturnG,out int iReturnB, string sColorName) {
@@ -681,7 +681,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"KnownColor(int,int,int,string)");
+				RReporting.ShowExn(exn,"KnownColor(int,int,int,string)");
 			}
 		}
 		public static void KnownColor(out byte byReturnR,out byte byReturnG,out byte byReturnB, string sColorName) {
@@ -697,7 +697,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"KnownColor(byReturnR,byReturnG,byReturnB,string)");
+				RReporting.ShowExn(exn,"KnownColor(byReturnR,byReturnG,byReturnB,string)");
 			}
 		}
 		#endregion html utilities
@@ -751,7 +751,7 @@ namespace ExpertMultimedia {
 					//iContentStart=-1;//don't do this--may be needed later
 					iAbsoluteLevel--;
 					bCloser=true;
-					if (iAbsoluteLevel<0) Base.ShowErr("more closers than openers parsing markup ending near character[iChar] and a tag like \"</"+sLastTag+">\".<br>");
+					if (iAbsoluteLevel<0) RReporting.ShowErr("more closers than openers parsing markup ending near character[iChar] and a tag like \"</"+sLastTag+">\".<br>");
 					//do NOT clear sTag, it needs to be known in order to determine that the content is there
 				}
 				else if (CompareAt(sXML,"<",iChar)) { //opener
@@ -808,7 +808,7 @@ namespace ExpertMultimedia {
 				sDataLower=sData.ToLower();
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"MarkupDoc UpdateLowercaseBuffer");
+				RReporting.ShowExn(exn,"MarkupDoc UpdateLowercaseBuffer");
 			}
 		}
 		public string GetAll() {
@@ -830,13 +830,13 @@ namespace ExpertMultimedia {
 				//DO NOT parse now (!!!!)
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"MarkupDoc SetAll(string,bool)");
+				RReporting.ShowExn(exn,"MarkupDoc SetAll(string,bool)");
 				bGood=false;
 			}
 			return bGood;
 		}
 		public bool MoveToOrStayAtSpacingOrEndingBracket(ref int iMoveMe) {
-			return Base.MoveToOrStayAtSpacingOrString(ref iMoveMe, sData, ">");
+			return RString.MoveToOrStayAtSpacingOrString(ref iMoveMe, sData, ">");
 		}
 		public bool MoveToOrStayAtNodeTag(ref int iMoveMe) {
 			bool bGood=true;
@@ -852,7 +852,7 @@ namespace ExpertMultimedia {
 					}
 				}
 				sFuncNow=System.Reflection.MethodInfo.GetCurrentMethod().Name;
-				if (iMoveMe>=iEOF) Base.Warning("Reached end of page in MoveToOrStayAtNodeTag.");
+				if (iMoveMe>=iEOF) RReporting.Warning("Reached end of page in MoveToOrStayAtNodeTag.");
 			}
 			catch (Exception exn) {
 				bGood=false;
@@ -868,8 +868,8 @@ namespace ExpertMultimedia {
 				while (iMoveMe<iEOF) {
 					if (sData.Substring(iMoveMe,1)=="</") {
 						int iEnder=iMoveMe+2;
-						if (Base.MoveToOrStayAt(ref iEnder, sData, ">")) {
-							sTagword=Base.SafeSubstring(sDataLower, iMoveMe+2, iEnder-(iMoveMe+2));
+						if (RString.MoveToOrStayAt(ref iEnder, sData, ">")) {
+							sTagword=RString.SafeSubstring(sDataLower, iMoveMe+2, iEnder-(iMoveMe+2));
 							bGood=true;
 						}
 						else bGood=false;
@@ -877,7 +877,7 @@ namespace ExpertMultimedia {
 					}
 				}
 				sFuncNow=System.Reflection.MethodInfo.GetCurrentMethod().Name;
-				if (iMoveMe>=iEOF) Base.Warning("Reached end of page in MoveToOrStayAtClosingTagAndGetTagword.");
+				if (iMoveMe>=iEOF) RReporting.Warning("Reached end of page in MoveToOrStayAtClosingTagAndGetTagword.");
 			}
 			catch (Exception exn) {
 				bGood=false;
@@ -913,12 +913,12 @@ namespace ExpertMultimedia {
 					sTest1="<"+sMustBeTagwordOnlyAndLowercase+" ";
 					sTest2="<"+sMustBeTagwordOnlyAndLowercase+">";
 					
-					bFound=Base.SafeCompare(sTest1, sDataLower, iLocOfBracketBeforeTagwordInSourceToCompare);
-					if (!bFound) bFound=Base.SafeCompare(sTest2, sDataLower, iLocOfBracketBeforeTagwordInSourceToCompare);
+					bFound=RString.CompareAt(sTest1, sDataLower, iLocOfBracketBeforeTagwordInSourceToCompare);
+					if (!bFound) bFound=RString.CompareAt(sTest2, sDataLower, iLocOfBracketBeforeTagwordInSourceToCompare);
 				}
 				else {//allow partial tags (text tags i.e. "!*")
 					sTest1="<"+sMustBeTagwordOnlyAndLowercase;
-					bFound=Base.SafeCompare(sTest1, sDataLower, iLocOfBracketBeforeTagwordInSourceToCompare);
+					bFound=RString.CompareAt(sTest1, sDataLower, iLocOfBracketBeforeTagwordInSourceToCompare);
 				}
 			}
 			catch (Exception exn) {
@@ -936,12 +936,12 @@ namespace ExpertMultimedia {
 			//}
 			//else {
 			//	bGood=false;
-			//	Base.ShowErr("Null char!","MoveBackToOrStayAt","searching backward for character");
+			//	RReporting.ShowErr("Null char!","MoveBackToOrStayAt","searching backward for character");
 			//}
 			return bGood;
 		}
 		public bool MoveBackToOrStayAt(ref int iMoveMe, string sFind) {
-			return Base.MoveBackToOrStayAt(ref iMoveMe, sData, sFind);
+			return RString.MoveBackToOrStayAt(ref iMoveMe, sData, sFind);
 		}
 		/// <summary>
 		/// Case-insensitive
@@ -955,15 +955,15 @@ namespace ExpertMultimedia {
 			try {
 				//if (cFind!=null) {
 					sFind=char.ToString(cFind).ToLower();
-					bGood=Base.MoveToOrStayAt(ref iMoveMe, sDataLower, sFind);
+					bGood=RString.MoveToOrStayAt(ref iMoveMe, sDataLower, sFind);
 				//}
 				//else {
 					//bGood=false;
-					//Base.ShowErr("GNoder MoveToOrStayAtI null char!");
+					//RReporting.ShowErr("GNoder MoveToOrStayAtI null char!");
 				//}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GNoder MoveToOrStayAt(cFind)","searching for text");
+				RReporting.ShowExn(exn,"GNoder MoveToOrStayAt(cFind)","searching for text");
 				bGood=false;
 			}
 			return bGood;
@@ -975,16 +975,16 @@ namespace ExpertMultimedia {
 		/// <param name="sFind">text to find</param>
 		/// <returns>false if doesn't exist</returns>
 		public bool MoveToOrStayAtI(ref int iMoveMe, string sFind) {
-			return Base.MoveToOrStayAt(ref iMoveMe, sDataLower, sFind.ToLower());
+			return RString.MoveToOrStayAt(ref iMoveMe, sDataLower, sFind.ToLower()); //OK SINCE converts both to lowercase
 		}
 		public bool MoveToOrStayAtSpacing(ref int iMoveMe) {
-			return Base.MoveToOrStayAtSpacing(ref iMoveMe, sData);
+			return RString.MoveToOrStayAtSpacing(ref iMoveMe, sData);
 		}
 		public bool IsNewLineChar(int iAtChar) {
-			return Base.IsNewLineChar(Base.SafeSubstring(sData,iAtChar,1));
+			return RString.IsNewLineChar(RString.SafeSubstring(sData,iAtChar,1));
 		}
 		public bool IsSpacingChar(int iAtChar) {
-			return Base.IsSpacingCharExceptNewLine(Base.SafeSubstring(sData, iAtChar,1));
+			return RString.IsSpacingCharExceptNewLine(RString.SafeSubstring(sData, iAtChar,1));
 		}
 		public bool IsSpacing(int iChar) {
 			return (IsSpacingChar(iChar)||IsNewLineChar(iChar));
@@ -998,8 +998,8 @@ namespace ExpertMultimedia {
 		//
 		//}
 		public static bool RemoveEndsWhiteSpace(ref string sDataX) {
-			bool bGood=Base.RemoveEndsWhiteSpace(ref sDataX);
-			//if(Base.RemoveEndsNewLines(ref sDataX)==false) bGood=false;
+			bool bGood=RString.RemoveEndsWhiteSpace(ref sDataX);
+			//if(RString.RemoveEndsNewLines(ref sDataX)==false) bGood=false;
 			return bGood;
 		}
 		/*public static bool RemoveSpacing(ref string sDataX) {
@@ -1062,16 +1062,16 @@ namespace ExpertMultimedia {
 		}
 		*/
 		public int ReplaceAll(string sFrom, string sTo) {
-			int iResult=Base.ReplaceAll(ref sData, sFrom, sTo);
+			int iResult=RString.ReplaceAll(ref sData, sFrom, sTo);
 			this.UpdateLowercaseBuffer();
 			return iResult;
 		}
 		public void InsertText(string sToInsertAtCursor) {
 			if (sToInsertAtCursor==null) {
 				sToInsertAtCursor="";
-				Base.Warning("Tried to insert null string into MarkupDoc, so set inserted value to empty string.");
+				RReporting.Warning("Tried to insert null string into MarkupDoc, so set inserted value to empty string.");
 			}
-			sData=Base.SafeSubstring(sData,0,iSelCodePos)+sToInsertAtCursor+Base.SafeSubstring(sData,iSelCodePos+iSelCodeLen);
+			sData=RString.SafeSubstring(sData,0,iSelCodePos)+sToInsertAtCursor+RString.SafeSubstring(sData,iSelCodePos+iSelCodeLen);
 			this.UpdateLowercaseBuffer();
 			//TODO: must shift all variables of all necessary SGMLLoc integers
 		}

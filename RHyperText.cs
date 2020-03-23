@@ -901,7 +901,7 @@ namespace ExpertMultimedia {
 		}//end StyleSplit
 #endregion utilities
 //public static bool DayAdd(out int iMoReturn, out int iDayReturn, out int iYearReturn, int iMo, int iDay, int iYear, int iDayModifierPosOrNeg) {
-		//}//time math can be done with the DateTime section (convert using dt=DateTime.Parse(string))
+		//}//time math can be done with the DateTime class (convert using dt=DateTime.Parse(string))
 /*
 		public static void StyleAppend(ref string sStyle, string sName, int iValue) {
 			StyleAppend(ref sStyle, sName, iValue.ToString());
@@ -921,7 +921,7 @@ namespace ExpertMultimedia {
 			sStyle+="}";
 		}
 */
-	}//end section RHyperText
+	}//end class RHyperText
 
 
 /////////////////////////////////////////////////////////////////////
@@ -1023,7 +1023,7 @@ namespace ExpertMultimedia {
 		public static void AddCat(string sKeyX, string sNameX) {
 			AddCat(sKeyX,sNameX,"");
 		}
-	}//end section CL
+	}//end class CL
 	public class CLCat {//CL category node
 		string sKey;
 		string sName;
@@ -1054,5 +1054,5 @@ namespace ExpertMultimedia {
 		public bool IsARoot() {
 			return sTags==""||sTags==null;
 		}
-	}//end section CLCat
+	}//end class CLCat
 }//end namespace

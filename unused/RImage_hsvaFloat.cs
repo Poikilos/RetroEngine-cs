@@ -44,7 +44,7 @@ namespace ExpertMultimedia {
 		public GBuffer(string sFileImage) {
 			if(!Load(sFileImage,4)) {
 				iPixelsTotal=0;
-				Base.ShowErr("Failed to load image","GBuffer constructor");
+				RReporting.ShowErr("Failed to load image","GBuffer constructor");
 			}
 		}
 		public GBuffer(string sFileImage, int iAsBytesPP) {
@@ -63,13 +63,13 @@ namespace ExpertMultimedia {
 			int iPixelsNew=iWidth*iHeight;
 			bool bGood=false;
 			if (iPixelsNew<=0) {
-				Base.ShowErr("Error in size "+iWidth.ToString()+"x"+iHeight.ToString()+", resulting in "+iPixelsNew.ToString()+" pixels.","GBuffer Init","setting size");
+				RReporting.ShowErr("Error in size "+iWidth.ToString()+"x"+iHeight.ToString()+", resulting in "+iPixelsNew.ToString()+" pixels.","GBuffer Init","setting size");
 				bInitializeBuffer=false;
 			}
 			try {
 				if (bInitializeBuffer) {
 					if (iChannels==2 || iChannels<1 || iChannels>4) {
-						Base.ShowErr("Can't create "+(iChannels*8).ToString()+"-bit buffers ("+iChannels.ToString()+" channels not allowed)");
+						RReporting.ShowErr("Can't create "+(iChannels*8).ToString()+"-bit buffers ("+iChannels.ToString()+" channels not allowed)");
 					}
 					else {
 						if (iChannels!=1) { //if NOT grayscale
@@ -102,7 +102,7 @@ namespace ExpertMultimedia {
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"GBuffer Init");
+				RReporting.ShowExn(exn,"GBuffer Init");
 			}
 		}//end Init
 		public void InitNull() {
@@ -134,7 +134,7 @@ namespace ExpertMultimedia {
 				gbReturn.pxBrush=pxBrush.Copy();
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GBuffer CopyTo()");
+				RReporting.ShowExn(exn,"GBuffer CopyTo()");
 				gbReturn=null;
 			}
 			return bGood;
@@ -145,8 +145,8 @@ namespace ExpertMultimedia {
 			string sVerbNow="creating the return GBuffer";
 			try {
 				gbReturn=new GBuffer(iWidth,iHeight,Channels());
-				if (gbReturn.pxarrData==null&&gbReturn.rarrData==null) Base.ShowErr("return ("+gbReturn.Description()+") buffer's pixel array is still null!","GBuffer Copy");
-				else if (gbReturn.pxarrData!=null&&gbReturn.pxarrData[0]==null) Base.ShowErr("return ("+gbReturn.Description()+") buffer's pixel array still has null pixels!","GBuffer Copy");
+				if (gbReturn.pxarrData==null&&gbReturn.rarrData==null) RReporting.ShowErr("return ("+gbReturn.Description()+") buffer's pixel array is still null!","GBuffer Copy");
+				else if (gbReturn.pxarrData!=null&&gbReturn.pxarrData[0]==null) RReporting.ShowErr("return ("+gbReturn.Description()+") buffer's pixel array still has null pixels!","GBuffer Copy");
 				if (Channels()!=1) {
 					if (bReferenceIndividualPixels) {
 						sVerbNow="copying pixel references";
@@ -173,7 +173,7 @@ namespace ExpertMultimedia {
 				bGood=true;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GBuffer Copy()",sVerbNow);
+				RReporting.ShowExn(exn,"GBuffer Copy()",sVerbNow);
 				gbReturn=null;
 			}
 			if (!bGood) gbReturn=null;
@@ -190,24 +190,24 @@ namespace ExpertMultimedia {
 			GBuffer32BGRA gb32Now=null;
 			try {
 				gb32Now=new GBuffer32BGRA(sFile,iAssumeChannelCount);
-				Base.ImageFormatFromNameElseCapitalizedPng(ref sPathFileBaseName, out sFileExt);
+				RImage.ImageFormatFromNameElseCapitalizedPng(ref sPathFileBaseName, out sFileExt);
 				bGood=(gb32Now!=null && gb32Now.iBytesTotal>0);//bGood=gb32Now.Load(sFile,iAssumeChannelCount);
 				if (bGood) bGood=From(gb32Now);
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GBuffer Load","loading from GBuffer32BGRA");
+				RReporting.ShowExn(exn,"GBuffer Load","loading from GBuffer32BGRA");
 			}
 			return bGood;
 		}
 		public bool Save(string sSetFile) {
-			Base.SplitFileName(out sPathFileBaseName, out sFileExt, sSetFile);
-			return Save(sPathFileBaseName+"."+sFileExt, Base.ImageFormatFromNameElseCapitalizedPng(ref sPathFileBaseName, out sFileExt));
+			RString.SplitFileName(out sPathFileBaseName, out sFileExt, sSetFile);
+			return Save(sPathFileBaseName+"."+sFileExt, RImage.ImageFormatFromNameElseCapitalizedPng(ref sPathFileBaseName, out sFileExt));
 		}
 		public bool Save(string sSetFileBase, string sSetExt) {
 			//TODO:? check for tga extension
 			sPathFileBaseName=sSetFileBase;
 			sFileExt=sSetExt;
-			return Save(sSetFileBase+"."+sSetExt, Base.ImageFormatFromExt(sFileExt));
+			return Save(sSetFileBase+"."+sSetExt, RImage.ImageFormatFromExt(sFileExt));
 		}
 		public bool Save(string sSetFile, ImageFormat imageformatNow) {
 			bool bGood=true;
@@ -220,7 +220,7 @@ namespace ExpertMultimedia {
 				if (gb32Now!=null) gb32Now.Save(sSetFile, imageformatNow);
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"Save(\""+sSetFile+"\", "+imageformatNow.ToString()+")");
+				RReporting.ShowExn(exn,"Save(\""+sSetFile+"\", "+imageformatNow.ToString()+")");
 				bGood=false;
 			}
 			return bGood;
@@ -232,7 +232,7 @@ namespace ExpertMultimedia {
 				Byter byterTemp=new Byter(iPixelsTotal*4);
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"SaveRaw("+sSetFile+")");
+				RReporting.ShowExn(exn,"SaveRaw("+sSetFile+")");
 				bGood=false;
 			}
 			return bGood;
@@ -282,7 +282,7 @@ namespace ExpertMultimedia {
 			//}
 			if (sData.EndsWith(Environment.NewLine))
 				sData=sData.Substring(0,sData.Length-Environment.NewLine.Length);
-			Base.StringToFile(sFile, sData);
+			RString.StringToFile(sFile, sData);
 		}
 		public string TypeToString() {
 			string sReturn="";
@@ -317,12 +317,12 @@ namespace ExpertMultimedia {
 		}
 		public string DumpStyle() {
 			string sReturn="";
-			Base.StyleBegin(ref sReturn);
-			Base.StyleAppend(ref sReturn, "iWidth",iWidth);
-			Base.StyleAppend(ref sReturn, "iHeight",iHeight);
-			Base.StyleAppend(ref sReturn, "Type:",TypeToString());
-			Base.StyleAppend(ref sReturn, "iPixelsTotal",iPixelsTotal);
-			Base.StyleEnd(ref sReturn);
+			RHypertext.StyleBegin(ref sReturn);
+			RHypertext.StyleAppend(ref sReturn, "iWidth",iWidth);
+			RHypertext.StyleAppend(ref sReturn, "iHeight",iHeight);
+			RHypertext.StyleAppend(ref sReturn, "Type:",TypeToString());
+			RHypertext.StyleAppend(ref sReturn, "iPixelsTotal",iPixelsTotal);
+			RHypertext.StyleEnd(ref sReturn);
 			return sReturn;
 		}
 		//public bool FromTarga(string sFile) {
@@ -354,13 +354,13 @@ namespace ExpertMultimedia {
 		}
 		public void GetPixelRgb(out byte r, out byte g, out byte b, int iPixel) {
 			try {
-				Base.HsvToRgb(out r, out g, out b, ref pxarrData[iPixel].H, ref pxarrData[iPixel].S, ref pxarrData[iPixel].Y); //Base.YhsToRgb(out r, out g, out b, pxarrData[iPixel].Y, pxarrData[iPixel].H, pxarrData[iPixel].S);
+				RConvert.HsvToRgb(out r, out g, out b, ref pxarrData[iPixel].H, ref pxarrData[iPixel].S, ref pxarrData[iPixel].Y); //RConvert.YhsToRgb(out r, out g, out b, pxarrData[iPixel].Y, pxarrData[iPixel].H, pxarrData[iPixel].S);
 			}
 			catch (Exception exn) {
 				r=0;
 				g=0;
 				b=0;
-				Base.ShowExn(exn,"GBuffer GetPixelRgb");
+				RReporting.ShowExn(exn,"GBuffer GetPixelRgb");
 			}
 		}
 		/*
@@ -385,15 +385,15 @@ namespace ExpertMultimedia {
 					int iSrc=0;
 					for (int iNow=0; iNow<iPixelsTotal; iNow++) {
 						if (GBuffer_Conversion==ConversionToGray) { //average the rgb values
-							rarrData[iNow]=(Base.ByteToReal(gb32Src.byarrData[iSrc])+Base.ByteToReal(gb32Src.byarrData[iSrc+1])+Base.ByteToReal(gb32Src.byarrData[iSrc+2]))/Base.r3;
+							rarrData[iNow]=(RConvert.ByteToReal(gb32Src.byarrData[iSrc])+RConvert.ByteToReal(gb32Src.byarrData[iSrc+1])+RConvert.ByteToReal(gb32Src.byarrData[iSrc+2]))/RMath.r3;
 						}
 						else if (GBuffer_Conversion==ConversionAlphaAsGray) {
-							rarrData[iNow]=Base.ByteToReal(gb32Src.byarrData[iSrc+3]);
+							rarrData[iNow]=RConvert.ByteToReal(gb32Src.byarrData[iSrc+3]);
 						}
 						else { //assume copying from BGR or BGRA
 							if (GBuffer_Conversion!=ConversionNoAlpha)
-								rarrData[iNow]=Base.ByteToReal(gb32Src.byarrData[iSrc+3]);
-							Base.RgbToHsv(out pxarrData[iNow].H, out pxarrData[iNow].S, out pxarrData[iNow].Y, ref gb32Src.byarrData[iSrc+2], ref gb32Src.byarrData[iSrc+1], ref gb32Src.byarrData[iSrc]);//Base.RgbToYhs(out pxarrData[iNow].Y, out pxarrData[iNow].H, out pxarrData[iNow].S, (REAL)gb32Src.byarrData[iSrc+2], (REAL)gb32Src.byarrData[iSrc+1], (REAL)gb32Src.byarrData[iSrc]);
+								rarrData[iNow]=RConvert.ByteToReal(gb32Src.byarrData[iSrc+3]);
+							RConvert.RgbToHsv(out pxarrData[iNow].H, out pxarrData[iNow].S, out pxarrData[iNow].Y, ref gb32Src.byarrData[iSrc+2], ref gb32Src.byarrData[iSrc+1], ref gb32Src.byarrData[iSrc]);//RConvert.RgbToYhs(out pxarrData[iNow].Y, out pxarrData[iNow].H, out pxarrData[iNow].S, (REAL)gb32Src.byarrData[iSrc+2], (REAL)gb32Src.byarrData[iSrc+1], (REAL)gb32Src.byarrData[iSrc]);
 						}
 						iSrc+=gb32Src.iBytesPP;
 					}//end for pixel iNow
@@ -401,12 +401,12 @@ namespace ExpertMultimedia {
 				}//end if Channels is good
 				else {
 					bGood=false;
-					Base.ShowErr("Can't copy "+iSelfChannels.ToString()+" channels using conversion "+GBuffer_Conversion.ToString(),"gbuffer From(gb32)");
+					RReporting.ShowErr("Can't copy "+iSelfChannels.ToString()+" channels using conversion "+GBuffer_Conversion.ToString(),"gbuffer From(gb32)");
 				}
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowException(exn,"gbuffer From(gb32)");
+				RReporting.ShowExn(exn,"gbuffer From(gb32)");
 			}
 			return bGood;
 		}//end From(GBuffer32BGRA)
@@ -423,16 +423,16 @@ namespace ExpertMultimedia {
 					if (gb32Dest!=null) {
 						for (int iSrc=0; iSrc<iPixelsTotal; iSrc++) {
 							if (iSelfChannels==1) {
-								gb32Dest.byarrData[iDest]=Base.DecimalToByte(rarrData[iSrc]);
+								gb32Dest.byarrData[iDest]=RConvert.DecimalToByte(rarrData[iSrc]);
 								gb32Dest.byarrData[iDest+1]=gb32Dest.byarrData[iDest];//copy from self to make gray
 								gb32Dest.byarrData[iDest+2]=gb32Dest.byarrData[iDest];//copy from self to make gray
 								if (bAlsoCopyValueToAlphaIfGray) gb32Dest.byarrData[iDest+3]=gb32Dest.byarrData[iDest];
 							}
 							else { //not grayscale
-								gb32Dest.byarrData[iDest]=(byte)(pxarrData[iSrc].Y*Base.r255);
+								gb32Dest.byarrData[iDest]=(byte)(pxarrData[iSrc].Y*RMath.r255);
 								gb32Dest.byarrData[iDest+1]=gb32Dest.byarrData[iSrc];//copy from self to make gray
 								gb32Dest.byarrData[iDest+2]=gb32Dest.byarrData[iSrc];//copy from self to make gray
-								if (rarrData!=null) gb32Dest.byarrData[iDest+3]=Base.DecimalToByte(rarrData[iSrc]);
+								if (rarrData!=null) gb32Dest.byarrData[iDest+3]=RConvert.DecimalToByte(rarrData[iSrc]);
 								else gb32Dest.byarrData[iDest+3]=255;
 							}
 							iDest+=gb32Dest.iBytesPP;
@@ -443,12 +443,12 @@ namespace ExpertMultimedia {
 				}
 				else {
 					bGood=false;
-					Base.ShowErr("Tried to copy an invalid decimal buffer of "+iSelfChannels.ToString()+" channels.","To(GBuffer32BGRA,"+(bAlsoCopyValueToAlphaIfGray?"true":"false")+")");
+					RReporting.ShowErr("Tried to copy an invalid decimal buffer of "+iSelfChannels.ToString()+" channels.","To(GBuffer32BGRA,"+(bAlsoCopyValueToAlphaIfGray?"true":"false")+")");
 				}
 			}
 			catch (Exception exn) {
 				bGood=false;
-				Base.ShowExn(exn,"To(gb32,"+(bAlsoCopyValueToAlphaIfGray?"true":"false")+")");
+				RReporting.ShowExn(exn,"To(gb32,"+(bAlsoCopyValueToAlphaIfGray?"true":"false")+")");
 			}
 			return bGood;
 		}//end To(GBuffer32BGRA)
@@ -462,10 +462,10 @@ namespace ExpertMultimedia {
 						bool bTest=To(ref gb32Now);
 					}
 				}
-				else Base.ShowErr("Tried to convert uninitialized decimal GBuffer to RGB");
+				else RReporting.ShowErr("Tried to convert uninitialized decimal GBuffer to RGB");
 			}
 			catch (Exception exn) {
-				Base.ShowException(exn,"gbuffer From(gb32)");
+				RReporting.ShowExn(exn,"gbuffer From(gb32)");
 			}
 			return gb32Now;
 		}//end ToArgb
@@ -493,15 +493,15 @@ namespace ExpertMultimedia {
 			int yDest;
 			int xDest;
 			if (gbDest==null) {
-				Base.ShowErr("No destination image for cropping","CropFast");
+				RReporting.ShowErr("No destination image for cropping","CropFast");
 				bGood=false;
 			}
 			else if (gbSrc==null) {
-				Base.ShowErr("No source image for cropping","CropFast");
+				RReporting.ShowErr("No source image for cropping","CropFast");
 				bGood=false;
 			}
 			else if (ipSrc==null) {
-				Base.ShowErr("No source point for cropping","CropFast");
+				RReporting.ShowErr("No source point for cropping","CropFast");
 				bGood=false;
 			}
 			else {
@@ -542,7 +542,7 @@ namespace ExpertMultimedia {
 					//}//end if source has color
 				}
 				catch (Exception exn) {
-					Base.ShowExn(exn,"CropFast(...)","cropping "+(gbSrc.Channels()==gbSrc.Channels()?(gbSrc.Channels()+"-channel images"):(gbSrc.Channels().ToString()+"-channel image to "+gbDest.Channels().ToString()+"-channel image")));
+					RReporting.ShowExn(exn,"CropFast(...)","cropping "+(gbSrc.Channels()==gbSrc.Channels()?(gbSrc.Channels()+"-channel images"):(gbSrc.Channels().ToString()+"-channel image to "+gbDest.Channels().ToString()+"-channel image")));
 					bGood=false;
 				}
 			}//else good
@@ -581,15 +581,15 @@ namespace ExpertMultimedia {
 						iDest+=iDestAdder;
 					}
 					if (!bGood) {
-						Base.ShowErr("Error while shading","GBuffer OverlayNoClipToBig gradient to "+ipDest.ToString());
+						RReporting.ShowErr("Error while shading","GBuffer OverlayNoClipToBig gradient to "+ipDest.ToString());
 					}
 				}
 				else {
-					Base.ShowErr("Error before shading could begin","GBuffer OverlayNoClipToBig gradient to "+ipDest.ToString());
+					RReporting.ShowErr("Error before shading could begin","GBuffer OverlayNoClipToBig gradient to "+ipDest.ToString());
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GBuffer OverlayNoClipToBig gradient to "+ipDest.ToString(),"overlaying "+gbSrc.Channels()+"-channel to "+gbDest.Channels()+"-channel image.");
+				RReporting.ShowExn(exn,"GBuffer OverlayNoClipToBig gradient to "+ipDest.ToString(),"overlaying "+gbSrc.Channels()+"-channel to "+gbDest.Channels()+"-channel image.");
 				bGood=false;
 			}
 			return bGood;
@@ -651,12 +651,12 @@ namespace ExpertMultimedia {
 							iDest+=iDestAdder;
 						}
 					}
-					else Base.ShowErr("Invalid source color type for gradient overlay.","GBuffer OverlayNoClipToBigCopyAlpha");
+					else RReporting.ShowErr("Invalid source color type for gradient overlay.","GBuffer OverlayNoClipToBigCopyAlpha");
 				}//end if dest is 4-channel
-				else Base.ShowErr("Invalid "+gbDest.Channels().ToString()+"-channel destination for gradient overlay.","GBuffer OverlayNoClipToBigCopyAlpha");
+				else RReporting.ShowErr("Invalid "+gbDest.Channels().ToString()+"-channel destination for gradient overlay.","GBuffer OverlayNoClipToBigCopyAlpha");
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GBuffer OverlayNoClipToBigCopyAlpha gradient to "+ipDest.ToString(),"overlaying "+((gbSrc.Channels().ToString()+"-channel image to "+gbDest.Channels().ToString()+"-channel image using "+(gradNow==null?"null":"non-null")+" gradient")));
+				RReporting.ShowExn(exn,"GBuffer OverlayNoClipToBigCopyAlpha gradient to "+ipDest.ToString(),"overlaying "+((gbSrc.Channels().ToString()+"-channel image to "+gbDest.Channels().ToString()+"-channel image using "+(gradNow==null?"null":"non-null")+" gradient")));
 				bGood=false;
 			}
 			return bGood;
@@ -726,12 +726,12 @@ namespace ExpertMultimedia {
 							iDest+=iDestAdder;
 						}
 					}
-					else Base.ShowErr("Invalid source color type for image overlay.","GBuffer OverlayNoClipToBigCopyAlpha");
+					else RReporting.ShowErr("Invalid source color type for image overlay.","GBuffer OverlayNoClipToBigCopyAlpha");
 				}//if dest channels==4
-				else Base.ShowErr("dest color type for image overlay is NYI.","GBuffer OverlayNoClipToBigCopyAlpha");
+				else RReporting.ShowErr("dest color type for image overlay is NYI.","GBuffer OverlayNoClipToBigCopyAlpha");
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GBuffer OverlayNoClipToBigCopyAlpha to "+ipDest.ToString(),"overlaying "+(gbSrc.Channels()==gbSrc.Channels()?(gbSrc.Channels()+"-channel images"):(gbSrc.Channels().ToString()+"-channel image to "+gbDest.Channels().ToString()+"-channel image")));
+				RReporting.ShowExn(exn,"GBuffer OverlayNoClipToBigCopyAlpha to "+ipDest.ToString(),"overlaying "+(gbSrc.Channels()==gbSrc.Channels()?(gbSrc.Channels()+"-channel images"):(gbSrc.Channels().ToString()+"-channel image to "+gbDest.Channels().ToString()+"-channel image")));
 				bGood=false;
 			}
 			return bGood;
@@ -769,7 +769,7 @@ namespace ExpertMultimedia {
 				}//end switch
 			}
 			catch (Exception exn) {
-				Base.ShowExn( exn , "MaskFromChannel {"+Environment.NewLine
+				RReporting.ShowExn( exn , "MaskFromChannel {"+Environment.NewLine
 					+"  "+" using source channel:"+ColorChannelToString(GBuffer_ColorChannel) 
 					//+"; iDestCharPitch:"+iDestCharPitch.ToString()
 					//+"; iChar1:"+iChar1.ToString()
@@ -807,11 +807,11 @@ namespace ExpertMultimedia {
 					}
 				}
 				else {
-					Base.ShowErr("Tried to get a mask from an image that was not loaded","MaskFromValue");
+					RReporting.ShowErr("Tried to get a mask from an image that was not loaded","MaskFromValue");
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"MaskFromValue","copying to pixel "+iDest.ToString());
+				RReporting.ShowExn(exn,"MaskFromValue","copying to pixel "+iDest.ToString());
 				return false;
 			}
 			return true;
@@ -923,7 +923,7 @@ namespace ExpertMultimedia {
 					dHeavyChannelA=0;
 					//dDivisor=4.0;
 					for (iQuad=0; iQuad<4; iQuad++) {
-						dWeightNow=dDiagonalUnit-Base.Dist(ref dpSrc, ref dparrQuad[iQuad]);
+						dWeightNow=dDiagonalUnit-RMath.Dist(ref dpSrc, ref dparrQuad[iQuad]);
 						//dDivisor+=dWeightNow; //debug performance, this number is always the same theoretically
 						dHeavyChannelY+=(double)gbSrc.pxarrData[iarrLocOfQuad[iQuad]].Y*dWeightNow;
 						dHeavyChannelH+=(double)gbSrc.pxarrData[iarrLocOfQuad[iQuad]].H*dWeightNow;
@@ -939,7 +939,7 @@ namespace ExpertMultimedia {
 				bGood=true;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"InterpolatePixel");
+				RReporting.ShowExn(exn,"InterpolatePixel");
 				bGood=false;
 			}
 			return bGood;
@@ -975,10 +975,10 @@ namespace ExpertMultimedia {
 				catch (Exception exn) {//don't report this--try to fix it.
 					try {
 						gbDest=new GBuffer(gbSrc.iWidth+xLength, gbSrc.iHeight, gbSrc.Channels());
-						Base.IgnoreExn(exn,"EffectMoBlurSimpleAndModifyWidth");
+						RReporting.IgnoreExn(exn,"EffectMoBlurSimpleAndModifyWidth");
 					}
 					catch (Exception exn2) {
-						Base.ShowExn(exn2,"EffectMoBlurSimpleAndModifyWidth");
+						RReporting.ShowExn(exn2,"EffectMoBlurSimpleAndModifyWidth");
 					}
 				}
 				int iHeight2=gbDest.iHeight;
@@ -1011,8 +1011,8 @@ namespace ExpertMultimedia {
 					iOffsetEnder=-1;
 				}
 				//debug REAL precision error on super-high res when REAL is float?
-				REAL rMultiplier=Base.r1;
-				REAL rPixNow=Base.r0;
+				REAL rMultiplier=RMath.r1;
+				REAL rPixNow=RMath.r0;
 				REAL rMaxPix=(REAL)(xLength-1);
 				//bTest=true;
 				for (int iOffsetNow=iDestStart; rPixNow<=rMaxPix; iOffsetNow+=xDirection) {
@@ -1022,7 +1022,7 @@ namespace ExpertMultimedia {
 					for (yNow=0; yNow<iHeight1; yNow++) {
 						bTest=GBuffer.EffectLightenOnly(ref gbDest, ref gbSrc, iDest, iSrc, iWidth1, rMultiplier);
 						if (!bTest) {
-							Base.ShowErr("Error overlaying blur data.","EffectMoBlurSimpleAndModifyWidth(...)");
+							RReporting.ShowErr("Error overlaying blur data.","EffectMoBlurSimpleAndModifyWidth(...)");
 							break;
 						}
 						iSrc+=iWidth1;
@@ -1033,7 +1033,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"EffectMoBlurSimpleAndModifyWidth(...)","compositing blur data");
+				RReporting.ShowExn(exn,"EffectMoBlurSimpleAndModifyWidth(...)","compositing blur data");
 				bGood=false;
 			}
 			return bGood;
@@ -1077,10 +1077,10 @@ namespace ExpertMultimedia {
 				catch (Exception exn) {
 					try {
 						gbDest=new GBuffer(gbSrc.iWidth+xOffsetBottom, gbSrc.iHeight, gbSrc.Channels());
-						Base.IgnoreExn(exn,"EffectSkewModWidth","creating dest skew buffer since null");
+						RReporting.IgnoreExn(exn,"EffectSkewModWidth","creating dest skew buffer since null");
 					}
 					catch (Exception exn2) {
-						Base.ShowExn(exn2,"EffectSkewModWidth");
+						RReporting.ShowExn(exn2,"EffectSkewModWidth");
 					}
 				}
 				//iSrc=0;
@@ -1113,11 +1113,11 @@ namespace ExpertMultimedia {
 					dpSrc.Y+=1.0d;
 				}
 				if (!bGood) {
-					Base.ShowErr("Error calculating skew data.","EffectSkewModWidth(...)");
+					RReporting.ShowErr("Error calculating skew data.","EffectSkewModWidth(...)");
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"EffectSkewModWidth(...)","calculating skew data");
+				RReporting.ShowExn(exn,"EffectSkewModWidth(...)","calculating skew data");
 				bGood=false;
 			}
 			return bGood;
@@ -1130,7 +1130,7 @@ namespace ExpertMultimedia {
 				pxBrush.FromRgb(r,g,b);
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"SetBrushRgb");
+				RReporting.ShowExn(exn,"SetBrushRgb");
 				bGood=false;
 			}
 			return bGood;
@@ -1138,9 +1138,9 @@ namespace ExpertMultimedia {
 		public bool SetBrushRgb(string sHexCode) {
 			bool bGood=true;
 			try {
-				if (sHexCode.StartsWith("#")) sHexCode=Base.SafeSubstring(sHexCode,1);
+				if (sHexCode.StartsWith("#")) sHexCode=RString.SafeSubstring(sHexCode,1);
 				if (sHexCode.Length<6) {
-					Base.ShowErr("The hex color code ("+sHexCode+") that this file specifies is not complete","SetBrushRgb("+sHexCode+")");
+					RReporting.ShowErr("The hex color code ("+sHexCode+") that this file specifies is not complete","SetBrushRgb("+sHexCode+")");
 					bGood=false;
 				}
 				else {
@@ -1153,7 +1153,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"SetBrushRgb("+sHexCode+")","interpreting hex color code");
+				RReporting.ShowExn(exn,"SetBrushRgb("+sHexCode+")","interpreting hex color code");
 				bGood=false;
 			}
 			return bGood;
@@ -1163,7 +1163,7 @@ namespace ExpertMultimedia {
 				pxBrush.FromArgb(a,r,g,b);
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"SetBrushRgba");
+				RReporting.ShowExn(exn,"SetBrushRgba");
 				return false;
 			}
 			return true;
@@ -1191,7 +1191,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"EffectLightenOnly");
+				RReporting.ShowExn(exn,"EffectLightenOnly");
 				return false;
 			}
 			return true;
@@ -1206,7 +1206,7 @@ namespace ExpertMultimedia {
 				if (gbDest.pxarrData!=null&&gbSrc.pxarrData!=null) {
 					for (int iRel=0; iRel<iPixels; iRel++) {
 						rSrcNow=(gbSrc.pxarrData[iSrcNow].Y*rMultiplySrc);
-						if (rSrcNow>Base.r1) rSrcNow=Base.r1;
+						if (rSrcNow>RMath.r1) rSrcNow=RMath.r1;
 						if (rSrcNow>gbDest.pxarrData[iSrcNow].Y) gbDest.pxarrData[iDestNow].Y=rSrcNow;
 						iDestNow++;
 						iSrcNow++;
@@ -1217,7 +1217,7 @@ namespace ExpertMultimedia {
 				if (gbDest.rarrData!=null&& gbSrc.rarrData!=null) {
 					for (int iRel=0; iRel<iPixels; iRel++) {
 						rSrcNow=(gbSrc.rarrData[iSrcNow]*rMultiplySrc);
-						if (rSrcNow>Base.r1) rSrcNow=Base.r1;
+						if (rSrcNow>RMath.r1) rSrcNow=RMath.r1;
 						if (rSrcNow>gbDest.rarrData[iDestNow]) gbDest.rarrData[iDestNow]=rSrcNow;
 						iDestNow++;
 						iSrcNow++;
@@ -1225,7 +1225,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"EffectLightenOnly multiplied");
+				RReporting.ShowExn(exn,"EffectLightenOnly multiplied");
 				return false;
 			}
 			return true;
@@ -1237,12 +1237,12 @@ namespace ExpertMultimedia {
 				try {
 					pxarrData[yDest*iWidth+xDest].FromRgb(r,g,b);
 				}
-				catch {//(Exception exn) {Base.IgnoreExn(exn,"GBuffer SetPixelRgb");
+				catch {//(Exception exn) {RReporting.IgnoreExn(exn,"GBuffer SetPixelRgb");
 					rarrData[yDest*iWidth+xDest]=((REAL)r+(REAL)g+(REAL)b)/r765;
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"GBuffer SetPixelRgb");
+				RReporting.ShowExn(exn,"GBuffer SetPixelRgb");
 			}
 		}
 		public bool DrawRect(int xDest, int yDest, int iWidth, int iHeight) {
@@ -1304,7 +1304,7 @@ namespace ExpertMultimedia {
 				if (!bTest) bGood=false;
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"DrawRectBorderSym");
+				RReporting.ShowExn(exn,"DrawRectBorderSym");
 			}
 			return bGood;
 		} //DrawRectBorderSym
@@ -1340,7 +1340,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"DrawRectFilled("+xDest.ToString()+","+yDest.ToString()+","+iTargetWidth.ToString()+","+iTargetHeight.ToString()+")");
+				RReporting.ShowExn(exn,"DrawRectFilled("+xDest.ToString()+","+yDest.ToString()+","+iTargetWidth.ToString()+","+iTargetHeight.ToString()+")");
 				bGood=false;
 			}
 			return bGood;
@@ -1356,7 +1356,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"DrawVertLine");
+				RReporting.ShowExn(exn,"DrawVertLine");
 				bGood=false;
 			}
 			return bGood;
@@ -1372,7 +1372,7 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				Base.ShowExn(exn,"DrawHorzLine");
+				RReporting.ShowExn(exn,"DrawHorzLine");
 				bGood=false;
 			}
 			return bGood;

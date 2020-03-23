@@ -319,13 +319,13 @@ namespace ExpertMultimedia {
 		public bool SetHsva(float h, float s, float v, float aTo1) {
 			byte r,g,b,a;
 			a=RConvert.ToByte(aTo1*255.0f);
-			RConvert.HsvToRgb(out r, out g, out b, ref h, ref s, ref v);
+			RImage.HsvToRgb(out r, out g, out b, ref h, ref s, ref v);
 			return SetArgb(a,r,g,b);
 		}
 		public bool SetHsva(double h, double s, double v, double aTo1) {
 			byte r,g,b,a;
 			a=RConvert.ToByte(aTo1*255.0);
-			RConvert.HsvToRgb(out r, out g, out b, ref h, ref s, ref v);
+			RImage.HsvToRgb(out r, out g, out b, ref h, ref s, ref v);
 			return SetArgb(a,r,g,b);
 		}
 		//public unsafe bool Paint(RImage destination, int x, int y) {
