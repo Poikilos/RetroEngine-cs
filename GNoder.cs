@@ -6,6 +6,7 @@
  * 
  * To change this template use Tools | Options | Coding | Edit Standard Headers.
  */
+
 using System;
 using System.IO;
 using System.Windows.Forms;
@@ -13,12 +14,6 @@ using System.Windows.Forms;
 //using ExpertMultimedia;
 //TODO: implement form posting to retroengine i.exn. for login screen
 //TODO: allow css comments ("//")
-
-
-
-///                            DEPRECATED                         ///
-
-
 
 namespace ExpertMultimedia {
 	/// <summary>
@@ -40,14 +35,14 @@ namespace ExpertMultimedia {
 		public int iDpi=96;//TODO: get from GetGlobal(ref sDPI, "ScreenDPI");
 		public SGMLDoc sgmlNow=null;//TODO: finish this -- implment this
 		//TODO: make this.GetGlobal call IPC channel named "RetroEngine.Globals"
-		public GNode[] gnodearr=null;//TODO: ALWAYS set gnodearr[x].gnoderRoot;
+		public GNode[] gnodearr=null;
 		public int iNodes;
 		public int iActiveNode;
 		public int iMaxNodesDefault;
 		private int iParseParent;
 		public ITarget tgPane; //window or pane relative to the calling program
 		public GBuffer gbPage;//whole page including area outside of window
-		//public int iSelfClosingTagwords;
+		public int iSelfClosingTagwords;
 		//public string[] sarrSelfClosingTagword; //tagwords with no text, i.e. img, br, or meta
 		//public int iTextTags;
 		//public string[] sarrTextTagPrefixes; //just text, like <!-- tags
