@@ -7,6 +7,9 @@ Taken:
 -blastopak (brand of hose; blastopak.com avail as of 2011-03)
 
 RetroEngine To-do (x=done, date marks bugfixes per release)
+- Remove redundant `ToString(IPoint)` & other point overloads (both in
+  `RMath` and `RTypes`).
+  (See also: https://github.com/poikilos/bonefinity/issues/11)
 -make script boolean (true by default) to disallow multiple instances of form with same exact string used to generate
 -VERY optimized glow effect: copy lightness channel, blur it (about 20pt) then overlay with low opacity
 -VERY optimized DOF: copy lightness channel, blur, then overlay based on z-buffer
@@ -155,7 +158,7 @@ Code Editor
 
 HTML Editor
 -show color block around "rgb([r][%],[g][%],[b][%])" and allow clicking to change, showing palette of all existing colors in document, with non-cascaded-over ones then a seperator then the rest!
-	
+
 Coding practices
 *If you need to get Base.sLastErr, set it to "" before calling the method in question.  This will insure that a previous irrelevant error will not be there when the method has completed.
 *Base.ShowErr and Base.ShowExn APPEND sLastErr.  Therefore sLastErr should be cleared by getting "string sPreviousResult_ExampleVariableName=sLastErr" BEFORE the method is called that you want to test.  Then sLastErr can be obtained again which then clears it again.
@@ -168,7 +171,7 @@ Interface
 -Inventory
 	-color "unused" items in inventory differently (or add shiney outline or something, or put them at the top), and color code inventory into categories
 	-save the last used timestamp and count number of uses per item type
-		
+
 Paletted Interface idea:
 -Use palette to render all interface objects.
 -Render border as as dwInterPal[this.iInterPal][iDistanceFromEdge/maxdistance*127]
@@ -202,8 +205,8 @@ GUI:
 
 
 Componentization:
-		
-		
+
+
 ExpertMultimedia.Base.dll = Anim.cs AssemblyInfo-Base.cs Base.cs Byter.cs Variables.cs Entity.cs Interaction.cs MyCallback.cs Packet.cs Port.cs Scene3D.cs Variables.cs
 
 RetroEngineServer.exe = Core.cs AssemblyInfo-Server.cs BlockWords.cs Language.cs Mass3D.cs
@@ -222,10 +225,10 @@ RetroEngine.exe = RetroEngine.cs AssemblyInfo-RetroEngine.cs Client.cs Controlle
 	-gets the relevant world data from the server (locally) every FRAME
 		-renders the graphics
 
-		
+
 Check code at comments:
 //for every Var type
-  -makes sure all var types are accounted for: 
+  -makes sure all var types are accounted for:
 //debug only
 
 Copies of files:
