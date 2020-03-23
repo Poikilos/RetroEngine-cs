@@ -1,16 +1,15 @@
-
 using System;
 using System.Net;
 using System.IO;
 using System.Globalization;
-using System.Collections;
 
 //TODO: have option to cut out, mark, or otherwise set aside items with
 // "/" or "area" in location or other specified characteristics.
 //--have a way to click once (quick click on items in list) to push items into a low-priority or "Junk" folder 
+//TODO: rename HyperText to MarkupScrape
 
-namespace ExpertMultimedia {
-	public class RHyperText {
+namespace classifoo {
+	public class HyperText {
 		public static readonly string[] sarrMo=new string[] {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
 		private static readonly int[] iarrMoLenUSEDaysInMonthTOACCOUNTFORLEAP=new int[]    {31,28,31,30,31,30, 31,31,30,31,30,31};
 		public int iSelLoc=0;
@@ -22,13 +21,15 @@ namespace ExpertMultimedia {
 		public static int iForcedRenames=0;
 		string sData="";
 		string sFile="";
-		private string sHyperTextNewLine="\n";//DetectNewLine() to set. //formerly sNewLine
+		private string sNewLine="\n";//DetectNewLine() to set.
+		private static readonly string sPossibleNewLineChars="\r\n"; //(CR+LF, 0x0D 0x0A, {13,10})
+		private static readonly string sPossibleSpacingChars=" \t\0";
 		public int Length {
 			get { return (sData==null) ? 0 : sData.Length; }
 		}
-		public RHyperText() {
+		public HyperText() {
 		}
-		public RHyperText(string sSourceName, string sSourceData) {
+		public HyperText(string sSourceName, string sSourceData) {
 			sFile=sSourceName;
 			sData=sSourceData;
 		}
@@ -36,7 +37,7 @@ namespace ExpertMultimedia {
 			sFile=sUrl;
 			sData=UrlToData(sUrl);
 			ResetSearch();
-			DetectNewLine();//DOES set sHyperTextNewLine
+			DetectNewLine();
 			return sData!="";
 		}
 		public static bool IsLeapYear(int iYr) {
@@ -85,7 +86,8 @@ namespace ExpertMultimedia {
 				bGood=true;
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"saving hypertext");
+				Console.Error.WriteLine("Error saving HyperText: ");
+				Console.Error.WriteLine(exn.ToString());
 				bGood=false;
 			}
 			return bGood;
@@ -103,7 +105,9 @@ namespace ExpertMultimedia {
 				sReturn=srResponse.ReadToEnd();
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"downloading file","UrlToData(\""+sUrl+"\"):");
+				Console.Error.WriteLine("Error in UrlToData(\""+sUrl+"\"):");
+				Console.Error.WriteLine(exn.ToString());
+				Console.Error.WriteLine();
 			}
 			return sReturn;
 		}//end UrlToData
@@ -123,7 +127,7 @@ namespace ExpertMultimedia {
 				if (iMo<=12&&iMo>0) sReturn=sarrMo[iMo-1];
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn);
+				Console.Error.WriteLine(exn.ToString());
 			}
 			return sReturn;
 		}//end NumToMonth
@@ -155,7 +159,9 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"grabbing date");
+				Console.Error.WriteLine("Error grabbing date:");
+				Console.Error.WriteLine(exn.ToString());
+				Console.Error.WriteLine();
 			}
 			return bFound;
 		}//end GetDateCL
@@ -209,7 +215,9 @@ namespace ExpertMultimedia {
 				}//end while no url found
 			}//end try
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,sVerb,"Hypertext reader");
+				Console.Error.WriteLine("HyperText reader failed while "+sVerb+": ");
+				Console.Error.WriteLine(exn.ToString());
+				Console.Error.WriteLine();
 			}
 			if (sReturn==null) {
 				iSearchLoc=sData.Length;
@@ -219,11 +227,47 @@ namespace ExpertMultimedia {
 		}//end GetNextUrl
 #region text manipulation
 		public string FindBetweenI(string sOpener, string sCloser) {
-			return RString.FindBetweenI(sData,sOpener,sCloser,0); 
+			return FindBetweenI(sData,sOpener,sCloser,0); 
 		}
 		public string FindBetweenI(string sOpener, string sCloser, int iStartFrom) {//case-insensitive
-			return RString.FindBetweenI(sData,sOpener,sCloser,iStartFrom);
+			return FindBetweenI(sData,sOpener,sCloser,iStartFrom);
 		}
+		public static string FindBetweenI(string sDataX, string sOpener, string sCloser, int iStartFrom) {//case-insensitive
+			string sReturn="";
+			string sVerb="starting";
+			try { //string.Compare(sDataX,sOpener,true/*ignore case*/)
+				sVerb="checking whether any data";
+				if (sDataX!=null&&sDataX.Length>0) {
+					sVerb="checking whether beyond range";
+					if (iStartFrom+sOpener.Length<sDataX.Length) {
+						sVerb="looking for opener at "+iStartFrom.ToString();
+						int iOpener=cultureinfo.CompareInfo.IndexOf(sDataX,sOpener,iStartFrom,System.Globalization.CompareOptions.IgnoreCase);
+						if (sOpener!=null) sVerb="looking for closer at "+(iOpener+sOpener.Length).ToString();
+						else sVerb="looking for closer (opener is null!)";
+						int iCloser=cultureinfo.CompareInfo.IndexOf(sDataX,sCloser,iOpener+sOpener.Length,System.Globalization.CompareOptions.IgnoreCase); //sDataX.IndexOf(sCloser,iOpener+sOpener.Length);
+						if (iOpener>-1&&iCloser>iOpener) {
+							sVerb="getting opener length";
+							iOpener+=sOpener.Length;
+							sVerb="getting substring between closer and opener";
+							sReturn=sDataX.Substring(iOpener,iCloser-iOpener);
+							sVerb="finishing";
+						}
+					}
+					else {
+						Console.WriteLine("Warning: result of search would start beyond data (looking for data after \""+sOpener+"\" at index "+iStartFrom.ToString()+" where data length is "+sDataX.Length.ToString()+")");
+					}
+				}//end if any data
+				else {
+					Console.WriteLine("Warning: no data to search (looking for data after \""+sOpener+"\")");
+				}
+			}
+			catch (Exception exn) {
+				Console.Error.WriteLine("Error scraping value while "+sVerb+" {"+StringToDebugProperty("sDataX",sDataX)+"; "+StringToDebugProperty("sOpener",sOpener)+";"+StringToDebugProperty("sCloser",sCloser)+"; iStartFrom:"+iStartFrom.ToString()+"}:");
+				Console.Error.WriteLine(exn.ToString());
+				Console.Error.WriteLine();
+			}
+			return sReturn;
+		}//end FindBetweenI
 		//DateTime dtAd=DateTime.Parse(sDate);//later version of C# also has TryParse
 		public string FindTitleCL() {
 			string sReturn="";
@@ -231,7 +275,8 @@ namespace ExpertMultimedia {
 				sReturn=FindBetweenI("<title>","</title>");
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"finding title","scraping value");
+				Console.Error.WriteLine("Error scraping value:");
+				Console.Error.WriteLine(exn.ToString());
 			}
 			return sReturn;
 		}//end FindTitleCL
@@ -249,10 +294,11 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"scraping value");
+				Console.Error.WriteLine("Error scraping value:");
+				Console.Error.WriteLine(exn.ToString());
 			}
 			return sReturn;
-		}//end FindCostCL
+		}//end 
 		public string FindEmailCL() {
 			string sReturn="";
 			try {
@@ -266,7 +312,7 @@ namespace ExpertMultimedia {
 				Console.Error.WriteLine(exn.ToString());
 			}
 			return sReturn;
-		}//end FindEmailCL
+		}//end 
 		public string FindDateCL() {
 			string sReturn="";
 			try {
@@ -290,7 +336,7 @@ namespace ExpertMultimedia {
 				Console.Error.WriteLine(exn.ToString());
 			}
 			return sReturn;
-		}//end FindDescriptionCL
+		}//end 
 		
 		public string FindPostingIDCL() {
 			string sReturn="";
@@ -303,7 +349,7 @@ namespace ExpertMultimedia {
 				Console.Error.WriteLine(exn.ToString());
 			}
 			return sReturn;
-		}//end FindPostingIDCL
+		}//end 
 		//extract (<li> text)
 		/*
 		public string FindLocationCL() {
@@ -334,7 +380,7 @@ namespace ExpertMultimedia {
 				Console.Error.WriteLine(exn.ToString());
 			}
 			return sReturn;
-		}//end FindLocationCL
+		}//end 
 		public string FindCompensationCL() {//"<li> Compensation: " list item OR check title for "$"
 			string sReturn="";
 			try {
@@ -346,7 +392,7 @@ namespace ExpertMultimedia {
 				Console.Error.WriteLine(exn.ToString());
 			}
 			return sReturn;
-		}//end FindCompensationCL
+		}//end 
 		public bool FindIfIsContractCL() {//"This is a contract job" OR category=~"gig"
 			bool bReturn=false;
 			try {
@@ -372,8 +418,16 @@ namespace ExpertMultimedia {
 				Console.Error.WriteLine(exn.ToString());
 			}
 			return bReturn;
-		}//end FindIfIsNoCallsCL
+		}//end
+		public static readonly char[] carrDigit=new char[] {'0','1','2','3','4','5','6','7','8','9'};
+		public static bool IsDigit(char cNow) {
+			for (int iNow=0; iNow<carrDigit.Length; iNow++) {
+				if (carrDigit[iNow]==cNow) return true;
+			}
+			return false;
+		}
 		public string FindPhone() {
+			
 			string sReturn="";
 			int iFound=-1;
 			int iLen=0;
@@ -458,10 +512,11 @@ namespace ExpertMultimedia {
 				}//end if found phone number
 			}//end try
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"scraping value");
+				Console.Error.WriteLine("Error scraping value:");
+				Console.Error.WriteLine(exn.ToString());
 			}
 			return sReturn;
-		}//end FindPhone
+		}//end 
 		//extract extra:
 		public static readonly char[] carrValidEmailSymbolsExceptAtSign=new char[] {'!','#','$','%','*','/','?','|','^','{','}','`','~','&','\'','+','-','=','_','.'};
 		public static bool IsValidEmailCharNonAtSign(char cNow) {
@@ -496,7 +551,8 @@ namespace ExpertMultimedia {
 				}//end if still haven't found an extra/nonstandard e-mail address so dig deeper
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"scraping value");
+				Console.Error.WriteLine("Error scraping value:");
+				Console.Error.WriteLine(exn.ToString());
 			}
 			return sReturn;
 		}//end 
@@ -521,7 +577,8 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"scraping value");
+				Console.Error.WriteLine("Error scraping value:");
+				Console.Error.WriteLine(exn.ToString());
 			}
 			return sReturn;
 		}//end 
@@ -576,7 +633,8 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"scraping value");
+				Console.Error.WriteLine("Error scraping value:");
+				Console.Error.WriteLine(exn.ToString());
 			}
 			return sReturn;
 		}//end 
@@ -586,7 +644,8 @@ namespace ExpertMultimedia {
 				//TODO: find company name
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"scraping value");
+				Console.Error.WriteLine("Error scraping value:");
+				Console.Error.WriteLine(exn.ToString());
 			}
 			return sReturn;
 		}//end 
@@ -610,7 +669,8 @@ namespace ExpertMultimedia {
 				} while (iStart>-1);
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"scraping value");
+				Console.Error.WriteLine("Error scraping value:");
+				Console.Error.WriteLine(exn.ToString());
 			}
 			return sReturn;
 		}//end 
@@ -620,7 +680,8 @@ namespace ExpertMultimedia {
 				if (cultureinfo.CompareInfo.IndexOf(sData,"OK for recruiters to contact this job poster",System.Globalization.CompareOptions.IgnoreCase)>-1) bReturn=true;
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"scraping value");
+				Console.Error.WriteLine("Error scraping value:");
+				Console.Error.WriteLine(exn.ToString());
 			}
 			return bReturn;
 		}//end 
@@ -630,7 +691,8 @@ namespace ExpertMultimedia {
 				if (cultureinfo.CompareInfo.IndexOf(sData,"it's NOT ok to contact this poster with services",System.Globalization.CompareOptions.IgnoreCase)>-1) bReturn=true;
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"scraping value");
+				Console.Error.WriteLine("Error scraping value:");
+				Console.Error.WriteLine(exn.ToString());
 			}
 			return bReturn;
 		}//end FindIfNoCommercialInterestsCL
@@ -640,7 +702,8 @@ namespace ExpertMultimedia {
 				sReturn=FindBetweenI("img src=\"","\"");
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"scraping value");
+				Console.Error.WriteLine("Error scraping value:");
+				Console.Error.WriteLine(exn.ToString());
 			}
 			return sReturn;
 		}//end FindImageUrl
@@ -658,10 +721,11 @@ namespace ExpertMultimedia {
 				}
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"parsing url encoding");
+				Console.Error.WriteLine("Error parsing url encoding:");
+				Console.Error.WriteLine(exn.ToString());
 			}
 			return sReturn;
-		}//end DecodePercentEncoding
+		}
 		public static string DecodeEntities(string sDataX) {
 			string sReturn=sDataX;
 			try {
@@ -688,7 +752,8 @@ namespace ExpertMultimedia {
 				}//end while has html entity openers and closers
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,"decoding html entities");
+				Console.Error.WriteLine("Error decoding html entities:");
+				Console.Error.WriteLine(exn.ToString());
 			}
 			return sReturn;
 		}//end DecodeEntities
@@ -729,8 +794,66 @@ namespace ExpertMultimedia {
 
 #region utilities
 		private void DetectNewLine() {
-			sHyperTextNewLine=RString.DetectNewLine(sData);
+			sNewLine=DetectNewLine(sData);
 		}
+		public static string DetectNewLine(string sDataX) {
+			string sReturn="";
+			int iNow;
+			int iLoc;
+			int iUsedMethods=0;
+			if (sDataX!=null&&sDataX.Length>0&&sPossibleNewLineChars!=null&&sPossibleNewLineChars.Length>0) {
+				bool[] barrUsed=new bool[sPossibleNewLineChars.Length];
+				for (iNow=0; iNow<barrUsed.Length; iNow++) barrUsed[iNow]=false;
+				for (iNow=0; iNow<sDataX.Length; iNow++) {
+					for (int iMethod=0; iMethod<sPossibleNewLineChars.Length; iMethod++) {
+						if ( sDataX[iNow]==sPossibleNewLineChars[iMethod] && !barrUsed[iMethod] ) {
+							sReturn+=sDataX[iNow];
+							barrUsed[iMethod]=true;
+							iUsedMethods++;
+							break;
+						}
+					}
+					if (iUsedMethods>=sPossibleNewLineChars.Length) break;
+				}
+			}
+			return sReturn;
+		}//this is just to blow your mind
+		public static int MinVal(int[] arrVal) {
+			int val=int.MaxValue;//error condition
+			if (arrVal!=null) {
+				for (int iNow=0; iNow<arrVal.Length; iNow++) {
+					if (arrVal[iNow]<val) val=arrVal[iNow];
+				}
+			}
+			return val;
+		}//end MinVal
+		public static int MaxVal(int[] arrVal) {
+			int val=int.MinValue;//error condition
+			if (arrVal!=null) {
+				for (int iNow=0; iNow<arrVal.Length; iNow++) {
+					if (arrVal[iNow]>val) val=arrVal[iNow];
+				}
+			}
+			return val;
+		}//end MaxVal
+		public static int MinPosVal(int[] arrVal) {
+			int val=int.MaxValue;//error condition
+			if (arrVal!=null) {
+				for (int iNow=0; iNow<arrVal.Length; iNow++) {
+					if ( arrVal[iNow]>=0 && arrVal[iNow]<val ) val=arrVal[iNow];
+				}
+			}
+			return val;
+		}//end MinPosVal
+		public static int MaxPosVal(int[] arrVal) {
+			int val=0;//error condition
+			if (arrVal!=null) {
+				for (int iNow=0; iNow<arrVal.Length; iNow++) {
+					if ( /*arrVal[iNow]>=0 && */ arrVal[iNow]>val ) val=arrVal[iNow];
+				}
+			}
+			return val;
+		}//end MaxPosVal
 		public static bool UrlToFile(string sFileX, string sUrl) {
 			bool bGood=false;
 			string sVerb="initializing";
@@ -767,14 +890,156 @@ namespace ExpertMultimedia {
 				webrespNow.Close();
 			}
 			catch (Exception exn) {
-				RReporting.ShowExn(exn,sVerb,String.Format("UrlToFile(){{bytes-read:{0}}}",iBytesTotal));
+				Console.Error.WriteLine("Error while "+sVerb+" ("+iBytesTotal.ToString()+" bytes read):");
+				Console.Error.WriteLine(exn.ToString());
 			}
 			return bGood;
 		}//end UrlToFile
+		public static string ReplaceAny(string sSrc, char[] sOld, char cNew) {
+			try {
+				if (sSrc!=null&&sOld!=null) {
+					for (int iNow=0; iNow<sSrc.Length; iNow++) {
+						for (int iChar=0; iChar<sOld.Length; iChar++) {
+							if (sSrc[iNow]==sOld[iChar]) {
+								if (iNow==0) sSrc=char.ToString(cNew)+sSrc.Substring(iNow+1);
+								else if (iNow+1<sSrc.Length) sSrc=sSrc.Substring(0,iNow)+char.ToString(cNew)+sSrc.Substring(iNow+1);
+								else sSrc=sSrc.Substring(0,iNow)+char.ToString(cNew);
+								break;
+							}
+						}
+					}
+				}
+			}
+			catch (Exception exn) {
+				Console.Error.WriteLine("Error replacing characters");
+				Console.Error.WriteLine(exn.ToString());
+			}
+			return sSrc;
+		}//end ReplaceAny(string, char[], char)
+		public static string ReplaceAny(string sSrc, string sOld, string cNew) {
+			try {
+				if (sSrc!=null&&sOld!=null) {
+					for (int iNow=0; iNow<sSrc.Length; iNow++) {
+						for (int iChar=0; iChar<sOld.Length; iChar++) {
+							if (sSrc[iNow]==sOld[iChar]) {
+								if (iNow==0) sSrc=cNew+sSrc.Substring(iNow+1);
+								else if (iNow+1<sSrc.Length) sSrc=sSrc.Substring(0,iNow)+cNew+sSrc.Substring(iNow+1);
+								else sSrc=sSrc.Substring(0,iNow)+cNew;
+								break;
+							}
+						}
+					}
+				}
+			}
+			catch (Exception exn) {
+				Console.Error.WriteLine("Error replacing string characters");
+				Console.Error.WriteLine(exn.ToString());
+			}
+			return sSrc;
+		}//end ReplaceAny(string,string,string)
+		public static string DirSep {
+			get {return char.ToString(Path.DirectorySeparatorChar);}
+		}
+		public static string StringToDebugProperty(string sName, string sVal) {
+			return sName  +  ( sVal==null ? ":null" : (sVal==""?":\"\"":".Length:"+sVal.Length.ToString()) );
+		}
+		public static bool StyleSplit(out string[] sarrName, out string[] sarrValue, string sStyleWithoutCurlyBraces) {
+			bool bGood=true;
+			sarrName=null;
+			sarrValue=null;
+			try {
+				int iStartNow=0;
+				int iStartNext=0;
+				int iValSeperator;
+				int iValEnder;
+				int iFound=0;
+				string sNameNow="";
+				string sValNow="";
+				ArrayList alNames=new ArrayList();
+				ArrayList alValues=new ArrayList();
+				while (iStartNext>-1) {
+					iValSeperator=sStyleWithoutCurlyBraces.Substring(iStartNow).IndexOf(":");
+					iValEnder=sStyleWithoutCurlyBraces.Substring(iStartNow).IndexOf(";");
+					iStartNext=iValEnder;
+					if (iValSeperator>-1) {
+						iValSeperator+=iStartNow;
+						if (iValEnder>-1) {
+							iValEnder+=iStartNow;
+						}
+						else { //may be ok since last value doesn't require ending ';'
+							iValEnder=sStyleWithoutCurlyBraces.Length; //note: iStartNext is already -1 now
+						}
+
+						if (iValEnder>iValSeperator) { //if everything is okay
+						}
+						else {
+							Base.ShowErr("Null style value in \""+sStyleWithoutCurlyBraces.Substring(iStartNow)+"\".","StyleSplit");
+							iStartNext=sStyleWithoutCurlyBraces.Substring(iValSeperator).IndexOf(";");
+							int iEnder=0;
+							bGood=false;
+							if (iStartNext>-1) {
+								iEnder=iStartNext+iValSeperator; //this is an ACTUAL location since iValSeperator was already incremented by iStartNow
+								sNameNow=Base.SafeSubstringByInclusiveEnder(sStyleWithoutCurlyBraces, iStartNow, iEnder-1);
+							}
+							else sNameNow="";
+							sValNow="";
+						}
+						Base.RemoveEndsSpacing(ref sValNow);
+						Base.RemoveEndsSpacing(ref sNameNow);
+						if (sNameNow.Length>0) {
+							alNames.Add(sNameNow);
+							alValues.Add(sValNow);
+							iFound++;
+						}
+						else {
+							if (iStartNext!=-1) {
+								iStartNext=-1;
+								Base.ShowErr("Variable name expected in: \""+sStyleWithoutCurlyBraces.Substring(iStartNow)+"\".","StyleSplit");
+								bGood=false;
+							}
+						}
+					}
+					else {
+						bGood=false;
+						Base.ShowErr("Missing style colon in \""+sStyleWithoutCurlyBraces.Substring(iStartNow)+"\".","StyleSplit");
+						break;
+					}
+					iStartNow=iStartNext;
+				}
+				if (iFound>0) {
+					if (alValues.Count==alNames.Count) {
+						sarrName=new string[iFound];
+						sarrValue=new string[iFound];
+						for (int iPop=0; iPop<iFound; iPop++) {
+							sarrName[iPop]=alNames[iPop].ToString();
+							sarrValue[iPop]=alValues[iPop].ToString();
+						}
+					}
+					else {
+						bGood=false;
+						string sErr="Values/Names count do not match--";
+						Base.StyleBegin(ref sErr);
+						Base.StyleAppend(ref sErr, "alNames_Count", alNames.Count);
+						Base.StyleAppend(ref sErr, "alValues_Count", alValues.Count);
+						Base.StyleEnd(ref sErr);
+						Base.ShowErr(sErr,"StyleSplit");
+					}
+				}
+				else {
+					sarrName=null;
+					sarrValue=null;
+					Base.ShowErr("No style variables in \""+sStyleWithoutCurlyBraces+"\"!","StyleSplit");
+					bGood=false;
+				}
+			}
+			catch (Exception exn) {
+				Base.ShowExn(exn,"StyleSplit");
+				bGood=false;
+			}
+			return bGood;
+		}//end StyleSplit
 #endregion utilities
-
-
-//public static bool DayAdd(out int iMoReturn, out int iDayReturn, out int iYearReturn, int iMo, int iDay, int iYear, int iDayModifierPosOrNeg) {
+		//public static bool DayAdd(out int iMoReturn, out int iDayReturn, out int iYearReturn, int iMo, int iDay, int iYear, int iDayModifierPosOrNeg) {
 		//}//time math can be done with the DateTime class (convert using dt=DateTime.Parse(string))
 /*
 		public static void StyleAppend(ref string sStyle, string sName, int iValue) {
@@ -795,7 +1060,7 @@ namespace ExpertMultimedia {
 			sStyle+="}";
 		}
 */
-	}//end class RHyperText
+	}//end class HyperText
 	public class CL {//CL category tree
 		public static CLCat[] catarr=null;
 		private static int iCats=0;
@@ -877,7 +1142,8 @@ namespace ExpertMultimedia {
 					}
 				}
 				catch (Exception exn) {
-					RReporting.ShowExn(exn,"setting CL tree array length");
+					Console.Error.WriteLine("Error setting CL tree array length:");
+					Console.Error.WriteLine(exn.ToString());
 				}
 			}//end set Length
 		}//end Length
