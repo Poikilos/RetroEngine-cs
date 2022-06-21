@@ -280,7 +280,7 @@ namespace ExpertMultimedia {
 			int iSecond=(int)(dFrame/(FramesPerSecond));
 			dFrame-=((decimal)iSecond*(FramesPerSecond));
 			decimal SecondsPerFrame=1.0m/FramesPerSecond;
-			int iMillisecond=(int)( dFrame*(1000.0m/FramesPerSecond) +SecondsPerFrame/2.0m);//add SecondsPerFrame/2.0m to get to the "middle" of the frame--so as not to undershoot!"
+			int iMillisecond=(int)( dFrame*(1000.0m/FramesPerSecond) + 1000.0m*SecondsPerFrame/2.0m);//add SecondsPerFrame/2.0m to get to the "middle" of the frame--so as not to undershoot!"
 			return iHour.ToString()+":"+iMinute.ToString()+":"+iSecond.ToString()+"."+iMillisecond.ToString("D3");
 		}//end FrameToHMSDotMs
 		public static string StripProtocol(string sUrl) {
