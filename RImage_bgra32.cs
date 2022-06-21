@@ -2084,9 +2084,9 @@ namespace ExpertMultimedia {
 				double boundary_Y=-.5f;
 				double boundary_W=(double)this.Width;
 				double boundary_H=(double)this.Height;
-				Console.WriteLine("DrawFrom-step1: DrawFrom(dest-rect:"+DRect.ToString(to_X,to_Y,to_W,to_H)+",source-image:"+RImage.Description(source)+")");//debug only
+				Console.Error.WriteLine("DrawFrom-step1: DrawFrom(dest-rect:"+DRect.ToString(to_X,to_Y,to_W,to_H)+",source-image:"+RImage.Description(source)+")");//debug only
 				RImage.CropSourceRectAndGetNewDestScaled(ref from_X, ref from_Y, ref from_W, ref from_H, ref to_X, ref to_Y, ref to_W, ref to_H, boundary_X, boundary_Y, boundary_W, boundary_H);
-				Console.WriteLine("DrawFrom-step2: DrawFrom(dest-rect:"+DRect.ToString(to_X,to_Y,to_W,to_H)+",source-rect:"+DRect.ToString(from_X,from_Y,from_W,from_H)+")");//debug only
+				Console.Error.WriteLine("DrawFrom-step2: DrawFrom(dest-rect:"+DRect.ToString(to_X,to_Y,to_W,to_H)+",source-rect:"+DRect.ToString(from_X,from_Y,from_W,from_H)+")");//debug only
 				bGood=RImage.DrawTo(this,to_X,to_Y,to_W,to_H,source,from_X,from_Y,from_W,from_H,iDrawMode);
 			}
 			catch (Exception exn) {
@@ -2152,7 +2152,7 @@ namespace ExpertMultimedia {
 							if (sFuzzyProperty.Length==4)
 							if (!RConvert.HexColorStringToBGR24(out r, out g, out b, sFuzzyProperty)) {
 								//bTest=false;
-								Console.WriteLine("Failed to convert "+RReporting.StringMessage(sFuzzyProperty,true)+" to color");
+								Console.Error.WriteLine("Failed to convert "+RReporting.StringMessage(sFuzzyProperty,true)+" to color");
 							}
 						}
 						else {
@@ -3033,7 +3033,7 @@ namespace ExpertMultimedia {
 				float original_to_H=to_H;//for debug log only
 				float xInverseScale=from_W/to_W;//float xScale=to_W/from_W;
 				float yInverseScale=from_H/to_H;//float yScale=to_H/from_H;
-				//Console.WriteLine(" CropSourceRectAndGetNewDestScaled step 1: {" +"to_X:"+to_X.ToString() +"; to_Y:"+to_Y.ToString() +"; to_W:"+to_W.ToString() +"; to_H:"+to_H.ToString() +"; from_X:"+from_X.ToString() +"; from_Y:"+from_Y.ToString() +"; from_W:"+from_W.ToString() +"; from_H:"+from_H.ToString() +"} (before doing anything)");//debug only
+				//Console.Error.WriteLine(" CropSourceRectAndGetNewDestScaled step 1: {" +"to_X:"+to_X.ToString() +"; to_Y:"+to_Y.ToString() +"; to_W:"+to_W.ToString() +"; to_H:"+to_H.ToString() +"; from_X:"+from_X.ToString() +"; from_Y:"+from_Y.ToString() +"; from_W:"+from_W.ToString() +"; from_H:"+from_H.ToString() +"} (before doing anything)");//debug only
 				//RMath.CropRect only crops top or left if LESS THAN boundary, only crops bottom or right IF GREATER than edge:
 				//bGood=RMath.CropRect(ref to_X, ref to_Y, ref to_W, ref to_H, boundary_X, boundary_Y, boundary_W, boundary_H); //use FULL width&height since measuring from -.5 to last pixel+.5
 				//BELOW has to be done as opposed to RMath.CropRect since source width has to be adjusteed ONLY when dest does, not every time it ends up changing due to top-left cropping

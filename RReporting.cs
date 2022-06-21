@@ -59,6 +59,7 @@ namespace ExpertMultimedia {
 						participle=value;
 						if (bMegaDebug) {
 							Error_WriteDateIfFirstLine();
+							System.Diagnostics.Debug.WriteLine(value);
 							//Console.Error.WriteLine(sMegaDebugPrefix+"Frame["+RApplication.Render_Primary_Runs.ToString()+"]"+participle);
 						}
 					}
@@ -318,6 +319,7 @@ namespace ExpertMultimedia {
 			Error_WriteDateIfFirstLine();
 			string sLine= ( RReporting.IsNotBlank(sMsg) ? (sMsg) : "Error" )  +  ParticipleToAdverbClause(sParticiple) + NounToPreposition(sFuncName);
 			Console.Error.WriteLine(sLine);
+			System.Diagnostics.Debug.WriteLine(sLine);
 		}//end ShowErr(string)
 		
 		
