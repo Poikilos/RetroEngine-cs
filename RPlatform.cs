@@ -4,9 +4,11 @@
 //Requirements:
 //-Vars.cs (which does have cross-dependency)
 using System;
-// using System.IO;
-// using System.Text.RegularExpressions;
 // using System.Collections;
+using System.Collections.Generic;  // List
+using System.IO;  // Path
+// using System.Text.RegularExpressions;
+
 // using System.Drawing;//ONLY for imageformat
 // using System.Drawing.Imaging;//ONLY for imageformat
 // using System.Windows.Forms;//ONLY for PictureBox
@@ -27,12 +29,43 @@ namespace ExpertMultimedia {
 		#region variables
 		private static readonly char[] carrInvalidPathChars_Windows=new char[] {'\\','/',':','*','?','"','<','>','|'};
 		//public static RCallback rcbBlank=null;//formerly mcbNULL
+		static List<string> paths = null;
+		static List<string> dotExtensions = null;
+		public static List<string> Paths {
+			get {
+				return paths;
+			}
+		}
 		#endregion variables
 		
 		#region platform
+		/*
+		// backward-compatible checks:
+		
 		public static bool IsWindows() {//formerly PlatformIsWindows
 			return Environment.OSVersion.ToString().IndexOf("Win")>=0;
+			// ^ for example, "Microsoft Windows NT 6.1.7601.0" for Windows 7,
+			//   6.2.* for 8, 6.3.* for 8.1, 10 for 10.
 		}
+		public static bool IsLinux() {
+	        int p = (int) Environment.OSVersion.Platform;
+	        return (p == 4) || (p == 6) || (p == 128);
+		}
+		*/
+	    private static bool IsWindows()
+	    {
+	        return Environment.OSVersion.Platform == PlatformID.Win32NT;
+	    }
+	
+	    private static bool IsLinux()
+	    {
+	        return Environment.OSVersion.Platform == PlatformID.Unix;
+	    }
+	
+	    private static bool IsMacOS()
+	    {
+	        return Environment.OSVersion.Platform == PlatformID.MacOSX;
+	    }		
 		public static bool IsValidPathChar_AnyPlatform(char val) {
 			bool bReturn=true;
 			for (int i=0; i<carrInvalidPathChars_Windows.Length; i++) {
@@ -97,6 +130,52 @@ namespace ExpertMultimedia {
 			else RReporting.Warning("Sent a blank string to RPlatform Run(string sSystemCommand)");
 			return bGood;
 		}//end Run
+		
+		public static string Which(string filename) {
+	        string path = Environment.GetEnvironmentVariable("PATH");
+	        if (paths == null) {
+	            paths = new List<string>(path.Split(Path.PathSeparator));
+	            if (IsWindows()) {
+	                paths.Add(@"C:\PortableApps\winbuilds\bin");
+	                paths.Add(@"E:\progs\video\gui4ffmpeg");
+	            }
+	        }
+	
+	        if (dotExtensions == null) {
+	            dotExtensions = new List<string> { ".exe", ".ps1", ".bat" };
+	            if (IsWindows()) {
+	                dotExtensions.Add(".exe");
+	                dotExtensions.Add(".ps1");
+	                dotExtensions.Add(".bat");
+	            }
+	            else if (IsLinux()) {
+	                dotExtensions.Add(".sh");
+	            }
+	            else if (IsMacOS()) {
+	                dotExtensions.Add(".command");
+	            }
+	        }
+	
+	        List<string> names = new List<string> { filename };
+	        if (Path.GetExtension(filename) == "") {
+	            // Code to handle when the file has no extension.
+	            foreach (string dotExtension in dotExtensions)
+	            	names.Add(filename + dotExtension);
+	        }
+	
+	        for (int i = paths.Count - 1; i >= 0; i--) {
+	            // Reverse since paths added by programs
+	            // are likely where programs are that we need to run in a new project.
+	            foreach (string name in names) {
+	                string fullpath = Path.Combine(paths[i], name);
+	                if (File.Exists(fullpath)) {
+	                    return fullpath;
+	                }
+	            }
+	        }
+	        // filename does not exist in path
+	        return null;
+	    }
 		#endregion platform
 		
 	}//end RPlatform partial class
