@@ -10,247 +10,247 @@ using System;
 //using Tao.Sdl;
 
 namespace ExpertMultimedia {
-	public class RKey {
-		public const int Ignore=0;
-		public const int Text=1;
-		public const int TextCommand=2;
-		public const int Command=3;
-		public const int Modifier=4;
-		public const int Modal=5;
-		public int sym;
-		public char unicode;
-		public bool bAlive;
-		public RKey() {
-			unicode='\0';
-			sym=0;
-			bAlive=false;
-		}
-		public override string ToString() {
-			return "unicode:"+unicode.ToString()+"; keysym:"+sym.ToString()+"; ";
-		}
-	}
-	/// <summary>
-	/// Description of RKeyboard.
-	/// </summary>
-	public class RKeyboard { //TODO:? combine this into an all-encompassing controller class, to allow for multifunction devices?
-		//public const int Backspace=100;
-		//public const int PgUp=101;
-		//public const int PgDn=102;
-		//public const int Delete=103;
-		//public const int Insert=104;
-		//public const int Home=105;
-		//public const int End=106;
-		//public const int ArrowUp=107;
-		//public const int ArrowDown=108;
-		//public const int ArrowLeft=109;
-		//public const int ArrowRight=110;
-		private RKey[] keyarrDown=null;
-		//private RKey[] keyarrTrans=null;
-		private string sCharBuffer;
-		private int iMaxKeysDown;
-		//private int MaxScanCodes;
-		private int iMaxCharBuffer;
-		//private int iKeysDown;
-		private int iMaxKeyDown;
-		//private int iKeysKnown;
-		private char cLastKeyDown;
-		private char cLastKeyUp;
-		private int iKeyDownDelayTickLast;
-		public int iKeyDownDelay;
-		public string StateToString() {
-			string sReturn="";
-			for (int iNow=0; iNow<keyarrDown.Length; iNow++) {
-				if (keyarrDown[iNow]!=null&&keyarrDown[iNow].bAlive) {
-					sReturn+=(sReturn=="")?keyarrDown[iNow].ToString():("+"+keyarrDown[iNow].ToString());
-				}
-			}
-			return "{"+sReturn+"}";
-		}
-		public int MaxKeysDown {
-			get {
-				return iMaxKeysDown;
-			}
-		}
-		public char KeyDownLastUnicode {
-			get {
-				return cLastKeyDown;//(char)byarrDown[iLastKeyDown].unicode;
-			}
-		}
-		public char KeyUpLastUnicode {
-			get {
-				return cLastKeyUp;//(char)byarrDown[iLastKeyUp].unicode;
-			}
-		}
-		public RKeyboard() {
-			Init(8,256);
-		}
-		//TODO: Exception handling
-		/// <summary>
-		/// 
-		/// </summary>
-		/// <param name="iKeyboardCommand"></param>
-		/// <returns>Whether the command was handled</returns>
-		public bool PushCommand(int sym, char unicode) {
-			bool bHandled=false;
-			//TODO: replace this function, and send each key and command to active item on screen
-			if ( (!KeyIsDown(sym)) || (RPlatform.TickCount-iKeyDownDelayTickLast>=iKeyDownDelay) ) {
-				//switch (sym) {
-				//	case Sdl.SDLK_BACKSPACE:
-				//		DoBackspace();
-				//		bHandled=true;
-				//		break;
-				//	default:break;
-				//}
-				//if (bHandled)
-					Push(sym,unicode,true);
-				iKeyDownDelayTickLast=RPlatform.TickCount;
-			}
-			return bHandled;
-		}
-		public RKeyboard(int Set_iMaxKeysDown) {
-			Init(Set_iMaxKeysDown,256);
-		}
-		private void DoBackspace() {
-			if (sCharBuffer.Length>0) sCharBuffer=sCharBuffer.Substring(0,sCharBuffer.Length-1);
-		}
-		private void Init(int Set_iMaxKeysDown, int Set_iMaxCharBuffer) {
-			iMaxKeysDown=Set_iMaxKeysDown;
-			//MaxScanCodes=Set_MaxScanCodes;
-			InitKeyArr(Set_iMaxKeysDown);
-			//keyarrTrans=new RKey[MaxScanCodes];
-			sCharBuffer="";
-			iMaxCharBuffer=Set_iMaxCharBuffer;
-			//iKeysKnown=0;
-			cLastKeyDown='\0';
-			cLastKeyUp='\0';
-			iKeyDownDelayTickLast=RPlatform.TickCount;//Sdl.SDL_GetTicks()
-			iKeyDownDelay=400;
-			iMaxKeyDown=0;
-		}
-		public void InitKeyArr(int Set_iMaxKeysDown) {
-			iMaxKeysDown=Set_iMaxKeysDown;
-			//iKeysDown=0;
-			iMaxKeyDown=0;
-			keyarrDown=new RKey[iMaxKeysDown];
-			for (int iKey=0; iKey<iMaxKeysDown; iKey++) {
-				keyarrDown[iKey]=new RKey();
-			}
-		}
-		public string KeysDownUnicodeToString() {
-			string sReturn="";
-			for (int iKey=0; iKey<iMaxKeyDown; iKey++) {
-				if (keyarrDown[iKey].bAlive==true) {
-					sReturn+=Char.ToString(keyarrDown[iKey].unicode);
-				}
-			}
-			return sReturn;
-		}
-		public void KeysDownKeySyms(ref int[] iarrReturn_MustHave__this_MaxKeysDown__Elements) {///formerly KeysDownSDLSymbols
-			int iKeys=0;
-			//debug performance
-			for (int iKey=0; iKey<iMaxKeyDown; iKey++) {
-				if (keyarrDown[iKey].bAlive==true) {
-					iKeys++;
-				}
-			}
-			//int[] iarrReturn=new int[iKeys];
-			iKeys=0;
-			for (int iKey=0; iKey<iMaxKeyDown; iKey++) {
-				if (keyarrDown[iKey].bAlive==true) {
-					iarrReturn_MustHave__this_MaxKeysDown__Elements[iKeys]=keyarrDown[iKey].sym;
-					iKeys++;
-				}
-			}
-			//return iarrReturn_MustHave__this_MaxKeysDown__Elements;
-		}
-		public bool KeyIsDown(int sym) {
-			bool bDown=false;
-			//TODO: check key delay
-			iKeyDownDelayTickLast=RPlatform.TickCount;
-			for (int iKey=0; iKey<iMaxKeyDown; iKey++) {
-				if (keyarrDown[iKey].bAlive==true) {
-					if (keyarrDown[iKey].sym==sym) {
-						bDown=true;
-						//keyarrDown[iKey].bAlive=false;
-						//iKeysDown++;
-						break;
-					}
-				}
-			}
-			return bDown;
-		}
-		public void Push(int sym, char unicode) {
-			Push(sym, unicode, true);
-		}
-		public void Push(int sym, char unicode, bool bTypeText) {
-			if (!KeyIsDown(sym)) {
-				//SetKeyKnown(sym, unicode);
-				//TypingBufferAdd(unicode);
-				//if (iKeysDown<iMaxKeysDown) {
-					for (int iKey=0; iKey<iMaxKeysDown; iKey++) {
-						if (!keyarrDown[iKey].bAlive) {
-							keyarrDown[iKey].bAlive=true;
-							keyarrDown[iKey].sym=sym;
-							keyarrDown[iKey].unicode=unicode;
-							cLastKeyDown=unicode;
-							//iKeysDown++;
-							if (bTypeText&&cLastKeyDown!='\0') TypingBufferAdd(cLastKeyDown);
-							if (iKey>iMaxKeyDown) iMaxKeyDown=iKey;
-							break;
-						}
-					}
-				//}
-			}
-		}
-		public void Release(int sym) {
-			//if (iKeysDown>0) {
-				for (int iKey=0; iKey<iMaxKeysDown; iKey++) {
-					if (keyarrDown[iKey].sym==sym) {
-						keyarrDown[iKey].bAlive=false;
-						cLastKeyUp=keyarrDown[iKey].unicode;
-						//iKeysDown--;
-						if (iMaxKeyDown==iKey) {
-							iMaxKeyDown--; //approximate
-							if (iMaxKeyDown<0) iMaxKeyDown=0;
-						}
-						break;
-					}
-				}
-			//}
-		}
-		//public void SetKeyKnown(int sym, char unicode) {
-		//	if (!KeyKnown(sym)) {
-		//		if (iKeysKnown<MaxScanCodes) {
-		//			keyarrTrans[iKeysKnown]=new RKey();
-		//			keyarrTrans[iKeysKnown].sym=sym;
-		//			keyarrTrans[iKeysKnown].unicode=unicode;
-		//			iKeysKnown++;
-		//		}
-		//	}
-		//}
-		//public bool KeyKnown(int sym) {
-		//	bool bFound=false;
-		//	for (int iKey=0; iKey<iKeysKnown; iKey++) {
-		//		if (keyarrTrans[iKey].sym==sym) {
-		//			bFound=true;
-		//			break;
-		//		}
-		//	}
-		//	return bFound;
-		//}
-		public string TypingBuffer(bool bClear) {
-			if (bClear) {
-				string sReturn=sCharBuffer;
-				sCharBuffer="";
-				return sReturn;
-			}
-			else return sCharBuffer;
-		}
-		public void TypingBufferAdd(char cAdd) {
-			if (sCharBuffer.Length<iMaxCharBuffer) sCharBuffer+=Char.ToString(cAdd);
-		}
-		public void TypingBufferAdd(string sAdd) {
-			if (sCharBuffer.Length+sAdd.Length<=iMaxCharBuffer) sCharBuffer+=sAdd;
-		}
-	}//end class RKeyboard
+    public class RKey {
+        public const int Ignore=0;
+        public const int Text=1;
+        public const int TextCommand=2;
+        public const int Command=3;
+        public const int Modifier=4;
+        public const int Modal=5;
+        public int sym;
+        public char unicode;
+        public bool bAlive;
+        public RKey() {
+            unicode='\0';
+            sym=0;
+            bAlive=false;
+        }
+        public override string ToString() {
+            return "unicode:"+unicode.ToString()+"; keysym:"+sym.ToString()+"; ";
+        }
+    }
+    /// <summary>
+    /// Description of RKeyboard.
+    /// </summary>
+    public class RKeyboard { //TODO:? combine this into an all-encompassing controller class, to allow for multifunction devices?
+        //public const int Backspace=100;
+        //public const int PgUp=101;
+        //public const int PgDn=102;
+        //public const int Delete=103;
+        //public const int Insert=104;
+        //public const int Home=105;
+        //public const int End=106;
+        //public const int ArrowUp=107;
+        //public const int ArrowDown=108;
+        //public const int ArrowLeft=109;
+        //public const int ArrowRight=110;
+        private RKey[] keyarrDown=null;
+        //private RKey[] keyarrTrans=null;
+        private string sCharBuffer;
+        private int iMaxKeysDown;
+        //private int MaxScanCodes;
+        private int iMaxCharBuffer;
+        //private int iKeysDown;
+        private int iMaxKeyDown;
+        //private int iKeysKnown;
+        private char cLastKeyDown;
+        private char cLastKeyUp;
+        private int iKeyDownDelayTickLast;
+        public int iKeyDownDelay;
+        public string StateToString() {
+            string sReturn="";
+            for (int iNow=0; iNow<keyarrDown.Length; iNow++) {
+                if (keyarrDown[iNow]!=null&&keyarrDown[iNow].bAlive) {
+                    sReturn+=(sReturn=="")?keyarrDown[iNow].ToString():("+"+keyarrDown[iNow].ToString());
+                }
+            }
+            return "{"+sReturn+"}";
+        }
+        public int MaxKeysDown {
+            get {
+                return iMaxKeysDown;
+            }
+        }
+        public char KeyDownLastUnicode {
+            get {
+                return cLastKeyDown;//(char)byarrDown[iLastKeyDown].unicode;
+            }
+        }
+        public char KeyUpLastUnicode {
+            get {
+                return cLastKeyUp;//(char)byarrDown[iLastKeyUp].unicode;
+            }
+        }
+        public RKeyboard() {
+            Init(8,256);
+        }
+        //TODO: Exception handling
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="iKeyboardCommand"></param>
+        /// <returns>Whether the command was handled</returns>
+        public bool PushCommand(int sym, char unicode) {
+            bool bHandled=false;
+            //TODO: replace this function, and send each key and command to active item on screen
+            if ( (!KeyIsDown(sym)) || (RPlatform.TickCount-iKeyDownDelayTickLast>=iKeyDownDelay) ) {
+                //switch (sym) {
+                //    case Sdl.SDLK_BACKSPACE:
+                //        DoBackspace();
+                //        bHandled=true;
+                //        break;
+                //    default:break;
+                //}
+                //if (bHandled)
+                    Push(sym,unicode,true);
+                iKeyDownDelayTickLast=RPlatform.TickCount;
+            }
+            return bHandled;
+        }
+        public RKeyboard(int Set_iMaxKeysDown) {
+            Init(Set_iMaxKeysDown,256);
+        }
+        private void DoBackspace() {
+            if (sCharBuffer.Length>0) sCharBuffer=sCharBuffer.Substring(0,sCharBuffer.Length-1);
+        }
+        private void Init(int Set_iMaxKeysDown, int Set_iMaxCharBuffer) {
+            iMaxKeysDown=Set_iMaxKeysDown;
+            //MaxScanCodes=Set_MaxScanCodes;
+            InitKeyArr(Set_iMaxKeysDown);
+            //keyarrTrans=new RKey[MaxScanCodes];
+            sCharBuffer="";
+            iMaxCharBuffer=Set_iMaxCharBuffer;
+            //iKeysKnown=0;
+            cLastKeyDown='\0';
+            cLastKeyUp='\0';
+            iKeyDownDelayTickLast=RPlatform.TickCount;//Sdl.SDL_GetTicks()
+            iKeyDownDelay=400;
+            iMaxKeyDown=0;
+        }
+        public void InitKeyArr(int Set_iMaxKeysDown) {
+            iMaxKeysDown=Set_iMaxKeysDown;
+            //iKeysDown=0;
+            iMaxKeyDown=0;
+            keyarrDown=new RKey[iMaxKeysDown];
+            for (int iKey=0; iKey<iMaxKeysDown; iKey++) {
+                keyarrDown[iKey]=new RKey();
+            }
+        }
+        public string KeysDownUnicodeToString() {
+            string sReturn="";
+            for (int iKey=0; iKey<iMaxKeyDown; iKey++) {
+                if (keyarrDown[iKey].bAlive==true) {
+                    sReturn+=Char.ToString(keyarrDown[iKey].unicode);
+                }
+            }
+            return sReturn;
+        }
+        public void KeysDownKeySyms(ref int[] iarrReturn_MustHave__this_MaxKeysDown__Elements) {///formerly KeysDownSDLSymbols
+            int iKeys=0;
+            //debug performance
+            for (int iKey=0; iKey<iMaxKeyDown; iKey++) {
+                if (keyarrDown[iKey].bAlive==true) {
+                    iKeys++;
+                }
+            }
+            //int[] iarrReturn=new int[iKeys];
+            iKeys=0;
+            for (int iKey=0; iKey<iMaxKeyDown; iKey++) {
+                if (keyarrDown[iKey].bAlive==true) {
+                    iarrReturn_MustHave__this_MaxKeysDown__Elements[iKeys]=keyarrDown[iKey].sym;
+                    iKeys++;
+                }
+            }
+            //return iarrReturn_MustHave__this_MaxKeysDown__Elements;
+        }
+        public bool KeyIsDown(int sym) {
+            bool bDown=false;
+            //TODO: check key delay
+            iKeyDownDelayTickLast=RPlatform.TickCount;
+            for (int iKey=0; iKey<iMaxKeyDown; iKey++) {
+                if (keyarrDown[iKey].bAlive==true) {
+                    if (keyarrDown[iKey].sym==sym) {
+                        bDown=true;
+                        //keyarrDown[iKey].bAlive=false;
+                        //iKeysDown++;
+                        break;
+                    }
+                }
+            }
+            return bDown;
+        }
+        public void Push(int sym, char unicode) {
+            Push(sym, unicode, true);
+        }
+        public void Push(int sym, char unicode, bool bTypeText) {
+            if (!KeyIsDown(sym)) {
+                //SetKeyKnown(sym, unicode);
+                //TypingBufferAdd(unicode);
+                //if (iKeysDown<iMaxKeysDown) {
+                    for (int iKey=0; iKey<iMaxKeysDown; iKey++) {
+                        if (!keyarrDown[iKey].bAlive) {
+                            keyarrDown[iKey].bAlive=true;
+                            keyarrDown[iKey].sym=sym;
+                            keyarrDown[iKey].unicode=unicode;
+                            cLastKeyDown=unicode;
+                            //iKeysDown++;
+                            if (bTypeText&&cLastKeyDown!='\0') TypingBufferAdd(cLastKeyDown);
+                            if (iKey>iMaxKeyDown) iMaxKeyDown=iKey;
+                            break;
+                        }
+                    }
+                //}
+            }
+        }
+        public void Release(int sym) {
+            //if (iKeysDown>0) {
+                for (int iKey=0; iKey<iMaxKeysDown; iKey++) {
+                    if (keyarrDown[iKey].sym==sym) {
+                        keyarrDown[iKey].bAlive=false;
+                        cLastKeyUp=keyarrDown[iKey].unicode;
+                        //iKeysDown--;
+                        if (iMaxKeyDown==iKey) {
+                            iMaxKeyDown--; //approximate
+                            if (iMaxKeyDown<0) iMaxKeyDown=0;
+                        }
+                        break;
+                    }
+                }
+            //}
+        }
+        //public void SetKeyKnown(int sym, char unicode) {
+        //    if (!KeyKnown(sym)) {
+        //        if (iKeysKnown<MaxScanCodes) {
+        //            keyarrTrans[iKeysKnown]=new RKey();
+        //            keyarrTrans[iKeysKnown].sym=sym;
+        //            keyarrTrans[iKeysKnown].unicode=unicode;
+        //            iKeysKnown++;
+        //        }
+        //    }
+        //}
+        //public bool KeyKnown(int sym) {
+        //    bool bFound=false;
+        //    for (int iKey=0; iKey<iKeysKnown; iKey++) {
+        //        if (keyarrTrans[iKey].sym==sym) {
+        //            bFound=true;
+        //            break;
+        //        }
+        //    }
+        //    return bFound;
+        //}
+        public string TypingBuffer(bool bClear) {
+            if (bClear) {
+                string sReturn=sCharBuffer;
+                sCharBuffer="";
+                return sReturn;
+            }
+            else return sCharBuffer;
+        }
+        public void TypingBufferAdd(char cAdd) {
+            if (sCharBuffer.Length<iMaxCharBuffer) sCharBuffer+=Char.ToString(cAdd);
+        }
+        public void TypingBufferAdd(string sAdd) {
+            if (sCharBuffer.Length+sAdd.Length<=iMaxCharBuffer) sCharBuffer+=sAdd;
+        }
+    }//end class RKeyboard
 }//end namespace

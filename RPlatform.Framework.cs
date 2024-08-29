@@ -8,9 +8,9 @@
 using System;
 
 namespace ExpertMultimedia {
-	public partial class RPlatform {
-		public static int TickCount {
-			get { return Environment.TickCount; }
-		}
-	}//end RPlatform
+    public partial class RPlatform {
+        public static int TickCount {
+            get { return Environment.TickCount; }
+        }
+    }//end RPlatform
 }//end namespace

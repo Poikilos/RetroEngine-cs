@@ -5,11 +5,11 @@ using System;
 using Tao.Sdl;
 
 namespace ExpertMultimedia {
-	public class PlatformNow {
-		public static int TickCount {
-			get {
-				return Sdl.SDL_GetTicks();
-			}
-		}
-	}
+    public class PlatformNow {
+        public static int TickCount {
+            get {
+                return Sdl.SDL_GetTicks();
+            }
+        }
+    }
 }
