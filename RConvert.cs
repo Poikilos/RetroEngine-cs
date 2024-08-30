@@ -5,6 +5,7 @@ using System;
 using System.Drawing;//rectangle etc
 using System.Collections;
 using System.Collections.Generic; //Dictionary etc
+using System.Diagnostics;  // Debug
 using System.IO;
 
 //using REAL = System.Single; //System.Double
@@ -3091,7 +3092,7 @@ namespace ExpertMultimedia {
                     }
                     else sarrRaw[iNow]="";
                     sDebug+=" ensuring quotes becomes \""+(sarrRaw[iNow]!=null?sarrRaw[iNow]:"")+"\"";
-                    Console.Error.WriteLine( String.Format("Argument:{0}",sDebug) );//debug only
+                    Debug.WriteLine("[QuotedArgsToArgs] Argument:{0}", sDebug);
                 }
                 //bool bInQuotes=false;
                 for (iNow=0; iNow<sarrRaw.Length; iNow++) {
@@ -3103,7 +3104,7 @@ namespace ExpertMultimedia {
                     if (iNow!=0) sTemp+=" ";
                     sTemp+=sarrRaw[iNow];
                 }
-                Console.Error.WriteLine( String.Format("Argument string:\"{0}\"",sTemp) );//debug only
+                Debug.WriteLine("Argument string:\"{0}\"", sTemp);
                 sarrReturn=RTable.SplitCSV(sTemp,' ','"');
                 if (sarrReturn!=null) {
                     for (iNow=0; iNow<sarrReturn.Length; iNow++) {
@@ -3113,7 +3114,7 @@ namespace ExpertMultimedia {
                             &&sarrReturn[iNow][0]=='"'&&sarrReturn[iNow][sarrReturn[iNow].Length-1]=='"' )
                             sarrReturn[iNow]=sarrReturn[iNow].Substring(1,sarrReturn[iNow].Length-2);
                         sDebug+=" unquoted becomes \""+(sarrReturn[iNow]!=null?sarrReturn[iNow]:"")+"\"";
-                        Console.Error.WriteLine( String.Format("Argument:{0}",sDebug) );//debug only
+                        Debug.WriteLine("Argument:{0}",sDebug);
                     }
                 }
                 if (sarrReturn!=null) Console.Error.WriteLine("Arguments found:"+sarrReturn.Length); //debug only
